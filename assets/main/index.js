@@ -1099,41 +1099,74 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
         return inside * 2 >= cells.length;
     }
     exports_1("previewVisible", previewVisible);
-    // Reserve every piece's largest orientation so drops/rotations never move another slot.
+    // Reserve each piece's largest width and height across rotations so rotations never collide.
     function trayLayout(pieces, tray) {
-        const extents = pieces.map(piece => {
-            const box = dimensions(piece, 0);
-            return Math.max(box.w, box.h);
+        if (!pieces.length)
+            return { cell: 44, slots: [] };
+        const metrics = pieces.map(piece => {
+            let maxW = 1, maxH = 1;
+            for (const rotation of [0, 1, 2, 3]) {
+                const box = dimensions(piece, rotation);
+                maxW = Math.max(maxW, box.w);
+                maxH = Math.max(maxH, box.h);
+            }
+            return { piece, maxW, maxH };
         });
         const gap = 6;
-        const fit = (rows) => {
-            const count = Math.ceil(pieces.length / rows);
-            let cell = 40;
-            for (let row = 0; row < rows; row++) {
-                const values = extents.slice(row * count, (row + 1) * count);
-                if (values.length)
-                    cell = Math.min(cell, (tray.w - gap * (values.length + 1)) / values.reduce((a, b) => a + b, 0), (tray.h / rows - 2 * gap) / Math.max(...values));
+        let best = { cell: 0, counts: [] };
+        const consider = (counts) => {
+            let start = 0;
+            let heightUnits = 0;
+            let cell = Infinity;
+            for (const count of counts) {
+                const row = metrics.slice(start, start + count);
+                start += count;
+                const widthUnits = row.reduce((sum, entry) => sum + entry.maxW, 0);
+                heightUnits += Math.max(...row.map(entry => entry.maxH));
+                cell = Math.min(cell, (tray.w - gap * (count + 1)) / widthUnits);
             }
-            return { cell, count };
+            cell = Math.min(cell, (tray.h - gap * (counts.length + 1)) / heightUnits);
+            if (cell > best.cell + 0.001)
+                best = { cell, counts: [...counts] };
         };
-        let rows = 1;
-        let result = fit(rows);
-        if (result.cell < 28) {
-            rows = 2;
-            result = fit(rows);
-        }
-        // Layout callers must provide enough room for the specified 20px minimum.
-        if (pieces.length <= 12 && result.cell < 20)
-            throw new Error('Tray too small for 20px luggage cells');
-        const cell = Math.floor(result.cell);
-        const slots = [];
-        for (let row = 0; row < rows; row++) {
-            let x = tray.x + gap;
-            for (let i = row * result.count; i < Math.min((row + 1) * result.count, pieces.length); i++) {
-                const size = extents[i] * cell;
-                slots.push({ piece: pieces[i], rect: { x, y: tray.y + row * tray.h / rows + (tray.h / rows - size) / 2, w: size, h: size } });
-                x += size + gap;
+        const partition = (row, left, counts) => {
+            if (row === 0) {
+                if (left)
+                    counts.push(left);
+                if (left)
+                    consider(counts);
+                if (left)
+                    counts.pop();
+                return;
             }
+            const max = left - row;
+            for (let count = 1; count <= max; count++) {
+                counts.push(count);
+                partition(row - 1, left - count, counts);
+                counts.pop();
+            }
+        };
+        for (let rows = 1; rows <= Math.min(3, pieces.length); rows++)
+            partition(rows - 1, pieces.length, []);
+        // Layout callers must provide enough room for the established 20px minimum.
+        if (pieces.length <= 12 && best.cell < 20)
+            throw new Error('Tray too small for 20px luggage cells');
+        const cell = Math.floor(best.cell);
+        const slots = [];
+        let start = 0;
+        let y = tray.y + gap;
+        for (const count of best.counts) {
+            const row = metrics.slice(start, start + count);
+            start += count;
+            const rowWidth = row.reduce((sum, entry) => sum + entry.maxW * cell, 0) + gap * (count - 1);
+            const rowHeight = Math.max(...row.map(entry => entry.maxH)) * cell;
+            let x = tray.x + (tray.w - rowWidth) / 2;
+            for (const entry of row) {
+                const w = entry.maxW * cell, h = entry.maxH * cell;
+                slots.push({ piece: entry.piece, rect: { x, y: y + (rowHeight - h) / 2, w, h } });
+                x += w + gap;
+            }
+            y += rowHeight + gap;
         }
         return { cell, slots };
     }
@@ -1319,9 +1352,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.ts","./StageSession.ts","./DragController.ts","./InteractionGeometry.ts","./SoundEffects.ts","./OptionalResources.ts","./UIKit.ts","./FinishTimeline.ts","./FinishView.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.ts","./StageSession.ts","./DragController.ts","./InteractionGeometry.ts","./SoundEffects.ts","./OptionalResources.ts","./UIKit.ts","./FinishTimeline.ts","./FinishView.ts","./StageArt.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, items_1, StageSession_1, DragController_1, InteractionGeometry_1, SoundEffects_1, OptionalResources_1, UIKit_1, FinishTimeline_1, FinishView_1, ink, red, cream, gold, gray, green, invalid, colors, shadow, MOM_INTRO_MS, MOM_APPEAR_MS, MOM_STAY_MS, StagePage;
+    var cc_1, brand_1, items_1, StageSession_1, DragController_1, InteractionGeometry_1, SoundEffects_1, OptionalResources_1, UIKit_1, FinishTimeline_1, FinishView_1, StageArt_1, ink, red, cream, gold, green, invalid, itemColors, shadow, MOM_INTRO_MS, MOM_APPEAR_MS, MOM_STAY_MS, StagePage;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -1357,13 +1390,17 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
             },
             function (FinishView_1_1) {
                 FinishView_1 = FinishView_1_1;
+            },
+            function (StageArt_1_1) {
+                StageArt_1 = StageArt_1_1;
             }
         ],
         execute: function () {
             ink = new cc_1.Color(74, 44, 26), red = new cc_1.Color(215, 51, 43), cream = new cc_1.Color(255, 246, 229);
-            gold = new cc_1.Color(246, 195, 67), gray = new cc_1.Color(160, 151, 136);
+            gold = new cc_1.Color(246, 195, 67);
             green = new cc_1.Color(76, 175, 80, 128), invalid = new cc_1.Color(229, 57, 53, 128);
-            colors = [new cc_1.Color(174, 64, 53), new cc_1.Color(157, 99, 36), new cc_1.Color(65, 115, 97), new cc_1.Color(95, 87, 140)];
+            itemColors = [new cc_1.Color(183, 45, 42), new cc_1.Color(200, 79, 38), new cc_1.Color(166, 35, 49), new cc_1.Color(151, 91, 42),
+                new cc_1.Color(206, 56, 43), new cc_1.Color(128, 79, 49), new cc_1.Color(177, 54, 34), new cc_1.Color(194, 94, 31)];
             shadow = new cc_1.Color(40, 20, 10, 70);
             MOM_INTRO_MS = 3800, MOM_APPEAR_MS = 700, MOM_STAY_MS = 1300;
             StagePage = class StagePage {
@@ -1378,6 +1415,10 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.slots = [];
                     this.board = { x: 0, y: 0, w: 0, h: 0 };
                     this.tray = { x: 24, y: 880, w: 702, h: 270 };
+                    this.car = { x: 0, y: 0, w: 0, h: 0 };
+                    this.trunk = { x: 0, y: 0, w: 0, h: 0 };
+                    this.buttonY = 1170;
+                    this.buttonH = 120;
                     this.cell = 0;
                     this.trayCell = 0;
                     this.width = 750;
@@ -1404,15 +1445,28 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.session = new StageSession_1.StageSession(level, now);
                     this.sounds = new SoundEffects_1.SoundEffects(parent);
                     this.background = UIKit_1.uiNode('GridBackground', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    const look = StageArt_1.vehicleLook(level.vehicle);
                     this.clock = UIKit_1.label(this.node, 'Clock', '', 28, 0, 0);
+                    this.clock.color = gold;
                     this.packed = UIKit_1.label(this.node, 'Packed', '', 26, 0, 0);
+                    this.packed.color = gold;
                     this.notice = UIKit_1.label(this.node, 'Notice', '', 24, 0, 0);
+                    this.notice.color = gold;
+                    this.momIntroBubble = UIKit_1.uiNode('MomIntroBubble', this.node, 470, 110);
+                    this.momIntroBubble.active = false;
+                    this.drawMomIntroBubble(this.momIntroBubble.addComponent(cc_1.Graphics));
                     this.momIntro = UIKit_1.label(this.node, 'MomIntro', '妈妈说：再带点东西！', 28, 0, 0);
                     this.momIntro.color = red;
                     this.momIntro.node.active = false;
                     this.momIntroUntil = level.mode === 'mom' ? now() + MOM_INTRO_MS : 0;
-                    UIKit_1.label(this.node, 'Title', brand_1.GAME_TITLE, 42, 0, 0);
-                    UIKit_1.label(this.node, 'Vehicle', `第 ${level.stage} 关 · 拖年货进后备箱`, 27, 0, 0);
+                    this.title = UIKit_1.label(this.node, 'Title', brand_1.GAME_TITLE, 54, 0, 0);
+                    this.title.color = gold;
+                    this.vehicle = UIKit_1.label(this.node, 'Vehicle', `第 ${level.stage} 关 · ${look.name}后备箱`, 27, 0, 0);
+                    this.vehicle.color = cream;
+                    this.plate = UIKit_1.label(this.node, 'Plate', '回家', 24, 0, 0);
+                    this.plate.color = gold;
+                    this.lidSeal = UIKit_1.label(this.node, 'TrunkLidSeal', '福', 30, 0, 0);
+                    this.lidSeal.color = gold;
                     this.preview = UIKit_1.uiNode('DropPreview', this.node, 750, 1334).addComponent(cc_1.Graphics);
                     for (const piece of this.allPieces) {
                         const node = UIKit_1.uiNode(`Piece${piece.id}`, this.node, 1, 1);
@@ -1421,11 +1475,11 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
                         sprite.trim = false;
                         sprite.enabled = false;
-                        const title = UIKit_1.label(node, `Item${piece.id}`, items_1.ITEMS[piece.shape].name, 18, 0, 0);
+                        const title = UIKit_1.label(node, `Item${piece.id}`, StageArt_1.itemShortName(piece), 18, 0, 0);
                         this.pieces.set(piece.id, { node, sprite, graphics, title, held: false, failed: false, rect: { x: 0, y: 0, w: 0, h: 0 }, rotation: 0, size: 0 });
                     }
                     this.controls = UIKit_1.uiNode('Controls', this.node, 750, 1334).addComponent(cc_1.Graphics);
-                    this.rotateTitle = this.button('旋转 90°', 45, 180, () => this.rotateSelected(), true);
+                    this.button('旋转 90°', 45, 180, () => this.rotateSelected(), true);
                     this.button('撤销', 295, 160, () => { this.cancelDrag(); this.session.undo(); this.sounds.play('undo'); this.selected = undefined; this.sync(); });
                     this.button('重开', 515, 160, () => { this.cancelDrag(); this.modal = 'restart'; this.updateOverlay(); });
                     this.momLayer = UIKit_1.uiNode('MomAppear', this.node, 750, 1334);
@@ -1472,15 +1526,6 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         (_a = this.safeProbe) === null || _a === void 0 ? void 0 : _a.remove();
                     });
                     this.tick();
-                    for (const piece of this.allPieces) {
-                        void OptionalResources_1.loadArt(`items/${items_1.ITEMS[piece.shape].key}`).then(frame => {
-                            if (!frame || !this.node.isValid)
-                                return;
-                            const v = this.pieces.get(piece.id);
-                            v.sprite.spriteFrame = frame;
-                            this.drawPiece(piece, v.rotation, v.size, v.held, v.failed);
-                        });
-                    }
                 }
                 tick() {
                     const size = cc_1.view.getVisibleSize();
@@ -1515,7 +1560,9 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         this.finishView.render(this.finish.advance(this.now() - this.finishStarted));
                         return;
                     }
-                    this.momIntro.node.active = this.level.mode === 'mom' && !this.mom && this.now() < this.momIntroUntil;
+                    const showIntro = this.level.mode === 'mom' && !this.mom && this.now() < this.momIntroUntil;
+                    this.momIntro.node.active = showIntro;
+                    this.momIntroBubble.active = showIntro;
                     if (this.mom)
                         this.updateMomSequence();
                     else if (this.session.readyForNextBatch && !this.cleared)
@@ -1526,7 +1573,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                             this.sounds.play('tick');
                         this.displayedSeconds = seconds;
                         this.clock.string = Number.isFinite(seconds) ? `距出发 ${seconds} 秒` : '慢慢装，不限时';
-                        this.clock.color = seconds <= 10 ? red : ink;
+                        this.clock.color = seconds <= 10 ? new cc_1.Color(255, 224, 158) : gold;
                     }
                     if (this.session.expired && !this.cleared && this.modal !== 'timeout') {
                         this.cancelDrag();
@@ -1536,25 +1583,30 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 }
                 layout(top, bottom) {
                     var _a;
-                    const extra = this.height - 1334;
-                    const boardTop = (this.level.mode === 'mom' ? 230 : 205) + top;
-                    const boardBottom = 850 + extra - bottom;
-                    this.cell = Math.floor(Math.min(110, 640 / this.level.width, (boardBottom - boardTop - 35) / this.level.height));
-                    this.board = { x: (750 - this.cell * this.level.width) / 2, y: boardTop + (boardBottom - boardTop - this.cell * this.level.height) / 2,
-                        w: this.cell * this.level.width, h: this.cell * this.level.height };
-                    this.tray = { x: 24, y: 880 + extra - bottom, w: 702, h: 270 };
+                    const frame = StageArt_1.computeStageLayout(this.level, this.height, top, bottom);
+                    this.cell = frame.cell;
+                    this.board = frame.board;
+                    this.tray = frame.tray;
+                    this.car = frame.car;
+                    this.trunk = frame.trunk;
+                    this.buttonY = frame.buttonY;
+                    this.buttonH = frame.buttonH;
                     this.layoutTray();
-                    this.placeLabel('Title', 65 + top);
-                    this.placeLabel('Vehicle', this.level.mode === 'mom' ? 100 + top : 122 + top);
-                    this.placeLabel('MomIntro', 150 + top);
-                    this.placeLabel('Clock', (this.level.mode === 'mom' ? 190 : 172) + top, 190);
-                    this.placeLabel('Packed', (this.level.mode === 'mom' ? 190 : 172) + top, -180);
-                    this.placeLabel('Notice', 860 + extra - bottom);
+                    this.placeLabel('Title', 64 + top);
+                    this.placeLabel('Vehicle', 116 + top);
+                    this.placeLabel('MomIntro', 281 + top);
+                    this.momIntroBubble.setPosition(0, this.height / 2 - 281 - top);
+                    this.placeLabel('Clock', 187 + top, 190);
+                    this.placeLabel('Packed', 187 + top, -180);
+                    this.placeLabel('Notice', frame.noticeY);
+                    this.placeLabel('Plate', this.car.y + this.car.h - 98);
+                    this.placeLabel('TrunkLidSeal', this.car.y + 51);
                     this.momBubbleNode.setPosition(-75, this.height / 2 - 735);
                     this.momAvatar.setPosition(300, this.height / 2 - 795);
                     for (const [i, button] of this.buttons.entries()) {
-                        button.rect.y = 1170 + extra - bottom;
-                        this.placeLabel(`Button${i}`, button.rect.y + 60, button.rect.x + button.rect.w / 2 - 375);
+                        button.rect.y = this.buttonY;
+                        button.rect.h = this.buttonH;
+                        this.placeLabel(`Button${i}`, button.rect.y + 58, button.rect.x + button.rect.w / 2 - 375);
                     }
                     this.drawBackground();
                     this.sync();
@@ -1566,39 +1618,90 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 drawBackground() {
                     const g = this.background;
                     g.clear();
-                    this.rect(g, { x: 0, y: 0, w: 750, h: this.height }, cream);
-                    this.rect(g, { x: this.board.x - 14, y: this.board.y - 14, w: this.board.w + 28, h: this.board.h + 28 }, red);
-                    this.rect(g, this.board, new cc_1.Color(232, 217, 191));
-                    for (let y = 0; y < this.level.height; y++)
-                        for (let x = 0; x < this.level.width; x++) {
-                            const blocked = this.level.blocked.some(([bx, by]) => bx === x && by === y);
-                            const r = { x: this.board.x + x * this.cell + 1, y: this.board.y + y * this.cell + 1, w: this.cell - 2, h: this.cell - 2 };
-                            this.rect(g, r, blocked ? ink : cream);
-                            if (blocked) {
-                                g.strokeColor = gold;
-                                g.lineWidth = 3;
-                                for (let d = 6; d < this.cell - 6; d += 12) {
-                                    g.moveTo(r.x - 375 + d, this.height / 2 - r.y - 4);
-                                    g.lineTo(r.x - 375 + 4, this.height / 2 - r.y - d);
-                                    g.stroke();
-                                }
-                            }
-                        }
-                    this.rect(g, this.tray, new cc_1.Color(232, 217, 191));
+                    const look = StageArt_1.vehicleLook(this.level.vehicle);
+                    StageArt_1.drawStageBackdrop(g, 750, this.height, 0, look);
+                    StageArt_1.drawCarRear(g, 750, this.height, 0, this.car, this.trunk, look);
+                    StageArt_1.drawTrunkFloor(g, 750, this.height, 0, this.trunk, this.board, this.level, this.cell);
+                    StageArt_1.drawStageChrome(g, 750, this.height, 0, this.board, this.tray, this.tray.y - 20, look);
+                }
+                drawMomIntroBubble(g) {
+                    UIKit_1.fill(g, new cc_1.Color(255, 205, 114), -207, -39, 414, 86, 24);
+                    UIKit_1.fill(g, new cc_1.Color(255, 246, 229), -201, -33, 402, 74, 19);
+                    UIKit_1.fill(g, new cc_1.Color(255, 226, 190), -189, -23, 378, 54, 14);
+                    g.fillColor = new cc_1.Color(255, 246, 229);
+                    g.moveTo(-12, -39);
+                    g.lineTo(20, -39);
+                    g.lineTo(2, -62);
+                    g.close();
+                    g.fill();
                 }
                 button(text, x, w, action, duringDrag = false) {
                     const index = this.buttons.length;
-                    this.buttons.push({ rect: { x, y: 1170, w, h: 120 }, action, duringDrag });
+                    this.buttons.push({ rect: { x, y: this.buttonY, w, h: this.buttonH }, action, duringDrag });
                     return UIKit_1.label(this.node, `Button${index}`, text, 30, 0, 0);
                 }
                 updateControls() {
+                    var _a, _b;
                     this.controls.clear();
-                    for (const [i, b] of this.buttons.entries())
-                        this.rect(this.controls, b.rect, i === 0 ? (this.selected ? gold : gray) : red);
-                    this.rotateTitle.color = this.selected ? ink : cream;
-                    this.notice.string = this.selected ? `已选中 · ${items_1.ITEMS[this.selected.shape].name}` : '轻点选中 · 拖动装车 · 按按钮旋转';
+                    for (const [i, b] of this.buttons.entries()) {
+                        const active = i === 0 && !!this.selected;
+                        this.rect(this.controls, { x: b.rect.x + 3, y: b.rect.y + 6, w: b.rect.w, h: b.rect.h }, new cc_1.Color(34, 15, 21, 180));
+                        this.rect(this.controls, b.rect, gold);
+                        this.rect(this.controls, { x: b.rect.x + 4, y: b.rect.y + 4, w: b.rect.w - 8, h: b.rect.h - 8 }, active ? new cc_1.Color(239, 181, 62) : new cc_1.Color(184, 40, 42));
+                        const cx = b.rect.x + 35 - 375, cy = this.height / 2 - (b.rect.y + b.rect.h / 2);
+                        this.drawControlIcon(this.controls, i, cx, cy, active ? ink : gold);
+                        const text = this.node.getChildByName(`Button${i}`);
+                        text === null || text === void 0 ? void 0 : text.setPosition(b.rect.x + b.rect.w / 2 + 17 - 375, this.height / 2 - (b.rect.y + b.rect.h / 2));
+                    }
+                    const rotateTitle = (_a = this.node.getChildByName('Button0')) === null || _a === void 0 ? void 0 : _a.getComponent(cc_1.Label);
+                    if (rotateTitle)
+                        rotateTitle.color = this.selected ? ink : gold;
+                    for (let i = 1; i < this.buttons.length; i++) {
+                        const text = (_b = this.node.getChildByName(`Button${i}`)) === null || _b === void 0 ? void 0 : _b.getComponent(cc_1.Label);
+                        if (text)
+                            text.color = cream;
+                    }
+                    this.notice.string = this.selected ? `已选中 · ${items_1.ITEMS[this.selected.shape].name}` : '轻点年货选中 · 拖进后备箱';
                     const total = this.level.mode === 'mom' ? this.session.totalPieces : this.session.pieces.length;
                     this.packed.string = `已装车 ${this.session.placements.length} / ${total} 件`;
+                }
+                drawControlIcon(g, index, cx, cy, color) {
+                    if (index === 0) {
+                        g.strokeColor = color;
+                        g.lineWidth = 5;
+                        g.circle(cx, cy, 14);
+                        g.stroke();
+                        UIKit_1.fill(g, color, cx + 11, cy + 4, 10, 6, 2);
+                        g.fillColor = color;
+                        g.moveTo(cx + 21, cy + 7);
+                        g.lineTo(cx + 9, cy + 14);
+                        g.lineTo(cx + 21, cy + 18);
+                        g.close();
+                        g.fill();
+                    }
+                    else if (index === 1) {
+                        UIKit_1.fill(g, color, cx - 15, cy - 7, 22, 5, 2);
+                        UIKit_1.fill(g, color, cx - 15, cy - 7, 5, 18, 2);
+                        g.fillColor = color;
+                        g.moveTo(cx - 18, cy - 13);
+                        g.lineTo(cx - 8, cy - 13);
+                        g.lineTo(cx - 15, cy - 2);
+                        g.close();
+                        g.fill();
+                    }
+                    else {
+                        g.strokeColor = color;
+                        g.lineWidth = 4;
+                        g.circle(cx, cy, 13);
+                        g.stroke();
+                        UIKit_1.fill(g, color, cx - 3, cy + 5, 6, 12, 2);
+                        g.fillColor = color;
+                        g.moveTo(cx - 10, cy + 15);
+                        g.lineTo(cx + 7, cy + 15);
+                        g.lineTo(cx, cy + 5);
+                        g.close();
+                        g.fill();
+                    }
                 }
                 updateOverlay() {
                     this.overlay.active = this.landscape || !!this.modal;
@@ -1663,7 +1766,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 }
                 position(view, x, y) { view.node.setPosition(x - 375, this.height / 2 - y); }
                 drawPiece(piece, rotation, size, held, failed = false) {
-                    var _a, _b;
+                    var _a;
                     const view = this.pieces.get(piece.id);
                     view.rotation = rotation;
                     view.size = size;
@@ -1673,25 +1776,25 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     g.clear();
                     const box = InteractionGeometry_1.dimensions(piece, rotation), w = box.w * size, h = box.h * size;
                     view.node.getComponent(cc_1.UITransform).setContentSize(w, h);
-                    const hasImage = !!view.sprite.spriteFrame;
-                    view.sprite.enabled = hasImage;
-                    view.title.node.active = !hasImage;
-                    if (hasImage) {
-                        const base = InteractionGeometry_1.dimensions(piece, 0);
-                        view.sprite.node.getComponent(cc_1.UITransform).setContentSize(base.w * size, base.h * size);
-                        view.sprite.node.angle = rotation * 90;
-                        view.sprite.color = failed ? red : ((_a = this.selected) === null || _a === void 0 ? void 0 : _a.id) === piece.id ? gold : cc_1.Color.WHITE;
-                    }
+                    view.sprite.enabled = false;
+                    view.title.node.active = true;
+                    const chosen = ((_a = this.selected) === null || _a === void 0 ? void 0 : _a.id) === piece.id;
+                    const bodyColor = failed ? new cc_1.Color(172, 35, 37) : itemColors[(piece.id - 1) % itemColors.length];
                     for (const [x, y] of InteractionGeometry_1.pieceCells(piece, rotation)) {
                         if (held)
                             UIKit_1.fill(g, shadow, x * size - w / 2 + 8, h / 2 - (y + 1) * size - 9, size - 3, size - 3, 5);
-                        if (hasImage)
-                            continue;
-                        UIKit_1.fill(g, failed ? red : ((_b = this.selected) === null || _b === void 0 ? void 0 : _b.id) === piece.id ? gold : ink, x * size - w / 2 + 1, h / 2 - (y + 1) * size + 1, size - 2, size - 2, 5);
-                        UIKit_1.fill(g, colors[piece.id % colors.length], x * size - w / 2 + 4, h / 2 - (y + 1) * size + 4, size - 8, size - 8, 4);
+                        UIKit_1.fill(g, chosen ? gold : new cc_1.Color(255, 211, 124), x * size - w / 2 + 1, h / 2 - (y + 1) * size + 1, size - 2, size - 2, 5);
+                        UIKit_1.fill(g, bodyColor, x * size - w / 2 + 4, h / 2 - (y + 1) * size + 4, size - 8, size - 8, 4);
+                        UIKit_1.fill(g, new cc_1.Color(255, 235, 181, 48), x * size - w / 2 + 8, h / 2 - y * size + Math.max(4, size * .62), Math.max(4, size - 24), Math.max(3, size * .12), 2);
                     }
-                    view.title.fontSize = Math.max(12, Math.min(22, size * .6));
+                    view.title.string = StageArt_1.itemShortName(piece);
+                    view.title.fontSize = Math.max(15, Math.min(26, size * .42));
                     view.title.color = cream;
+                    view.title.lineHeight = view.title.fontSize + 6;
+                    const labelW = Math.min(w - 8, Math.max(34, view.title.string.length * (view.title.fontSize - 1) + 18));
+                    const labelH = view.title.fontSize + 10;
+                    UIKit_1.fill(g, new cc_1.Color(69, 25, 27, 225), -labelW / 2, -labelH / 2, labelW, labelH, Math.min(12, labelH / 2));
+                    UIKit_1.fill(g, new cc_1.Color(255, 214, 145, 220), -labelW / 2, -labelH / 2, labelW, 2, 1);
                     view.title.node.setPosition(0, 0);
                 }
                 point(event) {
@@ -1886,6 +1989,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.selected = undefined;
                     this.momIntro.node.active = false;
                     this.momLayer.active = false;
+                    this.momIntroBubble.active = false;
                     this.finishStarted = this.now();
                     this.finish = new FinishTimeline_1.FinishPlayback(cue => {
                         this.sounds.play(cue.sound);
@@ -1906,6 +2010,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.cancelDrag();
                     this.selected = undefined;
                     this.momIntro.node.active = false;
+                    this.momIntroBubble.active = false;
                     this.momIntroUntil = 0;
                     this.mom = { started: this.now(), appended: false };
                     this.momLayer.active = true;
@@ -2421,6 +2526,292 @@ System.register("chunks:///_virtual/JourneyArt.ts", ["cc","./UIKit.ts"], functio
     };
 });
 
+System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, items_1, looks, fallback, shorts;
+    var __moduleName = context_1 && context_1.id;
+    function vehicleLook(vehicle) { var _a; return (_a = looks[vehicle]) !== null && _a !== void 0 ? _a : fallback; }
+    exports_1("vehicleLook", vehicleLook);
+    function itemName(piece) { return items_1.ITEMS[piece.shape].name; }
+    exports_1("itemName", itemName);
+    function itemShortName(piece) { var _a; return (_a = shorts[items_1.ITEMS[piece.shape].key]) !== null && _a !== void 0 ? _a : itemName(piece); }
+    exports_1("itemShortName", itemShortName);
+    function computeStageLayout(level, height, top, bottom) {
+        const buttonH = 112;
+        const buttonY = height - bottom - 24 - buttonH;
+        const trayH = Math.max(300, Math.min(420, height * .26));
+        const trayY = buttonY - 24 - trayH;
+        const carTop = (level.mode === 'mom' ? 326 : 266) + top;
+        const carBottom = Math.max(carTop + 430, trayY - 46);
+        const car = { x: 14, y: carTop, w: 722, h: carBottom - carTop };
+        const trunk = { x: 44, y: carTop + 78, w: 662, h: Math.max(250, car.h - 78 - 144) };
+        const cell = Math.floor(Math.min(112, (trunk.w - 20) / level.width, (trunk.h - 20) / level.height));
+        const board = { x: (750 - level.width * cell) / 2, y: trunk.y + (trunk.h - level.height * cell) / 2,
+            w: level.width * cell, h: level.height * cell };
+        return { cell, car, trunk, board, tray: { x: 5, y: trayY, w: 740, h: trayH }, buttonY, buttonH, noticeY: trayY - 20 };
+    }
+    exports_1("computeStageLayout", computeStageLayout);
+    function polygon(graphics, points, color) {
+        graphics.fillColor = color;
+        graphics.moveTo(points[0][0], points[0][1]);
+        for (const [x, y] of points.slice(1))
+            graphics.lineTo(x, y);
+        graphics.close();
+        graphics.fill();
+    }
+    exports_1("polygon", polygon);
+    function circle(graphics, x, y, radius, color) {
+        graphics.fillColor = color;
+        graphics.circle(x, y, radius);
+        graphics.fill();
+    }
+    exports_1("circle", circle);
+    function topDown(width, height, top) {
+        return {
+            x: (value) => value - width / 2,
+            y: (value) => height / 2 - top - value,
+        };
+    }
+    /** Full-screen Spring Festival night road, drawn back-to-front with Graphics only. */
+    function drawStageBackdrop(graphics, width, height, top, look) {
+        const p = topDown(width, height, top), rect = (x, y, w, h, c, r = 0) => {
+            if (r) {
+                graphics.fillColor = c;
+                graphics.roundRect(p.x(x), p.y(y + h), w, h, r);
+                graphics.fill();
+            }
+            else {
+                graphics.fillColor = c;
+                graphics.rect(p.x(x), p.y(y + h), w, h);
+                graphics.fill();
+            }
+        };
+        const poly = (points, c) => polygon(graphics, points.map(([x, y]) => [p.x(x), p.y(y)]), c);
+        const orb = (x, y, r, c) => circle(graphics, p.x(x), p.y(y), r, c);
+        rect(0, 0, width, height, new cc_1.Color(31, 21, 39));
+        rect(0, 0, width, 510, new cc_1.Color(48, 27, 49));
+        rect(0, 54, width, 390, new cc_1.Color(78, 34, 49));
+        rect(0, 156, width, 294, new cc_1.Color(121, 45, 48));
+        // Warm horizon glow behind the village.
+        rect(0, 234, width, 190, new cc_1.Color(180, 75, 52));
+        orb(604, 104, 72, new cc_1.Color(255, 207, 127, 38));
+        orb(604, 104, 48, new cc_1.Color(255, 218, 142));
+        orb(590, 93, 38, new cc_1.Color(255, 241, 183));
+        for (const [x, y, r] of [[78, 74, 2], [137, 116, 2], [232, 58, 2], [310, 103, 1], [438, 67, 2], [510, 139, 1], [702, 177, 2], [663, 48, 1]])
+            orb(x, y, r, new cc_1.Color(255, 227, 159, 185));
+        // Layered hills and a warm village street.
+        poly([[0, 282], [74, 220], [150, 253], [240, 214], [334, 267], [425, 221], [510, 251], [607, 207], [750, 264], [750, 399], [0, 399]], new cc_1.Color(77, 42, 54));
+        poly([[0, 318], [92, 277], [174, 305], [274, 266], [370, 313], [489, 264], [589, 305], [680, 274], [750, 307], [750, 414], [0, 414]], new cc_1.Color(47, 31, 42));
+        poly([[0, 375], [750, 375], [750, 510], [510, 430], [408, 414], [332, 417], [430, 438], [210, 510], [0, 510]], new cc_1.Color(119, 49, 45));
+        for (const [x, base, w, h] of [[62, 334, 58, 45], [130, 320, 42, 37], [548, 334, 66, 48], [623, 318, 45, 37]]) {
+            rect(x, base - h, w, h, new cc_1.Color(91, 41, 39), 3);
+            poly([[x - 9, base - h], [x + w / 2, base - h - 27], [x + w + 9, base - h]], new cc_1.Color(42, 27, 36));
+            rect(x + 10, base - h + 13, 10, 12, new cc_1.Color(255, 213, 133), 2);
+            rect(x + w - 20, base - h + 13, 10, 12, new cc_1.Color(255, 213, 133), 2);
+        }
+        poly([[326, 410], [347, 410], [358, 382], [331, 382]], new cc_1.Color(255, 205, 117));
+        poly([[414, 388], [431, 388], [446, 380], [438, 379]], new cc_1.Color(255, 205, 117));
+        rect(0, 414, width, height - 414, new cc_1.Color(47, 29, 38));
+        poly([[0, height], [0, 492], [304, 390], [441, 390], [750, 492], [750, height]], new cc_1.Color(61, 32, 39));
+        poly([[306, height], [440, height], [445, 448], [408, 418], [340, 419], [304, 448]], new cc_1.Color(100, 45, 44));
+        for (let y = 500; y < height - 30; y += 82)
+            rect(360, y, 29, 43, new cc_1.Color(246, 195, 67, 115), 5);
+        for (const [x, y, size] of [[42, 88, 32], [716, 82, 29], [64, 204, 23], [690, 214, 24]]) {
+            rect(x - 2, y - 28, 4, 39, look.trim, 2);
+            rect(x - size / 2, y, size, 40, new cc_1.Color(202, 50, 44), 12);
+            rect(x - size / 2 + 5, y + 4, size - 10, 3, look.trim, 1);
+            rect(x - size / 2 + 5, y + 32, size - 10, 3, look.trim, 1);
+            rect(x - 2, y + 40, 4, 13, look.trim, 2);
+        }
+        // Side curtains leave a clean centre lane for the open trunk.
+        rect(0, 0, 16, height, new cc_1.Color(95, 29, 38));
+        rect(width - 16, 0, 16, height, new cc_1.Color(95, 29, 38));
+        rect(16, 0, 2, height, new cc_1.Color(246, 195, 67, 95));
+        rect(width - 18, 0, 2, height, new cc_1.Color(246, 195, 67, 95));
+    }
+    exports_1("drawStageBackdrop", drawStageBackdrop);
+    function drawStageChrome(graphics, width, height, top, board, tray, noticeY, look) {
+        const p = topDown(width, height, top);
+        const rect = (x, y, w, h, c, r = 0) => {
+            if (r) {
+                graphics.fillColor = c;
+                graphics.roundRect(p.x(x), p.y(y + h), w, h, r);
+                graphics.fill();
+            }
+            else {
+                graphics.fillColor = c;
+                graphics.rect(p.x(x), p.y(y + h), w, h);
+                graphics.fill();
+            }
+        };
+        const poly = (points, c) => polygon(graphics, points.map(([x, y]) => [p.x(x), p.y(y)]), c);
+        // Spring Festival header banner and paired gold ribbons.
+        rect(34, 15, 682, 127, new cc_1.Color(40, 19, 28, 145), 26);
+        rect(38, 18, 674, 120, look.trim, 24);
+        rect(44, 24, 662, 108, new cc_1.Color(147, 31, 39), 18);
+        rect(53, 31, 644, 94, new cc_1.Color(206, 48, 43), 13);
+        poly([[69, 52], [94, 52], [79, 76], [72, 74]], new cc_1.Color(255, 219, 149, 120));
+        poly([[681, 52], [656, 52], [671, 76], [678, 74]], new cc_1.Color(255, 219, 149, 120));
+        rect(112, 112, 526, 2, new cc_1.Color(255, 222, 161, 170), 1);
+        rect(300, 24, 150, 4, new cc_1.Color(255, 224, 165), 2);
+        // Two HUD tablets: loaded count on the left, departure clock on the right.
+        rect(42, 158, 326, 58, new cc_1.Color(91, 25, 35, 235), 18);
+        rect(382, 158, 326, 58, new cc_1.Color(91, 25, 35, 235), 18);
+        rect(44, 160, 322, 54, look.trim, 16);
+        rect(384, 160, 322, 54, look.trim, 16);
+        rect(49, 165, 312, 44, new cc_1.Color(153, 34, 42), 12);
+        rect(389, 165, 312, 44, new cc_1.Color(153, 34, 42), 12);
+        rect(66, 183, 104, 2, new cc_1.Color(255, 218, 154, 100), 1);
+        rect(580, 183, 104, 2, new cc_1.Color(255, 218, 154, 100), 1);
+        // The notice ribbon sits in the narrow gap above the cargo tray.
+        rect(75, noticeY - 25, 600, 42, new cc_1.Color(72, 25, 33, 220), 14);
+        rect(78, noticeY - 22, 594, 36, look.trim, 12);
+        rect(82, noticeY - 18, 586, 28, new cc_1.Color(141, 32, 40), 9);
+        // Open wooden cargo tray with rope handles and gold trim.
+        rect(tray.x - 5, tray.y - 5, tray.w + 10, tray.h + 10, new cc_1.Color(79, 28, 34), 25);
+        rect(tray.x, tray.y, tray.w, tray.h, look.trim, 21);
+        rect(tray.x + 5, tray.y + 5, tray.w - 10, tray.h - 10, new cc_1.Color(112, 39, 39), 17);
+        for (let y = tray.y + 56; y < tray.y + tray.h - 16; y += 38)
+            rect(tray.x + 10, y, tray.w - 20, 2, new cc_1.Color(255, 217, 151, 42));
+        rect(tray.x + 25, tray.y + 10, tray.w - 50, 3, new cc_1.Color(255, 229, 174, 75), 2);
+        rect(tray.x - 13, tray.y + tray.h / 2 - 23, 10, 46, new cc_1.Color(226, 170, 98), 5);
+        rect(tray.x + tray.w + 3, tray.y + tray.h / 2 - 23, 10, 46, new cc_1.Color(226, 170, 98), 5);
+        // A subtle gold rim keeps the board readable without washing out its floor.
+        const rim = new cc_1.Color(255, 218, 153, 135);
+        rect(board.x - 8, board.y - 8, board.w + 16, 8, rim, 4);
+        rect(board.x - 8, board.y + board.h, board.w + 16, 8, rim, 4);
+        rect(board.x - 8, board.y, 8, board.h, rim, 4);
+        rect(board.x + board.w, board.y, 8, board.h, rim, 4);
+    }
+    exports_1("drawStageChrome", drawStageChrome);
+    function drawCarRear(graphics, width, height, top, car, trunk, look) {
+        const p = topDown(width, height, top);
+        const rect = (x, y, w, h, c, r = 0) => {
+            if (r) {
+                graphics.fillColor = c;
+                graphics.roundRect(p.x(x), p.y(y + h), w, h, r);
+                graphics.fill();
+            }
+            else {
+                graphics.fillColor = c;
+                graphics.rect(p.x(x), p.y(y + h), w, h);
+                graphics.fill();
+            }
+        };
+        const poly = (points, c) => polygon(graphics, points.map(([x, y]) => [p.x(x), p.y(y)]), c);
+        const orb = (x, y, r, c) => circle(graphics, p.x(x), p.y(y), r, c);
+        // Ground shadow and an open lid rising behind the car body.
+        rect(car.x + 26, car.y + 28, car.w - 52, car.h + 44, new cc_1.Color(16, 11, 17, 155), 48);
+        poly([[car.x + 66, car.y + 2], [car.x + car.w - 66, car.y + 2], [trunk.x + trunk.w - 4, trunk.y - 10], [trunk.x + 4, trunk.y - 10]], look.deep);
+        poly([[car.x + 80, car.y + 13], [car.x + car.w - 80, car.y + 13], [trunk.x + trunk.w - 18, trunk.y - 20], [trunk.x + 18, trunk.y - 20]], look.body);
+        poly([[car.x + 100, car.y + 19], [car.x + car.w - 100, car.y + 19], [trunk.x + trunk.w - 36, trunk.y - 25], [trunk.x + 36, trunk.y - 25]], look.light);
+        poly([[trunk.x + 40, trunk.y - 35], [trunk.x + trunk.w - 40, trunk.y - 35], [trunk.x + trunk.w - 52, trunk.y - 16], [trunk.x + 52, trunk.y - 16]], look.trim);
+        poly([[trunk.x + trunk.w / 2, car.y + 25], [trunk.x + trunk.w / 2 + 25, car.y + 51], [trunk.x + trunk.w / 2, car.y + 77], [trunk.x + trunk.w / 2 - 25, car.y + 51]], look.trim);
+        poly([[trunk.x + trunk.w / 2, car.y + 31], [trunk.x + trunk.w / 2 + 18, car.y + 51], [trunk.x + trunk.w / 2, car.y + 71], [trunk.x + trunk.w / 2 - 18, car.y + 51]], look.deep);
+        rect(trunk.x + trunk.w / 2 - 54, trunk.y - 56, 108, 18, look.deep, 9);
+        rect(trunk.x + trunk.w / 2 - 41, trunk.y - 51, 82, 7, look.trim, 3);
+        // Broad rear body, quarter panels and bumper.
+        rect(car.x, car.y + 20, car.w, car.h - 20, look.deep, 44);
+        rect(car.x + 7, car.y + 27, car.w - 14, car.h - 34, look.body, 38);
+        rect(car.x + 16, car.y + 39, car.w - 32, 22, look.light, 10);
+        rect(trunk.x - 24, trunk.y - 12, 24, trunk.h + 28, look.deep, 8);
+        rect(trunk.x + trunk.w, trunk.y - 12, 24, trunk.h + 28, look.deep, 8);
+        rect(trunk.x - 20, trunk.y - 5, 20, trunk.h + 14, look.body, 6);
+        rect(trunk.x + trunk.w, trunk.y - 5, 20, trunk.h + 14, look.body, 6);
+        rect(car.x + 52, car.y + car.h - 91, car.w - 104, 19, look.light, 9);
+        rect(car.x + 35, car.y + car.h - 71, car.w - 70, 46, look.deep, 21);
+        rect(car.x + 52, car.y + car.h - 62, car.w - 104, 27, look.body, 13);
+        // Trunk opening rim and deep interior.
+        rect(trunk.x - 13, trunk.y - 13, trunk.w + 26, trunk.h + 26, look.trim, 20);
+        rect(trunk.x - 8, trunk.y - 8, trunk.w + 16, trunk.h + 16, look.deep, 16);
+        rect(trunk.x, trunk.y, trunk.w, trunk.h, new cc_1.Color(48, 27, 32), 12);
+        rect(trunk.x + 8, trunk.y + 8, trunk.w - 16, trunk.h - 16, new cc_1.Color(70, 35, 37), 8);
+        // Tail lights, reflector strip, plate recess and exhaust.
+        for (const x of [car.x + 50, car.x + car.w - 190]) {
+            rect(x, car.y + car.h - 128, 140, 45, new cc_1.Color(77, 20, 27), 14);
+            rect(x + 8, car.y + car.h - 121, 124, 31, look.light, 10);
+            rect(x + 20, car.y + car.h - 113, 100, 13, new cc_1.Color(255, 172, 91), 6);
+        }
+        rect(car.x + 238, car.y + car.h - 136, 246, 54, new cc_1.Color(49, 25, 27), 11);
+        rect(car.x + 245, car.y + car.h - 129, 232, 40, look.trim, 8);
+        rect(car.x + 251, car.y + car.h - 123, 220, 28, new cc_1.Color(48, 40, 34), 6);
+        rect(car.x + car.w - 116, car.y + car.h - 35, 70, 18, new cc_1.Color(38, 28, 29), 9);
+        orb(car.x + 46, car.y + car.h - 25, 18, new cc_1.Color(20, 14, 18));
+        orb(car.x + car.w - 46, car.y + car.h - 25, 18, new cc_1.Color(20, 14, 18));
+    }
+    exports_1("drawCarRear", drawCarRear);
+    function drawTrunkFloor(graphics, width, height, top, trunk, board, level, cell) {
+        const p = topDown(width, height, top);
+        const rect = (x, y, w, h, c, r = 0) => {
+            if (r) {
+                graphics.fillColor = c;
+                graphics.roundRect(p.x(x), p.y(y + h), w, h, r);
+                graphics.fill();
+            }
+            else {
+                graphics.fillColor = c;
+                graphics.rect(p.x(x), p.y(y + h), w, h);
+                graphics.fill();
+            }
+        };
+        rect(trunk.x + 12, trunk.y + 12, trunk.w - 24, trunk.h - 24, new cc_1.Color(59, 32, 34), 8);
+        for (let y = trunk.y + 26; y < trunk.y + trunk.h - 20; y += 44)
+            rect(trunk.x + 17, y, trunk.w - 34, 2, new cc_1.Color(255, 214, 143, 24));
+        rect(board.x - 5, board.y - 5, board.w + 10, board.h + 10, new cc_1.Color(35, 20, 25), 8);
+        for (let y = 0; y < level.height; y++)
+            for (let x = 0; x < level.width; x++) {
+                const blocked = level.blocked.some(([bx, by]) => bx === x && by === y);
+                const rx = board.x + x * cell, ry = board.y + y * cell;
+                rect(rx + 1, ry + 1, cell - 2, cell - 2, blocked ? new cc_1.Color(39, 24, 27) : (x + y) % 2 ? new cc_1.Color(96, 45, 44) : new cc_1.Color(105, 50, 46));
+                if (blocked) {
+                    rect(rx + 7, ry + 7, cell - 14, cell - 14, new cc_1.Color(53, 30, 32), 7);
+                    graphics.strokeColor = new cc_1.Color(246, 195, 67, 145);
+                    graphics.lineWidth = 2;
+                    graphics.moveTo(p.x(rx + 15), p.y(ry + cell - 15));
+                    graphics.lineTo(p.x(rx + cell - 15), p.y(ry + 15));
+                    graphics.moveTo(p.x(rx + 15), p.y(ry + 15));
+                    graphics.lineTo(p.x(rx + cell - 15), p.y(ry + cell - 15));
+                    graphics.stroke();
+                }
+                rect(rx + cell - 1, ry + 1, 1, cell - 2, new cc_1.Color(255, 215, 151, 35));
+                rect(rx + 1, ry + cell - 1, cell - 2, 1, new cc_1.Color(255, 215, 151, 35));
+            }
+        // The mat around a small stage-one grid still reads as a real trunk floor.
+        rect(board.x, board.y, board.w, 2, new cc_1.Color(255, 218, 153, 90));
+        rect(board.x, board.y + board.h - 2, board.w, 2, new cc_1.Color(255, 218, 153, 90));
+    }
+    exports_1("drawTrunkFloor", drawTrunkFloor);
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (items_1_1) {
+                items_1 = items_1_1;
+            }
+        ],
+        execute: function () {
+            looks = {
+                sedan: { name: '小轿车', body: new cc_1.Color(202, 41, 42), deep: new cc_1.Color(112, 25, 31), light: new cc_1.Color(239, 86, 55), trim: new cc_1.Color(255, 205, 114) },
+                sedan_v1: { name: '小轿车', body: new cc_1.Color(194, 35, 43), deep: new cc_1.Color(104, 21, 30), light: new cc_1.Color(235, 75, 52), trim: new cc_1.Color(255, 211, 121) },
+                wuling: { name: '五菱宏光', body: new cc_1.Color(178, 44, 39), deep: new cc_1.Color(91, 27, 27), light: new cc_1.Color(224, 88, 54), trim: new cc_1.Color(246, 195, 67) },
+                suv: { name: 'SUV', body: new cc_1.Color(137, 42, 48), deep: new cc_1.Color(70, 24, 31), light: new cc_1.Color(197, 76, 64), trim: new cc_1.Color(255, 204, 121) },
+                pickup: { name: '皮卡', body: new cc_1.Color(176, 78, 37), deep: new cc_1.Color(91, 37, 25), light: new cc_1.Color(222, 119, 55), trim: new cc_1.Color(250, 201, 104) },
+                etrike: { name: '电动三轮', body: new cc_1.Color(51, 111, 91), deep: new cc_1.Color(27, 62, 53), light: new cc_1.Color(95, 151, 112), trim: new cc_1.Color(246, 195, 67) },
+                moto: { name: '摩托车', body: new cc_1.Color(155, 49, 38), deep: new cc_1.Color(78, 25, 25), light: new cc_1.Color(211, 86, 53), trim: new cc_1.Color(255, 205, 114) },
+                train: { name: '绿皮火车', body: new cc_1.Color(44, 105, 78), deep: new cc_1.Color(23, 58, 46), light: new cc_1.Color(90, 146, 98), trim: new cc_1.Color(246, 195, 67) },
+            };
+            fallback = looks.sedan;
+            shorts = {
+                liquor: '白酒', sausage: '腊肠', ricecooker: '饭煲', sugarcane: '甘蔗', milk: '牛奶',
+                suitcase_s: '登机箱', duffel: '拉杆包', nutbox: '坚果', fish: '鱼', duck: '腊鸭',
+                quilt: '被子', frozenbox: '冻品', tv: '电视', coop: '鸡鸭笼', crab: '闸蟹',
+                painting: '年画', lotusroot: '莲藕', couplets: '春联', suitcase_l: '行李箱',
+            };
+        }
+    };
+});
+
 System.register("chunks:///_virtual/UIKit.ts", ["cc"], function (exports_1, context_1) {
     "use strict";
     var cc_1;
@@ -2470,8 +2861,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./JourneyArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./JourneyArt.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
