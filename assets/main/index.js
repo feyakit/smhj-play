@@ -50,7 +50,9 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     this.api = new Api_1.Api(this.platform);
                 }
                 start() {
-                    if (this.platform.hasLevelOverride())
+                    if (this.platform.isMomMode())
+                        void this.startMomMode();
+                    else if (this.platform.hasLevelOverride())
                         void this.challenge();
                     else
                         this.show(stage1_1.stage1(date_1.shanghaiDate()));
@@ -62,14 +64,23 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                         if (action === 'next')
                             void this.challenge();
                         else if (action === 'mom')
-                            this.startMomMode(level);
+                            void this.startMomMode();
+                        else if (action === 'first')
+                            this.show(stage1_1.stage1(date_1.shanghaiDate()));
                         else
                             this.show(level);
                     });
                 }
-                /** Task 4 placeholder: replace this entry point when mom mode is implemented. */
-                startMomMode(level) {
-                    this.message('妈妈模式筹备中 · 轻点再装一次第 2 关', () => this.show(level));
+                async startMomMode() {
+                    try {
+                        const level = await this.api.loadMom();
+                        if (this.node.isValid)
+                            this.show(level);
+                    }
+                    catch (_a) {
+                        if (this.node.isValid)
+                            this.message('妈妈模式读取失败，点屏幕重试', () => void this.startMomMode());
+                    }
                 }
                 async challenge() {
                     this.message('年货装上车，准备跑最后一程');
@@ -1022,7 +1033,8 @@ System.register("chunks:///_virtual/FinishTimeline.ts", [], function (exports_1,
     exports_1("updateConfetti", updateConfetti);
     function finishButtons(stage) {
         return stage === 1 ? [{ title: '下一关', action: 'next' }] :
-            [{ title: '再来一次', action: 'replay' }, { title: '试试妈妈模式', action: 'mom' }];
+            stage === 3 ? [{ title: '再来一次', action: 'replay' }, { title: '回第 1 关', action: 'first' }] :
+                [{ title: '再来一次', action: 'replay' }, { title: '试试妈妈模式', action: 'mom' }];
     }
     exports_1("finishButtons", finishButtons);
     return {
@@ -1165,20 +1177,46 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
         execute: function () {
             StageSession = class StageSession {
                 constructor(level, now) {
+                    var _a;
                     this.level = level;
                     this.now = now;
                     this.state = { rotations: new Map(), placements: new Map() };
                     this.history = [];
                     this.deadline = 0;
+                    this.active = [];
+                    this.batchIndex = 0;
+                    this.batches = level.mode === 'mom'
+                        ? [level.pieces, ...((_a = level.extras) !== null && _a !== void 0 ? _a : [])]
+                        : [level.pieces];
                     this.restart();
                 }
                 restart() {
+                    this.batchIndex = 0;
+                    this.active = [...this.batches[0]];
                     this.state = {
-                        rotations: new Map(this.level.pieces.map(piece => [piece.id, piece.initialRotation])),
+                        rotations: new Map(this.pieces.map(piece => [piece.id, piece.initialRotation])),
                         placements: new Map(),
                     };
                     this.history = [];
                     this.deadline = this.now() + this.level.timeLimitSec * 1000;
+                }
+                /** Pieces currently available on the board. Appended batches only ever add to this list. */
+                get pieces() { return this.active; }
+                get totalPieces() { return this.batches.reduce((total, batch) => total + batch.length, 0); }
+                get pendingBatches() { return this.batches.length - this.batchIndex - 1; }
+                get readyForNextBatch() {
+                    return this.pendingBatches > 0 && this.pieces.every(piece => this.state.placements.has(piece.id));
+                }
+                /** Appends the next configured batch. This state change is deliberately outside undo history. */
+                appendNextBatch() {
+                    if (!this.readyForNextBatch)
+                        return false;
+                    this.batchIndex++;
+                    const added = this.batches[this.batchIndex];
+                    this.active.push(...added);
+                    for (const piece of added)
+                        this.state.rotations.set(piece.id, piece.initialRotation);
+                    return true;
                 }
                 get expired() { return this.level.timeLimitSec > 0 && this.remainingSeconds === 0; }
                 get remainingSeconds() {
@@ -1189,8 +1227,8 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
                 // Cocos Web Mobile can compile iterator spreads into array concatenation.
                 get placements() { return Array.from(this.state.placements.values()); }
                 get solved() {
-                    return this.state.placements.size === this.level.pieces.length &&
-                        validate_1.validateSolution(this.level, this.placements).ok;
+                    return this.pendingBatches === 0 && this.state.placements.size === this.pieces.length &&
+                        validate_1.validateSolution(Object.assign(Object.assign({}, this.level), { pieces: [...this.pieces] }), this.placements).ok;
                 }
                 rotationFor(id) { var _a; return (_a = this.state.rotations.get(id)) !== null && _a !== void 0 ? _a : 0; }
                 canDrop(placement) {
@@ -1198,7 +1236,7 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
                         !Number.isInteger(placement.x) || !Number.isInteger(placement.y))
                         return false;
                     let piece;
-                    for (const definition of this.level.pieces)
+                    for (const definition of this.pieces)
                         if (definition.id === placement.pieceId) {
                             piece = definition;
                             break;
@@ -1216,7 +1254,7 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
                         for (const other of this.state.placements.values()) {
                             if (other.pieceId === piece.id)
                                 continue;
-                            for (const definition of this.level.pieces) {
+                            for (const definition of this.pieces) {
                                 if (definition.id !== other.pieceId)
                                     continue;
                                 const occupied = InteractionGeometry_1.pieceCells(definition, other.rotation);
@@ -1259,11 +1297,18 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
                     return true;
                 }
                 undo() {
+                    var _a;
                     if (this.expired)
                         return;
                     const previous = this.history.pop();
-                    if (previous)
+                    if (previous) {
+                        for (const piece of this.pieces) {
+                            if (!previous.rotations.has(piece.id)) {
+                                previous.rotations.set(piece.id, (_a = this.state.rotations.get(piece.id)) !== null && _a !== void 0 ? _a : piece.initialRotation);
+                            }
+                        }
                         this.state = previous;
+                    }
                 }
                 remember() {
                     this.history.push({ rotations: new Map(this.state.rotations), placements: new Map(this.state.placements) });
@@ -1276,7 +1321,7 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
 
 System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.ts","./StageSession.ts","./DragController.ts","./InteractionGeometry.ts","./SoundEffects.ts","./OptionalResources.ts","./UIKit.ts","./FinishTimeline.ts","./FinishView.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, items_1, StageSession_1, DragController_1, InteractionGeometry_1, SoundEffects_1, OptionalResources_1, UIKit_1, FinishTimeline_1, FinishView_1, ink, red, cream, gold, gray, green, invalid, colors, shadow, StagePage;
+    var cc_1, brand_1, items_1, StageSession_1, DragController_1, InteractionGeometry_1, SoundEffects_1, OptionalResources_1, UIKit_1, FinishTimeline_1, FinishView_1, ink, red, cream, gold, gray, green, invalid, colors, shadow, MOM_INTRO_MS, MOM_APPEAR_MS, MOM_STAY_MS, StagePage;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -1320,8 +1365,10 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
             green = new cc_1.Color(76, 175, 80, 128), invalid = new cc_1.Color(229, 57, 53, 128);
             colors = [new cc_1.Color(174, 64, 53), new cc_1.Color(157, 99, 36), new cc_1.Color(65, 115, 97), new cc_1.Color(95, 87, 140)];
             shadow = new cc_1.Color(40, 20, 10, 70);
+            MOM_INTRO_MS = 3800, MOM_APPEAR_MS = 700, MOM_STAY_MS = 1300;
             StagePage = class StagePage {
                 constructor(parent, level, now, onClear) {
+                    var _a;
                     this.level = level;
                     this.now = now;
                     this.onClear = onClear;
@@ -1350,18 +1397,24 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.touchLocal = new cc_1.Vec3();
                     this.touchPoint = { x: 0, y: 0 };
                     this.landscape = false;
+                    this.momIntroUntil = 0;
                     this.onHide = () => this.cancelDrag();
                     this.node = UIKit_1.uiNode('StagePage', parent, 750, 1334);
+                    this.allPieces = [...level.pieces, ...(level.mode === 'mom' ? ((_a = level.extras) !== null && _a !== void 0 ? _a : []).flat() : [])];
                     this.session = new StageSession_1.StageSession(level, now);
                     this.sounds = new SoundEffects_1.SoundEffects(parent);
                     this.background = UIKit_1.uiNode('GridBackground', this.node, 750, 1334).addComponent(cc_1.Graphics);
                     this.clock = UIKit_1.label(this.node, 'Clock', '', 28, 0, 0);
                     this.packed = UIKit_1.label(this.node, 'Packed', '', 26, 0, 0);
                     this.notice = UIKit_1.label(this.node, 'Notice', '', 24, 0, 0);
+                    this.momIntro = UIKit_1.label(this.node, 'MomIntro', '妈妈说：再带点东西！', 28, 0, 0);
+                    this.momIntro.color = red;
+                    this.momIntro.node.active = false;
+                    this.momIntroUntil = level.mode === 'mom' ? now() + MOM_INTRO_MS : 0;
                     UIKit_1.label(this.node, 'Title', brand_1.GAME_TITLE, 42, 0, 0);
                     UIKit_1.label(this.node, 'Vehicle', `第 ${level.stage} 关 · 拖年货进后备箱`, 27, 0, 0);
                     this.preview = UIKit_1.uiNode('DropPreview', this.node, 750, 1334).addComponent(cc_1.Graphics);
-                    for (const piece of level.pieces) {
+                    for (const piece of this.allPieces) {
                         const node = UIKit_1.uiNode(`Piece${piece.id}`, this.node, 1, 1);
                         const graphics = UIKit_1.uiNode(`Fallback${piece.id}`, node, 1, 1).addComponent(cc_1.Graphics);
                         const sprite = UIKit_1.uiNode(`Sprite${piece.id}`, node, 1, 1).addComponent(cc_1.Sprite);
@@ -1375,6 +1428,31 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.rotateTitle = this.button('旋转 90°', 45, 180, () => this.rotateSelected(), true);
                     this.button('撤销', 295, 160, () => { this.cancelDrag(); this.session.undo(); this.sounds.play('undo'); this.selected = undefined; this.sync(); });
                     this.button('重开', 515, 160, () => { this.cancelDrag(); this.modal = 'restart'; this.updateOverlay(); });
+                    this.momLayer = UIKit_1.uiNode('MomAppear', this.node, 750, 1334);
+                    this.momLayer.active = false;
+                    const bubble = UIKit_1.uiNode('MomBubble', this.momLayer, 430, 104);
+                    this.momBubbleNode = bubble;
+                    UIKit_1.fill(bubble.addComponent(cc_1.Graphics), cream, -215, -52, 430, 104, 26);
+                    this.momBubble = UIKit_1.label(bubble, 'MomBubbleText', '等等！还有这个！', 30, 0, 0);
+                    this.momBubble.color = ink;
+                    this.momAvatar = UIKit_1.uiNode('MomAvatar', this.momLayer, 180, 180);
+                    const momFallback = this.momAvatar.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(momFallback, red, -78, -78, 156, 156, 78);
+                    const momFallbackText = UIKit_1.label(this.momAvatar, 'MomFallbackText', '妈', 72, 0, 0);
+                    momFallbackText.color = cream;
+                    const momImage = UIKit_1.uiNode('MomImage', this.momAvatar, 170, 170).addComponent(cc_1.Sprite);
+                    momImage.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    momImage.trim = false;
+                    momImage.enabled = false;
+                    if (level.mode === 'mom')
+                        void OptionalResources_1.loadArt('ui/mom').then(frame => {
+                            if (!frame || !this.node.isValid)
+                                return;
+                            momImage.spriteFrame = frame;
+                            momImage.enabled = true;
+                            momFallback.enabled = false;
+                            momFallbackText.node.active = false;
+                        });
                     this.overlay = UIKit_1.uiNode('InteractionOverlay', this.node, 750, 1334);
                     this.overlay.addComponent(cc_1.Graphics);
                     this.overlayText = UIKit_1.label(this.overlay, 'Prompt', '', 38, 0, 50);
@@ -1394,7 +1472,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         (_a = this.safeProbe) === null || _a === void 0 ? void 0 : _a.remove();
                     });
                     this.tick();
-                    for (const piece of level.pieces) {
+                    for (const piece of this.allPieces) {
                         void OptionalResources_1.loadArt(`items/${items_1.ITEMS[piece.shape].key}`).then(frame => {
                             if (!frame || !this.node.isValid)
                                 return;
@@ -1437,6 +1515,11 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         this.finishView.render(this.finish.advance(this.now() - this.finishStarted));
                         return;
                     }
+                    this.momIntro.node.active = this.level.mode === 'mom' && !this.mom && this.now() < this.momIntroUntil;
+                    if (this.mom)
+                        this.updateMomSequence();
+                    else if (this.session.readyForNextBatch && !this.cleared)
+                        this.startMomSequence();
                     const seconds = this.session.remainingSeconds;
                     if (seconds !== this.displayedSeconds) {
                         if (this.displayedSeconds >= 0 && seconds > 0 && seconds <= 10)
@@ -1454,20 +1537,21 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 layout(top, bottom) {
                     var _a;
                     const extra = this.height - 1334;
-                    const boardTop = 205 + top;
+                    const boardTop = (this.level.mode === 'mom' ? 230 : 205) + top;
                     const boardBottom = 850 + extra - bottom;
                     this.cell = Math.floor(Math.min(110, 640 / this.level.width, (boardBottom - boardTop - 35) / this.level.height));
                     this.board = { x: (750 - this.cell * this.level.width) / 2, y: boardTop + (boardBottom - boardTop - this.cell * this.level.height) / 2,
                         w: this.cell * this.level.width, h: this.cell * this.level.height };
                     this.tray = { x: 24, y: 880 + extra - bottom, w: 702, h: 270 };
-                    const tray = InteractionGeometry_1.trayLayout(this.level.pieces, this.tray);
-                    this.slots = tray.slots;
-                    this.trayCell = tray.cell;
+                    this.layoutTray();
                     this.placeLabel('Title', 65 + top);
-                    this.placeLabel('Vehicle', 122 + top);
-                    this.placeLabel('Clock', 172 + top, 190);
-                    this.placeLabel('Packed', 172 + top, -180);
+                    this.placeLabel('Vehicle', this.level.mode === 'mom' ? 100 + top : 122 + top);
+                    this.placeLabel('MomIntro', 150 + top);
+                    this.placeLabel('Clock', (this.level.mode === 'mom' ? 190 : 172) + top, 190);
+                    this.placeLabel('Packed', (this.level.mode === 'mom' ? 190 : 172) + top, -180);
                     this.placeLabel('Notice', 860 + extra - bottom);
+                    this.momBubbleNode.setPosition(-75, this.height / 2 - 735);
+                    this.momAvatar.setPosition(300, this.height / 2 - 795);
                     for (const [i, button] of this.buttons.entries()) {
                         button.rect.y = 1170 + extra - bottom;
                         this.placeLabel(`Button${i}`, button.rect.y + 60, button.rect.x + button.rect.w / 2 - 375);
@@ -1513,7 +1597,8 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         this.rect(this.controls, b.rect, i === 0 ? (this.selected ? gold : gray) : red);
                     this.rotateTitle.color = this.selected ? ink : cream;
                     this.notice.string = this.selected ? `已选中 · ${items_1.ITEMS[this.selected.shape].name}` : '轻点选中 · 拖动装车 · 按按钮旋转';
-                    this.packed.string = `已装车 ${this.session.placements.length} / ${this.level.pieces.length} 件`;
+                    const total = this.level.mode === 'mom' ? this.session.totalPieces : this.session.pieces.length;
+                    this.packed.string = `已装车 ${this.session.placements.length} / ${total} 件`;
                 }
                 updateOverlay() {
                     this.overlay.active = this.landscape || !!this.modal;
@@ -1537,12 +1622,28 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 }
                 confirmRect() { return { x: 225, y: this.height / 2 + 20, w: 300, h: 120 }; }
                 sync() {
-                    for (const piece of this.level.pieces)
-                        this.renderPiece(piece);
+                    if (this.level.mode === 'mom')
+                        this.layoutTray();
+                    const active = new Set(this.session.pieces.map(piece => piece.id));
+                    for (const piece of this.allPieces) {
+                        const visible = active.has(piece.id), view = this.pieces.get(piece.id);
+                        view.node.active = visible;
+                        if (visible)
+                            this.renderPiece(piece);
+                    }
                     this.clearPreview();
                     this.updateControls();
                 }
+                layoutTray() {
+                    const unplaced = this.level.mode === 'mom'
+                        ? this.session.pieces.filter(piece => !this.session.placements.some(placement => placement.pieceId === piece.id))
+                        : this.session.pieces;
+                    const tray = InteractionGeometry_1.trayLayout(unplaced, this.tray);
+                    this.slots = tray.slots;
+                    this.trayCell = tray.cell;
+                }
                 renderPiece(piece) {
+                    var _a, _b;
                     const view = this.pieces.get(piece.id);
                     cc_1.Tween.stopAllByTarget(view.node);
                     view.node.angle = 0;
@@ -1551,7 +1652,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     const rotation = this.session.rotationFor(piece.id);
                     const size = placement ? this.cell : this.trayCell;
                     const box = InteractionGeometry_1.dimensions(piece, rotation);
-                    const slot = this.slots.find(s => s.piece.id === piece.id).rect;
+                    const slot = (_b = (_a = this.slots.find(s => s.piece.id === piece.id)) === null || _a === void 0 ? void 0 : _a.rect) !== null && _b !== void 0 ? _b : this.tray;
                     const rect = placement ? { x: this.board.x + placement.x * size, y: this.board.y + placement.y * size, w: box.w * size, h: box.h * size } :
                         { x: slot.x + (slot.w - box.w * size) / 2, y: slot.y + (slot.h - box.h * size) / 2, w: box.w * size, h: box.h * size };
                     view.rect = rect;
@@ -1613,14 +1714,12 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     }
                     if (this.landscape)
                         return;
+                    if (this.mom)
+                        return;
                     if (this.modal) {
                         if (InteractionGeometry_1.inRect(p, this.confirmRect())) {
                             this.modal = undefined;
-                            this.session.restart();
-                            this.selected = undefined;
-                            this.cleared = false;
-                            this.sync();
-                            this.updateOverlay();
+                            this.restartStage();
                         }
                         else if (this.modal === 'restart' && p.y > this.confirmRect().y + 130) {
                             this.modal = undefined;
@@ -1639,7 +1738,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     if (this.drag.active)
                         return;
                     // The entire grid bounding region includes the gaps between occupied cells.
-                    const piece = this.level.pieces.slice().reverse().find(piece => InteractionGeometry_1.inRect(p, this.pieces.get(piece.id).rect));
+                    const piece = this.session.pieces.slice().reverse().find(piece => InteractionGeometry_1.inRect(p, this.pieces.get(piece.id).rect));
                     if (piece && this.selected && piece.id !== this.selected.id) {
                         const old = this.selected;
                         this.selected = undefined;
@@ -1761,6 +1860,8 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     else if (this.previewPlacement)
                         accepted = this.session.drop(this.previewPlacement);
                     this.sounds.play(accepted ? 'drop' : 'invalid');
+                    if (accepted && this.level.mode === 'mom')
+                        this.layoutTray();
                     const from = v.node.position.clone();
                     this.renderPiece(g.piece);
                     const destination = v.node.position.clone();
@@ -1775,12 +1876,16 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     }
                     this.clearPreview();
                     this.updateControls();
-                    if (this.session.solved && !this.cleared)
+                    if (this.session.readyForNextBatch)
+                        this.startMomSequence();
+                    else if (this.session.solved && !this.cleared)
                         this.beginFinish();
                 }
                 beginFinish() {
                     this.cleared = true;
                     this.selected = undefined;
+                    this.momIntro.node.active = false;
+                    this.momLayer.active = false;
                     this.finishStarted = this.now();
                     this.finish = new FinishTimeline_1.FinishPlayback(cue => {
                         this.sounds.play(cue.sound);
@@ -1794,6 +1899,58 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.finishView = new FinishView_1.FinishView(this.node, this.level.stage, this.onClear);
                     this.finishView.layout(this.height, this.board);
                     this.finishView.render(this.finish.state);
+                }
+                startMomSequence() {
+                    if (this.mom || this.cleared || !this.session.readyForNextBatch)
+                        return;
+                    this.cancelDrag();
+                    this.selected = undefined;
+                    this.momIntro.node.active = false;
+                    this.momIntroUntil = 0;
+                    this.mom = { started: this.now(), appended: false };
+                    this.momLayer.active = true;
+                    this.momBubble.string = '等等！还有这个！';
+                    this.momAvatar.setPosition(520, this.height / 2 - 795);
+                    cc_1.tween(this.momAvatar).to(.24, { position: new cc_1.Vec3(300, this.height / 2 - 795, 0) }, { easing: 'quadOut' }).start();
+                    this.updateControls();
+                }
+                updateMomSequence() {
+                    if (!this.mom)
+                        return;
+                    const elapsed = this.now() - this.mom.started;
+                    if (!this.mom.appended && elapsed >= MOM_APPEAR_MS) {
+                        const previous = new Set(this.session.pieces.map(piece => piece.id));
+                        if (this.session.appendNextBatch()) {
+                            const added = this.session.pieces.filter(piece => !previous.has(piece.id));
+                            this.sync();
+                            for (const piece of added) {
+                                const view = this.pieces.get(piece.id);
+                                const destination = view.node.position.clone();
+                                view.node.setPosition(destination.x, destination.y + 280, destination.z);
+                                cc_1.Tween.stopAllByTarget(view.node);
+                                cc_1.tween(view.node).to(.3, { position: destination }, { easing: 'bounceOut' }).start();
+                            }
+                            this.sounds.play('mom');
+                            this.updateControls();
+                        }
+                        this.mom.appended = true;
+                    }
+                    if (this.mom.appended && elapsed >= MOM_APPEAR_MS + MOM_STAY_MS) {
+                        this.mom = undefined;
+                        this.momLayer.active = false;
+                        this.sync();
+                    }
+                }
+                restartStage() {
+                    this.session.restart();
+                    this.selected = undefined;
+                    this.cleared = false;
+                    this.modal = undefined;
+                    this.mom = undefined;
+                    this.momLayer.active = false;
+                    this.momIntroUntil = this.level.mode === 'mom' ? this.now() + MOM_INTRO_MS : 0;
+                    this.sync();
+                    this.updateOverlay();
                 }
                 cancelDrag() { if (this.drag.cancel())
                     this.sync(); }
@@ -1814,6 +1971,7 @@ System.register("chunks:///_virtual/WebPlatform.ts", [], function (exports_1, co
         execute: function () {
             WebPlatform = class WebPlatform {
                 now() { return Date.now(); }
+                isMomMode() { return new URLSearchParams(window.location.search).get('mode') === 'mom'; }
                 hasLevelOverride() { return new URLSearchParams(window.location.search).has('level'); }
                 levelFilename() {
                     var _a;
@@ -1846,14 +2004,22 @@ System.register("chunks:///_virtual/Api.ts", ["cc","./level.ts"], function (expo
                 constructor(platform) {
                     this.platform = platform;
                 }
-                async loadChallenge() {
-                    const name = this.platform.levelFilename();
+                async load(path) {
                     const asset = await new Promise((resolve, reject) => {
-                        cc_1.resources.load(`dev-levels/${name}`, cc_1.JsonAsset, (error, value) => error ? reject(error) : resolve(value));
+                        cc_1.resources.load(path, cc_1.JsonAsset, (error, value) => error ? reject(error) : resolve(value));
                     });
-                    const level = level_1.parseLevel(asset.json);
+                    return level_1.parseLevel(asset.json);
+                }
+                async loadChallenge() {
+                    const level = await this.load(`dev-levels/${this.platform.levelFilename()}`);
                     if (level.stage !== 2)
                         throw new Error('挑战关数据无效');
+                    return level;
+                }
+                async loadMom() {
+                    const level = await this.load('levels/v1/mom');
+                    if (level.stage !== 3 || level.mode !== 'mom')
+                        throw new Error('妈妈模式数据无效');
                     return level;
                 }
             };
