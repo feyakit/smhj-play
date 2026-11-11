@@ -589,8 +589,29 @@ System.register("chunks:///_virtual/input.ts", [], function (exports_1, context_
 
 System.register("chunks:///_virtual/items.ts", [], function (exports_1, context_1) {
     "use strict";
-    var ITEMS, byKey;
+    var ITEMS, EXTRA_ITEMS, byKey;
     var __moduleName = context_1 && context_1.id;
+    /** Every skin drawn for a shape: the default first, then the extras in table order. */
+    function skinsFor(shape) {
+        return [ITEMS[shape], ...EXTRA_ITEMS.filter(item => item.shape === shape)];
+    }
+    exports_1("skinsFor", skinsFor);
+    /**
+     * Re-skin pieces for on-screen variety without touching shape, rotation or ids.
+     * Each shape cycles through its skins starting at a per-level offset, so one key repeats at most
+     * ceil(count/skins) times (≤2 while a shape appears ≤ 2×its skin count).
+     */
+    function diversifySkins(pieces, offset = 0) {
+        const seen = new Map();
+        const order = Object.keys(ITEMS);
+        return pieces.map(piece => {
+            var _a;
+            const skins = skinsFor(piece.shape), n = (_a = seen.get(piece.shape)) !== null && _a !== void 0 ? _a : 0;
+            seen.set(piece.shape, n + 1);
+            return Object.assign(Object.assign({}, piece), { item: skins[(offset + order.indexOf(piece.shape) + n) % skins.length].key });
+        });
+    }
+    exports_1("diversifySkins", diversifySkins);
     /** Level data may skin a piece independently; unknown or legacy values fall back to the shape default. */
     function itemKey(piece) {
         return byKey.has(piece.item) ? piece.item : ITEMS[piece.shape].key;
@@ -614,7 +635,17 @@ System.register("chunks:///_virtual/items.ts", [], function (exports_1, context_
             exports_1("ITEMS", ITEMS = {
                 I2: { key: 'liquor', name: '一箱白酒' }, I3: { key: 'sausage', name: '腊肠串', scale: { y: 1.6 } }, L3: { key: 'ricecooker', name: '电饭煲' }, I4: { key: 'sugarcane', name: '甘蔗' }, O4: { key: 'milk', name: '牛奶箱' }, L4: { key: 'suitcase_s', name: '登机箱' }, J4: { key: 'duffel', name: '拉杆包' }, T4: { key: 'nutbox', name: '坚果礼盒' }, S4: { key: 'fish', name: '鱼' }, Z4: { key: 'duck', name: '腊鸭' }, P5: { key: 'quilt', name: '被子' }, L5: { key: 'frozenbox', name: '冻品泡沫箱' }, T5: { key: 'tv', name: '电视' }, U5: { key: 'coop', name: '鸡鸭笼' }, V5: { key: 'crab', name: '大闸蟹礼盒' }, Z5: { key: 'painting', name: '年画卷' }, N5: { key: 'lotusroot', name: '莲藕', scale: { y: 1.12 } }, Y5: { key: 'couplets', name: '春联礼包' }, R6: { key: 'suitcase_l', name: '大号行李箱' }
             });
-            byKey = new Map(Object.values(ITEMS).map(item => [item.key, item]));
+            /** Extra real-object skins: same footprint as the shape default, so gameplay never changes. */
+            exports_1("EXTRA_ITEMS", EXTRA_ITEMS = [
+                { key: 'winebox', name: '红酒礼盒', shape: 'I2' }, { key: 'ricecake', name: '年糕条', shape: 'I3' }, { key: 'hairtail', name: '带鱼', shape: 'I4' },
+                { key: 'oil', name: '食用油', shape: 'L3' }, { key: 'mandarin', name: '砂糖橘箱', shape: 'O4' }, { key: 'toycar', name: '玩具车礼盒', shape: 'O4' },
+                { key: 'ricebag', name: '大米袋', shape: 'L4' }, { key: 'drinks', name: '饮料箱', shape: 'J4' }, { key: 'teabox', name: '茶叶礼盒', shape: 'T4' },
+                { key: 'eggs', name: '鸡蛋托', shape: 'S4' }, { key: 'candy', name: '糖果礼盒', shape: 'Z4' }, { key: 'snacks', name: '零食大礼包', shape: 'P5' },
+                { key: 'ham', name: '金华火腿', shape: 'L5' }, { key: 'kumquat', name: '金桔盆栽', shape: 'T5' }, { key: 'fruitbasket', name: '果篮', shape: 'U5' },
+                { key: 'apples', name: '苹果箱', shape: 'V5' }, { key: 'fudeco', name: '窗花礼包', shape: 'Z5' }, { key: 'larou', name: '腊肉', shape: 'N5' },
+                { key: 'lanterns', name: '红灯笼', shape: 'Y5' }, { key: 'woven', name: '土特产编织袋', shape: 'R6' },
+            ]);
+            byKey = new Map([...Object.values(ITEMS), ...EXTRA_ITEMS].map(item => [item.key, item]));
         }
     };
 });
@@ -1093,7 +1124,7 @@ System.register("chunks:///_virtual/FinishTimeline.ts", [], function (exports_1,
 
 System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], function (exports_1, context_1) {
     "use strict";
-    var shapes_1, MIN_TRAY_CELL, inRect, geometry;
+    var shapes_1, MIN_TRAY_CELL, MAX_TRAY_CELL, inRect, geometry;
     var __moduleName = context_1 && context_1.id;
     function dimensions(piece, rotation) {
         return geometry[piece.shape][rotation];
@@ -1118,8 +1149,8 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
     }
     exports_1("previewVisible", previewVisible);
     /**
-     * Keep every tray piece at least one 56px cell. Two or three rows are preferred when they fit;
-     * wider inventories stay on complete rows and become horizontally scrollable instead of shrinking.
+     * Use the largest 56–110px cell that fits every tray piece in up to three complete rows. Sparse
+     * inventories grow to fill the tray; denser ones keep the 56px minimum and scroll horizontally.
      * Callers re-run this layout after rotating a piece, so slot bounds use its current orientation.
      */
     function trayLayout(pieces, tray, rotationFor = piece => piece.initialRotation) {
@@ -1130,52 +1161,67 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
             const box = dimensions(piece, rotationFor(piece));
             return { piece, w: box.w, h: box.h };
         });
-        let best;
-        const consider = (counts) => {
-            let start = 0;
-            let rowHeight = 0;
-            let rowWidth = 0;
-            for (const count of counts) {
-                const row = metrics.slice(start, start + count);
-                start += count;
-                rowHeight += Math.max(...row.map(entry => entry.h)) * MIN_TRAY_CELL;
-                rowWidth = Math.max(rowWidth, row.reduce((sum, entry) => sum + entry.w * MIN_TRAY_CELL, 0) + gap * (count - 1));
-            }
-            const height = pad * 2 + rowHeight + gap * (counts.length - 1);
-            const width = pad * 2 + rowWidth;
-            if (height > tray.h + 0.001)
-                return;
-            const candidate = { counts: [...counts], height, width, overflow: Math.max(0, width - tray.w) };
-            const sameOverflowClass = !!best && (candidate.overflow === 0) === (best.overflow === 0);
-            const better = !best ||
-                (candidate.overflow === 0 && best.overflow !== 0) ||
-                (sameOverflowClass && (candidate.overflow < best.overflow - 0.001 ||
-                    (Math.abs(candidate.overflow - best.overflow) <= 0.001 && candidate.counts.length < best.counts.length)));
-            if (better)
-                best = candidate;
-        };
-        const partition = (row, left, counts) => {
-            if (row === 0) {
-                if (left)
-                    counts.push(left);
-                if (left)
-                    consider(counts);
-                if (left)
+        const fit = (cell) => {
+            let best;
+            const consider = (counts) => {
+                let start = 0;
+                let rowHeight = 0;
+                let rowWidth = 0;
+                let narrowest = Infinity;
+                for (const count of counts) {
+                    const row = metrics.slice(start, start + count);
+                    start += count;
+                    rowHeight += Math.max(...row.map(entry => entry.h)) * cell;
+                    const width = row.reduce((sum, entry) => sum + entry.w * cell, 0) + gap * (count - 1);
+                    rowWidth = Math.max(rowWidth, width);
+                    narrowest = Math.min(narrowest, width);
+                }
+                const height = pad * 2 + rowHeight + gap * (counts.length - 1);
+                const width = pad * 2 + rowWidth;
+                if (height > tray.h + 0.001 || width > tray.w + 0.001)
+                    return;
+                const candidate = { counts: [...counts], height, width, balance: narrowest };
+                const better = !best || candidate.counts.length < best.counts.length ||
+                    (candidate.counts.length === best.counts.length &&
+                        (candidate.height < best.height - 0.001 ||
+                            (Math.abs(candidate.height - best.height) <= 0.001 && candidate.balance > best.balance + 0.001)));
+                if (better)
+                    best = candidate;
+            };
+            const partition = (row, left, counts) => {
+                if (row === 0) {
+                    if (left)
+                        counts.push(left);
+                    if (left)
+                        consider(counts);
+                    if (left)
+                        counts.pop();
+                    return;
+                }
+                const max = left - row;
+                for (let count = 1; count <= max; count++) {
+                    counts.push(count);
+                    partition(row - 1, left - count, counts);
                     counts.pop();
-                return;
-            }
-            const max = left - row;
-            for (let count = 1; count <= max; count++) {
-                counts.push(count);
-                partition(row - 1, left - count, counts);
-                counts.pop();
-            }
+                }
+            };
+            for (let rows = 1; rows <= Math.min(3, pieces.length); rows++)
+                partition(rows - 1, pieces.length, []);
+            return best;
         };
-        for (let rows = 1; rows <= Math.min(3, pieces.length); rows++)
-            partition(rows - 1, pieces.length, []);
-        // A single row always fits vertically at 56px and remains complete through horizontal scrolling.
-        if (!best)
-            best = { counts: [pieces.length], height: 0, width: 0, overflow: 0 };
+        let cell = MAX_TRAY_CELL;
+        let best;
+        for (; cell >= MIN_TRAY_CELL; cell--) {
+            best = fit(cell);
+            if (best)
+                break;
+        }
+        // A single 56px row always fits vertically and remains complete through horizontal scrolling.
+        if (!best) {
+            cell = MIN_TRAY_CELL;
+            const width = metrics.reduce((sum, entry) => sum + entry.w * cell, 0) + gap * (metrics.length - 1);
+            best = { counts: [pieces.length], height: pad * 2 + Math.max(...metrics.map(entry => entry.h)) * cell, width: pad * 2 + width, balance: width };
+        }
         const contentWidth = best.width;
         const contentHeight = best.height;
         const centered = contentWidth <= tray.w + 0.001;
@@ -1186,16 +1232,16 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
         for (const count of best.counts) {
             const row = metrics.slice(start, start + count);
             start += count;
-            const rowHeight = Math.max(...row.map(entry => entry.h)) * MIN_TRAY_CELL;
+            const rowHeight = Math.max(...row.map(entry => entry.h)) * cell;
             let x = startX;
             for (const entry of row) {
-                const w = entry.w * MIN_TRAY_CELL, h = entry.h * MIN_TRAY_CELL;
+                const w = entry.w * cell, h = entry.h * cell;
                 slots.push({ piece: entry.piece, rect: { x, y: startY + (rowHeight - h) / 2, w, h } });
                 x += w + gap;
             }
             startY += rowHeight + gap;
         }
-        return { cell: MIN_TRAY_CELL, slots, contentWidth, viewportWidth: tray.w, maxScroll: Math.max(0, contentWidth - tray.w) };
+        return { cell, slots, contentWidth, viewportWidth: tray.w, maxScroll: Math.max(0, contentWidth - tray.w) };
     }
     exports_1("trayLayout", trayLayout);
     return {
@@ -1206,6 +1252,7 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
         ],
         execute: function () {
             exports_1("MIN_TRAY_CELL", MIN_TRAY_CELL = 56);
+            exports_1("MAX_TRAY_CELL", MAX_TRAY_CELL = 110);
             exports_1("inRect", inRect = (p, r) => p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h);
             // Precompute once; touch-move must not allocate shape arrays or bounding boxes.
             geometry = {};
@@ -2066,6 +2113,8 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     view.sprite.enabled = true;
                     view.sprite.color = failed ? new cc_1.Color(255, 150, 150) : cc_1.Color.WHITE;
                     view.title.node.active = false;
+                    // The fallback card's emblem lives on its own Graphics; drop it once the real picture shows.
+                    view.feature.clear();
                     return true;
                 }
                 point(event) {
@@ -2738,8 +2787,8 @@ System.register("chunks:///_virtual/ItemArt.ts", ["cc","./items.ts"], function (
     var cc_1, items_1, tones, fallback;
     var __moduleName = context_1 && context_1.id;
     function itemTone(piece) {
-        var _a;
-        return (_a = tones[items_1.itemKey(piece)]) !== null && _a !== void 0 ? _a : fallback;
+        var _a, _b, _c;
+        return (_c = (_a = tones[items_1.itemKey(piece)]) !== null && _a !== void 0 ? _a : tones[(_b = items_1.ITEMS[piece.shape]) === null || _b === void 0 ? void 0 : _b.key]) !== null && _c !== void 0 ? _c : fallback;
     }
     exports_1("itemTone", itemTone);
     function block(g, color, x, y, w, h, r = 0) {
@@ -3429,6 +3478,10 @@ System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function 
                 suitcase_s: '登机箱', duffel: '拉杆包', nutbox: '坚果', fish: '鱼', duck: '腊鸭',
                 quilt: '被子', frozenbox: '冻品', tv: '电视', coop: '鸡鸭笼', crab: '闸蟹',
                 painting: '年画', lotusroot: '莲藕', couplets: '春联', suitcase_l: '行李箱',
+                winebox: '红酒', ricecake: '年糕', hairtail: '带鱼', oil: '食用油', mandarin: '砂糖橘', toycar: '玩具车',
+                ricebag: '大米', drinks: '饮料', teabox: '茶叶', eggs: '鸡蛋', candy: '糖果', snacks: '零食',
+                ham: '火腿', kumquat: '金桔', fruitbasket: '果篮', apples: '苹果', fudeco: '窗花', larou: '腊肉',
+                lanterns: '灯笼', woven: '编织袋',
             };
         }
     };
