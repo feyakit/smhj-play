@@ -589,14 +589,32 @@ System.register("chunks:///_virtual/input.ts", [], function (exports_1, context_
 
 System.register("chunks:///_virtual/items.ts", [], function (exports_1, context_1) {
     "use strict";
-    var ITEMS;
+    var ITEMS, byKey;
     var __moduleName = context_1 && context_1.id;
+    /** Level data may skin a piece independently; unknown or legacy values fall back to the shape default. */
+    function itemKey(piece) {
+        return byKey.has(piece.item) ? piece.item : ITEMS[piece.shape].key;
+    }
+    exports_1("itemKey", itemKey);
+    function itemMeta(piece) {
+        var _a;
+        return (_a = byKey.get(itemKey(piece))) !== null && _a !== void 0 ? _a : ITEMS[piece.shape];
+    }
+    exports_1("itemMeta", itemMeta);
+    /** Art-only stretch hints; they never change collision cells or gameplay geometry. */
+    function itemScale(piece) {
+        var _a, _b, _c;
+        const scale = (_a = byKey.get(itemKey(piece))) === null || _a === void 0 ? void 0 : _a.scale;
+        return { x: (_b = scale === null || scale === void 0 ? void 0 : scale.x) !== null && _b !== void 0 ? _b : 1, y: (_c = scale === null || scale === void 0 ? void 0 : scale.y) !== null && _c !== void 0 ? _c : 1 };
+    }
+    exports_1("itemScale", itemScale);
     return {
         setters: [],
         execute: function () {
             exports_1("ITEMS", ITEMS = {
-                I2: { key: 'liquor', name: '一箱白酒' }, I3: { key: 'sausage', name: '腊肠串' }, L3: { key: 'ricecooker', name: '电饭煲' }, I4: { key: 'sugarcane', name: '甘蔗' }, O4: { key: 'milk', name: '牛奶箱' }, L4: { key: 'suitcase_s', name: '登机箱' }, J4: { key: 'duffel', name: '拉杆包' }, T4: { key: 'nutbox', name: '坚果礼盒' }, S4: { key: 'fish', name: '鱼' }, Z4: { key: 'duck', name: '腊鸭' }, P5: { key: 'quilt', name: '被子' }, L5: { key: 'frozenbox', name: '冻品泡沫箱' }, T5: { key: 'tv', name: '电视' }, U5: { key: 'coop', name: '鸡鸭笼' }, V5: { key: 'crab', name: '大闸蟹礼盒' }, Z5: { key: 'painting', name: '年画卷' }, N5: { key: 'lotusroot', name: '莲藕' }, Y5: { key: 'couplets', name: '春联礼包' }, R6: { key: 'suitcase_l', name: '大号行李箱' }
+                I2: { key: 'liquor', name: '一箱白酒' }, I3: { key: 'sausage', name: '腊肠串', scale: { y: 1.6 } }, L3: { key: 'ricecooker', name: '电饭煲' }, I4: { key: 'sugarcane', name: '甘蔗' }, O4: { key: 'milk', name: '牛奶箱' }, L4: { key: 'suitcase_s', name: '登机箱' }, J4: { key: 'duffel', name: '拉杆包' }, T4: { key: 'nutbox', name: '坚果礼盒' }, S4: { key: 'fish', name: '鱼' }, Z4: { key: 'duck', name: '腊鸭' }, P5: { key: 'quilt', name: '被子' }, L5: { key: 'frozenbox', name: '冻品泡沫箱' }, T5: { key: 'tv', name: '电视' }, U5: { key: 'coop', name: '鸡鸭笼' }, V5: { key: 'crab', name: '大闸蟹礼盒' }, Z5: { key: 'painting', name: '年画卷' }, N5: { key: 'lotusroot', name: '莲藕', scale: { y: 1.12 } }, Y5: { key: 'couplets', name: '春联礼包' }, R6: { key: 'suitcase_l', name: '大号行李箱' }
             });
+            byKey = new Map(Object.values(ITEMS).map(item => [item.key, item]));
         }
     };
 });
@@ -1075,7 +1093,7 @@ System.register("chunks:///_virtual/FinishTimeline.ts", [], function (exports_1,
 
 System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], function (exports_1, context_1) {
     "use strict";
-    var shapes_1, inRect, geometry;
+    var shapes_1, MIN_TRAY_CELL, inRect, geometry;
     var __moduleName = context_1 && context_1.id;
     function dimensions(piece, rotation) {
         return geometry[piece.shape][rotation];
@@ -1099,35 +1117,42 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
         return inside * 2 >= cells.length;
     }
     exports_1("previewVisible", previewVisible);
-    // Reserve each piece's largest width and height across rotations so rotations never collide.
-    function trayLayout(pieces, tray) {
+    /**
+     * Keep every tray piece at least one 56px cell. Two or three rows are preferred when they fit;
+     * wider inventories stay on complete rows and become horizontally scrollable instead of shrinking.
+     * Callers re-run this layout after rotating a piece, so slot bounds use its current orientation.
+     */
+    function trayLayout(pieces, tray, rotationFor = piece => piece.initialRotation) {
         if (!pieces.length)
-            return { cell: 44, slots: [] };
+            return { cell: MIN_TRAY_CELL, slots: [], contentWidth: 0, viewportWidth: tray.w, maxScroll: 0 };
+        const gap = 6, pad = 8;
         const metrics = pieces.map(piece => {
-            let maxW = 1, maxH = 1;
-            for (const rotation of [0, 1, 2, 3]) {
-                const box = dimensions(piece, rotation);
-                maxW = Math.max(maxW, box.w);
-                maxH = Math.max(maxH, box.h);
-            }
-            return { piece, maxW, maxH };
+            const box = dimensions(piece, rotationFor(piece));
+            return { piece, w: box.w, h: box.h };
         });
-        const gap = 6;
-        let best = { cell: 0, counts: [] };
+        let best;
         const consider = (counts) => {
             let start = 0;
-            let heightUnits = 0;
-            let cell = Infinity;
+            let rowHeight = 0;
+            let rowWidth = 0;
             for (const count of counts) {
                 const row = metrics.slice(start, start + count);
                 start += count;
-                const widthUnits = row.reduce((sum, entry) => sum + entry.maxW, 0);
-                heightUnits += Math.max(...row.map(entry => entry.maxH));
-                cell = Math.min(cell, (tray.w - gap * (count + 1)) / widthUnits);
+                rowHeight += Math.max(...row.map(entry => entry.h)) * MIN_TRAY_CELL;
+                rowWidth = Math.max(rowWidth, row.reduce((sum, entry) => sum + entry.w * MIN_TRAY_CELL, 0) + gap * (count - 1));
             }
-            cell = Math.min(cell, (tray.h - gap * (counts.length + 1)) / heightUnits);
-            if (cell > best.cell + 0.001)
-                best = { cell, counts: [...counts] };
+            const height = pad * 2 + rowHeight + gap * (counts.length - 1);
+            const width = pad * 2 + rowWidth;
+            if (height > tray.h + 0.001)
+                return;
+            const candidate = { counts: [...counts], height, width, overflow: Math.max(0, width - tray.w) };
+            const sameOverflowClass = !!best && (candidate.overflow === 0) === (best.overflow === 0);
+            const better = !best ||
+                (candidate.overflow === 0 && best.overflow !== 0) ||
+                (sameOverflowClass && (candidate.overflow < best.overflow - 0.001 ||
+                    (Math.abs(candidate.overflow - best.overflow) <= 0.001 && candidate.counts.length < best.counts.length)));
+            if (better)
+                best = candidate;
         };
         const partition = (row, left, counts) => {
             if (row === 0) {
@@ -1148,27 +1173,29 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
         };
         for (let rows = 1; rows <= Math.min(3, pieces.length); rows++)
             partition(rows - 1, pieces.length, []);
-        // Layout callers must provide enough room for the established 20px minimum.
-        if (pieces.length <= 12 && best.cell < 20)
-            throw new Error('Tray too small for 20px luggage cells');
-        const cell = Math.floor(best.cell);
+        // A single row always fits vertically at 56px and remains complete through horizontal scrolling.
+        if (!best)
+            best = { counts: [pieces.length], height: 0, width: 0, overflow: 0 };
+        const contentWidth = best.width;
+        const contentHeight = best.height;
+        const centered = contentWidth <= tray.w + 0.001;
+        const startX = centered ? tray.x + (tray.w - contentWidth) / 2 + pad : tray.x + pad;
+        let startY = tray.y + (tray.h - contentHeight) / 2 + pad;
         const slots = [];
         let start = 0;
-        let y = tray.y + gap;
         for (const count of best.counts) {
             const row = metrics.slice(start, start + count);
             start += count;
-            const rowWidth = row.reduce((sum, entry) => sum + entry.maxW * cell, 0) + gap * (count - 1);
-            const rowHeight = Math.max(...row.map(entry => entry.maxH)) * cell;
-            let x = tray.x + (tray.w - rowWidth) / 2;
+            const rowHeight = Math.max(...row.map(entry => entry.h)) * MIN_TRAY_CELL;
+            let x = startX;
             for (const entry of row) {
-                const w = entry.maxW * cell, h = entry.maxH * cell;
-                slots.push({ piece: entry.piece, rect: { x, y: y + (rowHeight - h) / 2, w, h } });
+                const w = entry.w * MIN_TRAY_CELL, h = entry.h * MIN_TRAY_CELL;
+                slots.push({ piece: entry.piece, rect: { x, y: startY + (rowHeight - h) / 2, w, h } });
                 x += w + gap;
             }
-            y += rowHeight + gap;
+            startY += rowHeight + gap;
         }
-        return { cell, slots };
+        return { cell: MIN_TRAY_CELL, slots, contentWidth, viewportWidth: tray.w, maxScroll: Math.max(0, contentWidth - tray.w) };
     }
     exports_1("trayLayout", trayLayout);
     return {
@@ -1178,6 +1205,7 @@ System.register("chunks:///_virtual/InteractionGeometry.ts", ["./shapes.ts"], fu
             }
         ],
         execute: function () {
+            exports_1("MIN_TRAY_CELL", MIN_TRAY_CELL = 56);
             exports_1("inRect", inRect = (p, r) => p.x >= r.x && p.y >= r.y && p.x < r.x + r.w && p.y < r.y + r.h);
             // Precompute once; touch-move must not allocate shape arrays or bounding boxes.
             geometry = {};
@@ -1352,9 +1380,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.ts","./StageSession.ts","./DragController.ts","./InteractionGeometry.ts","./SoundEffects.ts","./OptionalResources.ts","./UIKit.ts","./FinishTimeline.ts","./FinishView.ts","./StageArt.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.ts","./StageSession.ts","./DragController.ts","./InteractionGeometry.ts","./SoundEffects.ts","./OptionalResources.ts","./UIKit.ts","./FinishTimeline.ts","./FinishView.ts","./StageArt.ts","./ItemArt.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, items_1, StageSession_1, DragController_1, InteractionGeometry_1, SoundEffects_1, OptionalResources_1, UIKit_1, FinishTimeline_1, FinishView_1, StageArt_1, ink, red, cream, gold, green, invalid, itemColors, shadow, MOM_INTRO_MS, MOM_APPEAR_MS, MOM_STAY_MS, StagePage;
+    var cc_1, brand_1, items_1, StageSession_1, DragController_1, InteractionGeometry_1, SoundEffects_1, OptionalResources_1, UIKit_1, FinishTimeline_1, FinishView_1, StageArt_1, ItemArt_1, ink, red, cream, gold, green, invalid, shadow, BODY_SIZE, BODY_HOLE, BODY_SLICE, BODY_PLATE_Y, BODY_SEAL_Y, MOM_INTRO_MS, MOM_APPEAR_MS, MOM_STAY_MS, ITEM_OVERSCAN, StagePage;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -1393,22 +1421,31 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
             },
             function (StageArt_1_1) {
                 StageArt_1 = StageArt_1_1;
+            },
+            function (ItemArt_1_1) {
+                ItemArt_1 = ItemArt_1_1;
             }
         ],
         execute: function () {
             ink = new cc_1.Color(74, 44, 26), red = new cc_1.Color(215, 51, 43), cream = new cc_1.Color(255, 246, 229);
             gold = new cc_1.Color(246, 195, 67);
             green = new cc_1.Color(76, 175, 80, 128), invalid = new cc_1.Color(229, 57, 53, 128);
-            itemColors = [new cc_1.Color(183, 45, 42), new cc_1.Color(200, 79, 38), new cc_1.Color(166, 35, 49), new cc_1.Color(151, 91, 42),
-                new cc_1.Color(206, 56, 43), new cc_1.Color(128, 79, 49), new cc_1.Color(177, 54, 34), new cc_1.Color(194, 94, 31)];
             shadow = new cc_1.Color(40, 20, 10, 70);
+            // Measured on art/vehicles/sedan_v1_body.png (1024×640).
+            BODY_SIZE = { w: 1024, h: 640 };
+            BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 };
+            BODY_SLICE = { top: 150, bottom: 380 };
+            BODY_PLATE_Y = 498, BODY_SEAL_Y = 72;
             MOM_INTRO_MS = 3800, MOM_APPEAR_MS = 700, MOM_STAY_MS = 1300;
+            ITEM_OVERSCAN = 1.025;
             StagePage = class StagePage {
                 constructor(parent, level, now, onClear) {
                     var _a;
                     this.level = level;
                     this.now = now;
                     this.onClear = onClear;
+                    this.sceneFrames = {};
+                    this.itemFrames = new Map();
                     this.pieces = new Map();
                     this.drag = new DragController_1.DragController();
                     this.buttons = [];
@@ -1421,6 +1458,9 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.buttonH = 120;
                     this.cell = 0;
                     this.trayCell = 0;
+                    this.trayScrollX = 0;
+                    this.trayScrollMax = 0;
+                    this.trayContentWidth = 0;
                     this.width = 750;
                     this.height = 1334;
                     this.cleared = false;
@@ -1444,7 +1484,27 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.allPieces = [...level.pieces, ...(level.mode === 'mom' ? ((_a = level.extras) !== null && _a !== void 0 ? _a : []).flat() : [])];
                     this.session = new StageSession_1.StageSession(level, now);
                     this.sounds = new SoundEffects_1.SoundEffects(parent);
+                    this.backdrop = UIKit_1.uiNode('Backdrop', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    this.bgImage = this.imageNode('BackdropImage');
+                    this.bodyImage = this.imageNode('CarBodyImage');
                     this.background = UIKit_1.uiNode('GridBackground', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    this.trayEmpty = UIKit_1.uiNode('TrayEmptyState', this.node, 750, 1334);
+                    this.trayEmptyArt = this.trayEmpty.addComponent(cc_1.Graphics);
+                    this.trayEmptyTitle = UIKit_1.label(this.trayEmpty, 'TrayEmptyTitle', '已全部装车', 34, 0, 0);
+                    this.trayEmptyTitle.color = cream;
+                    this.trayEmptyHint = UIKit_1.label(this.trayEmpty, 'TrayEmptyHint', '福气满箱 · 准备出发', 21, 0, 0);
+                    this.trayEmptyHint.color = gold;
+                    this.trayEmpty.active = false;
+                    this.trunkImage = this.imageNode('TrunkFloorImage');
+                    this.floorMarks = UIKit_1.uiNode('TrunkFloorMarks', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    for (const [file, slot] of [['ui/bg_night', 'bg'], ['vehicles/sedan_v1_body', 'body'], ['vehicles/sedan_v1_trunk', 'trunk']])
+                        void OptionalResources_1.loadArt(file).then(frame => {
+                            if (!frame || !this.node.isValid)
+                                return;
+                            this.sceneFrames[slot] = frame;
+                            if (this.height)
+                                this.drawBackground();
+                        });
                     const look = StageArt_1.vehicleLook(level.vehicle);
                     this.clock = UIKit_1.label(this.node, 'Clock', '', 28, 0, 0);
                     this.clock.color = gold;
@@ -1471,12 +1531,18 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     for (const piece of this.allPieces) {
                         const node = UIKit_1.uiNode(`Piece${piece.id}`, this.node, 1, 1);
                         const graphics = UIKit_1.uiNode(`Fallback${piece.id}`, node, 1, 1).addComponent(cc_1.Graphics);
+                        const shadowSprite = UIKit_1.uiNode(`Shadow${piece.id}`, node, 1, 1).addComponent(cc_1.Sprite);
+                        shadowSprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                        shadowSprite.trim = false;
+                        shadowSprite.enabled = false;
                         const sprite = UIKit_1.uiNode(`Sprite${piece.id}`, node, 1, 1).addComponent(cc_1.Sprite);
                         sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
                         sprite.trim = false;
                         sprite.enabled = false;
+                        const featureNode = UIKit_1.uiNode(`Feature${piece.id}`, node, 1, 1);
+                        const feature = featureNode.addComponent(cc_1.Graphics);
                         const title = UIKit_1.label(node, `Item${piece.id}`, StageArt_1.itemShortName(piece), 18, 0, 0);
-                        this.pieces.set(piece.id, { node, sprite, graphics, title, held: false, failed: false, rect: { x: 0, y: 0, w: 0, h: 0 }, rotation: 0, size: 0 });
+                        this.pieces.set(piece.id, { node, sprite, shadow: shadowSprite, graphics, featureNode, feature, title, held: false, failed: false, rect: { x: 0, y: 0, w: 0, h: 0 }, rotation: 0, size: 0 });
                     }
                     this.controls = UIKit_1.uiNode('Controls', this.node, 750, 1334).addComponent(cc_1.Graphics);
                     this.button('旋转 90°', 45, 180, () => this.rotateSelected(), true);
@@ -1615,14 +1681,64 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 }
                 placeLabel(name, y, x = 0) { this.node.getChildByName(name).setPosition(x, this.height / 2 - y); }
                 rect(g, r, color) { UIKit_1.fill(g, color, r.x - 375, this.height / 2 - r.y - r.h, r.w, r.h, 6); }
+                imageNode(name) {
+                    const sprite = UIKit_1.uiNode(name, this.node, 1, 1).addComponent(cc_1.Sprite);
+                    sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    sprite.trim = false;
+                    sprite.enabled = false;
+                    return sprite;
+                }
                 drawBackground() {
                     const g = this.background;
                     g.clear();
+                    this.backdrop.clear();
+                    this.floorMarks.clear();
                     const look = StageArt_1.vehicleLook(this.level.vehicle);
-                    StageArt_1.drawStageBackdrop(g, 750, this.height, 0, look);
-                    StageArt_1.drawCarRear(g, 750, this.height, 0, this.car, this.trunk, look);
-                    StageArt_1.drawTrunkFloor(g, 750, this.height, 0, this.trunk, this.board, this.level, this.cell);
+                    const { bg, body, trunk } = this.sceneFrames;
+                    // Painted backdrop covers the screen (cropping the sides on tall phones); code art is the fallback.
+                    if (bg) {
+                        const scale = Math.max(1, this.height / 1334);
+                        this.showImage(this.bgImage, bg, 375, this.height / 2, 750 * scale, 1334 * scale);
+                    }
+                    else
+                        StageArt_1.drawStageBackdrop(this.backdrop, 750, this.height, 0, look);
+                    if (body)
+                        this.drawCarBody(body);
+                    else
+                        StageArt_1.drawCarRear(g, 750, this.height, 0, this.car, this.trunk, look);
+                    if (trunk) {
+                        this.rect(g, this.trunk, new cc_1.Color(28, 22, 24));
+                        this.showImage(this.trunkImage, trunk, this.trunk.x + this.trunk.w / 2, this.trunk.y + this.trunk.h / 2, this.trunk.w, this.trunk.h);
+                        StageArt_1.drawTrunkGrid(this.floorMarks, 750, this.height, 0, this.board, this.level, this.cell);
+                    }
+                    else
+                        StageArt_1.drawTrunkFloor(g, 750, this.height, 0, this.trunk, this.board, this.level, this.cell);
                     StageArt_1.drawStageChrome(g, 750, this.height, 0, this.board, this.tray, this.tray.y - 20, look);
+                }
+                showImage(sprite, frame, cx, cy, w, h) {
+                    sprite.spriteFrame = frame;
+                    sprite.enabled = true;
+                    sprite.node.getComponent(cc_1.UITransform).setContentSize(w, h);
+                    sprite.node.setPosition(cx - 375, this.height / 2 - cy);
+                }
+                // The car-rear painting has a transparent trunk opening (BODY_HOLE). It is scaled so the opening
+                // matches the trunk rect; only the plain pillar band between the slanted top and the tail lights stretches.
+                drawCarBody(frame) {
+                    const s = this.trunk.w / (BODY_HOLE.right - BODY_HOLE.left);
+                    frame.insetTop = BODY_SLICE.top;
+                    frame.insetBottom = BODY_SLICE.bottom;
+                    frame.insetLeft = 0;
+                    frame.insetRight = 0;
+                    const sprite = this.bodyImage;
+                    sprite.type = cc_1.Sprite.Type.SLICED;
+                    const h = this.trunk.h / s + BODY_HOLE.top + (BODY_SIZE.h - BODY_HOLE.bottom);
+                    const left = this.trunk.x - BODY_HOLE.left * s, top = this.trunk.y - BODY_HOLE.top * s;
+                    this.showImage(sprite, frame, left + BODY_SIZE.w * s / 2, top + h * s / 2, BODY_SIZE.w, h);
+                    sprite.node.setScale(s, s, 1);
+                    this.placeLabel('Plate', this.trunk.y + this.trunk.h + (BODY_PLATE_Y - BODY_HOLE.bottom) * s);
+                    this.placeLabel('TrunkLidSeal', this.trunk.y - (BODY_HOLE.top - BODY_SEAL_Y) * s);
+                    this.lidSeal.color = new cc_1.Color(150, 28, 32);
+                    this.plate.color = new cc_1.Color(150, 28, 32);
                 }
                 drawMomIntroBubble(g) {
                     UIKit_1.fill(g, new cc_1.Color(255, 205, 114), -207, -39, 414, 86, 24);
@@ -1638,7 +1754,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 button(text, x, w, action, duringDrag = false) {
                     const index = this.buttons.length;
                     this.buttons.push({ rect: { x, y: this.buttonY, w, h: this.buttonH }, action, duringDrag });
-                    return UIKit_1.label(this.node, `Button${index}`, text, 30, 0, 0);
+                    return UIKit_1.label(this.node, `Button${index}`, text, 28, 0, 0);
                 }
                 updateControls() {
                     var _a, _b;
@@ -1648,10 +1764,10 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         this.rect(this.controls, { x: b.rect.x + 3, y: b.rect.y + 6, w: b.rect.w, h: b.rect.h }, new cc_1.Color(34, 15, 21, 180));
                         this.rect(this.controls, b.rect, gold);
                         this.rect(this.controls, { x: b.rect.x + 4, y: b.rect.y + 4, w: b.rect.w - 8, h: b.rect.h - 8 }, active ? new cc_1.Color(239, 181, 62) : new cc_1.Color(184, 40, 42));
-                        const cx = b.rect.x + 35 - 375, cy = this.height / 2 - (b.rect.y + b.rect.h / 2);
-                        this.drawControlIcon(this.controls, i, cx, cy, active ? ink : gold);
+                        const content = StageArt_1.controlContentLayout(b.rect), cy = this.height / 2 - (b.rect.y + b.rect.h / 2);
+                        this.drawControlIcon(this.controls, i, content.iconX - 375, cy, active ? ink : gold);
                         const text = this.node.getChildByName(`Button${i}`);
-                        text === null || text === void 0 ? void 0 : text.setPosition(b.rect.x + b.rect.w / 2 + 17 - 375, this.height / 2 - (b.rect.y + b.rect.h / 2));
+                        text === null || text === void 0 ? void 0 : text.setPosition(content.textX - 375, cy);
                     }
                     const rotateTitle = (_a = this.node.getChildByName('Button0')) === null || _a === void 0 ? void 0 : _a.getComponent(cc_1.Label);
                     if (rotateTitle)
@@ -1661,9 +1777,17 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                         if (text)
                             text.color = cream;
                     }
-                    this.notice.string = this.selected ? `已选中 · ${items_1.ITEMS[this.selected.shape].name}` : '轻点年货选中 · 拖进后备箱';
+                    this.notice.string = this.selected ? `已选中 · ${items_1.itemMeta(this.selected).name}` :
+                        this.trayScrollMax > 0 ? '轻点年货选中 · 拖进后备箱 · 托盘左右滑动' : '轻点年货选中 · 拖进后备箱';
                     const total = this.level.mode === 'mom' ? this.session.totalPieces : this.session.pieces.length;
                     this.packed.string = `已装车 ${this.session.placements.length} / ${total} 件`;
+                    if (this.trayScrollMax > 0) {
+                        const trackW = this.tray.w - 40, trackY = this.height / 2 - (this.tray.y + this.tray.h - 18);
+                        const thumbW = Math.max(52, trackW * this.tray.w / this.trayContentWidth);
+                        const thumbX = -trackW / 2 + (trackW - thumbW) * this.trayScrollX / this.trayScrollMax;
+                        UIKit_1.fill(this.controls, new cc_1.Color(255, 218, 153, 48), -trackW / 2, trackY, trackW, 4, 2);
+                        UIKit_1.fill(this.controls, gold, thumbX, trackY, thumbW, 4, 2);
+                    }
                 }
                 drawControlIcon(g, index, cx, cy, color) {
                     if (index === 0) {
@@ -1725,8 +1849,7 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 }
                 confirmRect() { return { x: 225, y: this.height / 2 + 20, w: 300, h: 120 }; }
                 sync() {
-                    if (this.level.mode === 'mom')
-                        this.layoutTray();
+                    this.layoutTray();
                     const active = new Set(this.session.pieces.map(piece => piece.id));
                     for (const piece of this.allPieces) {
                         const visible = active.has(piece.id), view = this.pieces.get(piece.id);
@@ -1735,18 +1858,57 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                             this.renderPiece(piece);
                     }
                     this.clearPreview();
+                    this.updateTrayState();
                     this.updateControls();
                 }
+                remainingPieces() {
+                    return this.session.pieces.filter(piece => !this.session.placements.some(placement => placement.pieceId === piece.id));
+                }
                 layoutTray() {
-                    const unplaced = this.level.mode === 'mom'
-                        ? this.session.pieces.filter(piece => !this.session.placements.some(placement => placement.pieceId === piece.id))
-                        : this.session.pieces;
-                    const tray = InteractionGeometry_1.trayLayout(unplaced, this.tray);
+                    const tray = InteractionGeometry_1.trayLayout(this.remainingPieces(), this.tray, piece => this.session.rotationFor(piece.id));
                     this.slots = tray.slots;
                     this.trayCell = tray.cell;
+                    this.trayContentWidth = tray.contentWidth;
+                    this.trayScrollMax = tray.maxScroll;
+                    this.trayScrollX = Math.max(0, Math.min(this.trayScrollX, this.trayScrollMax));
+                }
+                updateTrayState() {
+                    const show = this.remainingPieces().length === 0 && this.level.mode !== 'mom';
+                    this.trayEmpty.active = show;
+                    if (!show)
+                        return;
+                    const g = this.trayEmptyArt;
+                    g.clear();
+                    const cx = 0, cy = this.tray.y + this.tray.h / 2;
+                    const left = -this.tray.w / 2;
+                    UIKit_1.fill(g, new cc_1.Color(255, 241, 205, 20), left + 30, this.height / 2 - (this.tray.y + this.tray.h - 34), this.tray.w - 60, this.tray.h - 68, 26);
+                    for (const x of [left + 66, left + this.tray.w - 66]) {
+                        UIKit_1.fill(g, new cc_1.Color(255, 218, 153, 85), x - 12, this.height / 2 - (cy + 5), 24, 2, 1);
+                        UIKit_1.fill(g, new cc_1.Color(255, 218, 153, 85), x - 12, this.height / 2 - (cy - 5), 24, 2, 1);
+                    }
+                    g.fillColor = new cc_1.Color(255, 218, 153, 80);
+                    g.circle(cx, this.height / 2 - (cy - 42), 64);
+                    g.fill();
+                    g.fillColor = gold;
+                    g.circle(cx, this.height / 2 - (cy - 42), 55);
+                    g.fill();
+                    g.fillColor = new cc_1.Color(173, 38, 43);
+                    g.circle(cx, this.height / 2 - (cy - 42), 47);
+                    g.fill();
+                    g.strokeColor = cream;
+                    g.lineWidth = 8;
+                    g.moveTo(cx - 21, this.height / 2 - (cy - 42));
+                    g.lineTo(cx - 6, this.height / 2 - (cy - 27));
+                    g.lineTo(cx + 24, this.height / 2 - (cy - 63));
+                    g.stroke();
+                    UIKit_1.fill(g, gold, left + 42, this.height / 2 - (cy + 78), 80, 3, 1);
+                    UIKit_1.fill(g, gold, left + this.tray.w - 122, this.height / 2 - (cy + 78), 80, 3, 1);
+                    const titleY = cy + 35, hintY = cy + 77;
+                    this.trayEmptyTitle.node.setPosition(0, this.height / 2 - titleY);
+                    this.trayEmptyHint.node.setPosition(0, this.height / 2 - hintY);
                 }
                 renderPiece(piece) {
-                    var _a, _b;
+                    var _a, _b, _c, _d, _e;
                     const view = this.pieces.get(piece.id);
                     cc_1.Tween.stopAllByTarget(view.node);
                     view.node.angle = 0;
@@ -1755,14 +1917,17 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     const rotation = this.session.rotationFor(piece.id);
                     const size = placement ? this.cell : this.trayCell;
                     const box = InteractionGeometry_1.dimensions(piece, rotation);
-                    const slot = (_b = (_a = this.slots.find(s => s.piece.id === piece.id)) === null || _a === void 0 ? void 0 : _a.rect) !== null && _b !== void 0 ? _b : this.tray;
+                    const slot = (_a = this.slots.find(s => s.piece.id === piece.id)) === null || _a === void 0 ? void 0 : _a.rect;
                     const rect = placement ? { x: this.board.x + placement.x * size, y: this.board.y + placement.y * size, w: box.w * size, h: box.h * size } :
-                        { x: slot.x + (slot.w - box.w * size) / 2, y: slot.y + (slot.h - box.h * size) / 2, w: box.w * size, h: box.h * size };
+                        { x: ((_b = slot === null || slot === void 0 ? void 0 : slot.x) !== null && _b !== void 0 ? _b : this.tray.x) - this.trayScrollX + (((_c = slot === null || slot === void 0 ? void 0 : slot.w) !== null && _c !== void 0 ? _c : this.tray.w) - box.w * size) / 2,
+                            y: ((_d = slot === null || slot === void 0 ? void 0 : slot.y) !== null && _d !== void 0 ? _d : this.tray.y) + (((_e = slot === null || slot === void 0 ? void 0 : slot.h) !== null && _e !== void 0 ? _e : this.tray.h) - box.h * size) / 2, w: box.w * size, h: box.h * size };
                     view.rect = rect;
                     view.rotation = rotation;
                     view.size = size;
                     this.drawPiece(piece, rotation, size, false);
                     this.position(view, rect.x + rect.w / 2, rect.y + rect.h / 2);
+                    view.node.active = !!placement ||
+                        (rect.x >= this.tray.x - 0.5 && rect.x + rect.w <= this.tray.x + this.tray.w + 0.5);
                 }
                 position(view, x, y) { view.node.setPosition(x - 375, this.height / 2 - y); }
                 drawPiece(piece, rotation, size, held, failed = false) {
@@ -1776,26 +1941,132 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     g.clear();
                     const box = InteractionGeometry_1.dimensions(piece, rotation), w = box.w * size, h = box.h * size;
                     view.node.getComponent(cc_1.UITransform).setContentSize(w, h);
-                    view.sprite.enabled = false;
-                    view.title.node.active = true;
                     const chosen = ((_a = this.selected) === null || _a === void 0 ? void 0 : _a.id) === piece.id;
-                    const bodyColor = failed ? new cc_1.Color(172, 35, 37) : itemColors[(piece.id - 1) % itemColors.length];
-                    for (const [x, y] of InteractionGeometry_1.pieceCells(piece, rotation)) {
+                    if (this.drawPieceArt(piece, view, rotation, size, w, h, held, failed, chosen))
+                        return;
+                    view.sprite.enabled = false;
+                    view.shadow.enabled = false;
+                    view.title.node.active = true;
+                    const tone = ItemArt_1.itemTone(piece);
+                    const bodyColor = failed ? new cc_1.Color(172, 35, 37) : tone.base;
+                    const outline = failed ? new cc_1.Color(92, 20, 22) : tone.edge;
+                    const cells = InteractionGeometry_1.pieceCells(piece, rotation);
+                    const cellRect = ([x, y]) => ({
+                        x: x * size - w / 2, y: h / 2 - (y + 1) * size,
+                    });
+                    for (const cell of cells) {
+                        const r = cellRect(cell);
                         if (held)
-                            UIKit_1.fill(g, shadow, x * size - w / 2 + 8, h / 2 - (y + 1) * size - 9, size - 3, size - 3, 5);
-                        UIKit_1.fill(g, chosen ? gold : new cc_1.Color(255, 211, 124), x * size - w / 2 + 1, h / 2 - (y + 1) * size + 1, size - 2, size - 2, 5);
-                        UIKit_1.fill(g, bodyColor, x * size - w / 2 + 4, h / 2 - (y + 1) * size + 4, size - 8, size - 8, 4);
-                        UIKit_1.fill(g, new cc_1.Color(255, 235, 181, 48), x * size - w / 2 + 8, h / 2 - y * size + Math.max(4, size * .62), Math.max(4, size - 24), Math.max(3, size * .12), 2);
+                            UIKit_1.fill(g, shadow, r.x + 8, r.y - 9, size - 3, size - 3, 5);
+                        UIKit_1.fill(g, bodyColor, r.x, r.y, size + 1, size + 1);
                     }
+                    g.strokeColor = chosen ? gold : outline;
+                    g.lineWidth = Math.max(3, Math.min(6, size * .075));
+                    const occupied = new Set(cells.map(([x, y]) => `${x},${y}`));
+                    for (const [x, y] of cells) {
+                        const r = cellRect([x, y]);
+                        if (!occupied.has(`${x},${y - 1}`)) {
+                            g.moveTo(r.x, r.y + size);
+                            g.lineTo(r.x + size, r.y + size);
+                        }
+                        if (!occupied.has(`${x},${y + 1}`)) {
+                            g.moveTo(r.x, r.y);
+                            g.lineTo(r.x + size, r.y);
+                        }
+                        if (!occupied.has(`${x - 1},${y}`)) {
+                            g.moveTo(r.x, r.y);
+                            g.lineTo(r.x, r.y + size);
+                        }
+                        if (!occupied.has(`${x + 1},${y}`)) {
+                            g.moveTo(r.x + size, r.y);
+                            g.lineTo(r.x + size, r.y + size);
+                        }
+                    }
+                    g.stroke();
+                    g.strokeColor = chosen ? new cc_1.Color(255, 244, 198, 180) : tone.light;
+                    g.lineWidth = Math.max(1, Math.min(2, size * .022));
+                    for (const [x, y] of cells) {
+                        if (occupied.has(`${x},${y - 1}`))
+                            continue;
+                        const r = cellRect([x, y]);
+                        g.moveTo(r.x + 4, r.y + size - 4);
+                        g.lineTo(r.x + size - 4, r.y + size - 4);
+                    }
+                    g.stroke();
                     view.title.string = StageArt_1.itemShortName(piece);
-                    view.title.fontSize = Math.max(15, Math.min(26, size * .42));
+                    view.title.fontSize = Math.max(13, Math.min(22, size * .38));
                     view.title.color = cream;
-                    view.title.lineHeight = view.title.fontSize + 6;
-                    const labelW = Math.min(w - 8, Math.max(34, view.title.string.length * (view.title.fontSize - 1) + 18));
-                    const labelH = view.title.fontSize + 10;
-                    UIKit_1.fill(g, new cc_1.Color(69, 25, 27, 225), -labelW / 2, -labelH / 2, labelW, labelH, Math.min(12, labelH / 2));
-                    UIKit_1.fill(g, new cc_1.Color(255, 214, 145, 220), -labelW / 2, -labelH / 2, labelW, 2, 1);
-                    view.title.node.setPosition(0, 0);
+                    view.title.lineHeight = view.title.fontSize + 4;
+                    const labelW = Math.min(w - 8, Math.max(32, view.title.string.length * (view.title.fontSize - 1) + 16));
+                    const labelH = view.title.fontSize + 6, labelY = -h / 2 + labelH / 2 + 3;
+                    const centers = cells.map(([x, y]) => ({ x: x * size - w / 2 + size / 2, y: h / 2 - (y + .5) * size }));
+                    const anchorX = centers.reduce((sum, p) => sum + p.x, 0) / centers.length;
+                    const anchorY = centers.reduce((sum, p) => sum + p.y, 0) / centers.length;
+                    const roomTop = h / 2 - 4, roomBottom = labelY + labelH / 2 + 3;
+                    const featureHalf = Math.min(size * .55, Math.max(6, (roomTop - roomBottom) * .48));
+                    const featureY = Math.max(roomBottom + featureHalf, Math.min(roomTop - featureHalf, anchorY));
+                    view.feature.clear();
+                    view.featureNode.setPosition(anchorX, featureY);
+                    ItemArt_1.drawItemFeature(view.feature, piece, size, w, h, labelH, tone);
+                    UIKit_1.fill(g, new cc_1.Color(30, 24, 28, 228), -labelW / 2, labelY - labelH / 2, labelW, labelH, Math.min(10, labelH / 2));
+                    UIKit_1.fill(g, new cc_1.Color(255, 214, 145, 210), -labelW / 2, labelY - labelH / 2, labelW, 2, 1);
+                    view.title.node.setPosition(0, labelY);
+                }
+                // Real item art: one Sprite per piece, rotated as a whole (art is drawn for rotation 0).
+                // Until the frame is available the coloured-cell fallback is drawn instead.
+                drawPieceArt(piece, view, rotation, size, w, h, held, failed, chosen) {
+                    const key = items_1.itemKey(piece);
+                    const frame = this.itemFrames.get(key);
+                    if (!frame) {
+                        if (!this.itemFrames.has(key)) {
+                            this.itemFrames.set(key, undefined);
+                            void OptionalResources_1.loadArt(`items/${key}`).then(loaded => {
+                                if (!loaded || !this.node.isValid)
+                                    return;
+                                this.itemFrames.set(key, loaded);
+                                for (const other of this.allPieces)
+                                    if (items_1.itemKey(other) === key) {
+                                        const pv = this.pieces.get(other.id);
+                                        if (pv.size)
+                                            this.drawPiece(other, pv.rotation, pv.size, pv.held, pv.failed);
+                                    }
+                            });
+                        }
+                        return false;
+                    }
+                    const g = view.graphics;
+                    const base = InteractionGeometry_1.dimensions(piece, 0);
+                    const fitted = { w: base.w * size * ITEM_OVERSCAN, h: base.h * size * ITEM_OVERSCAN };
+                    const placed = !held && this.session.placements.some(p => p.pieceId === piece.id);
+                    // Soft glow under the occupied cells shows selection / pickup without hiding the art.
+                    for (const [x, y] of InteractionGeometry_1.pieceCells(piece, rotation)) {
+                        const cx = x * size - w / 2, cy = h / 2 - (y + 1) * size;
+                        if (held)
+                            UIKit_1.fill(g, shadow, cx + 8, cy - 9, size - 3, size - 3, Math.max(6, size * .18));
+                        if (chosen || held)
+                            UIKit_1.fill(g, new cc_1.Color(255, 214, 120, held ? 70 : 95), cx + 1, cy + 1, size - 2, size - 2, Math.max(6, size * .18));
+                        if (failed)
+                            UIKit_1.fill(g, new cc_1.Color(220, 40, 40, 90), cx + 1, cy + 1, size - 2, size - 2, Math.max(6, size * .18));
+                    }
+                    const sn = view.sprite.node;
+                    sn.getComponent(cc_1.UITransform).setContentSize(fitted.w, fitted.h);
+                    sn.angle = 90 * rotation;
+                    sn.setPosition(0, 0);
+                    const artScale = items_1.itemScale(piece);
+                    sn.setScale(artScale.x, artScale.y, 1);
+                    const shadowNode = view.shadow.node;
+                    shadowNode.getComponent(cc_1.UITransform).setContentSize(fitted.w, fitted.h);
+                    shadowNode.angle = 90 * rotation;
+                    shadowNode.setPosition(4, -6);
+                    shadowNode.setScale(artScale.x, artScale.y, 1);
+                    view.shadow.spriteFrame = frame;
+                    view.shadow.color = new cc_1.Color(18, 12, 16, 80);
+                    view.shadow.enabled = placed;
+                    view.sprite.spriteFrame = frame;
+                    view.sprite.enabled = true;
+                    view.sprite.color = failed ? new cc_1.Color(255, 150, 150) : cc_1.Color.WHITE;
+                    view.title.node.active = false;
+                    return true;
                 }
                 point(event) {
                     const p = event.getUILocation();
@@ -1841,20 +2112,42 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     if (this.drag.active)
                         return;
                     // The entire grid bounding region includes the gaps between occupied cells.
-                    const piece = this.session.pieces.slice().reverse().find(piece => InteractionGeometry_1.inRect(p, this.pieces.get(piece.id).rect));
+                    const piece = this.session.pieces.slice().reverse().find(piece => {
+                        const view = this.pieces.get(piece.id);
+                        return view.node.active && InteractionGeometry_1.inRect(p, view.rect);
+                    });
                     if (piece && this.selected && piece.id !== this.selected.id) {
                         const old = this.selected;
                         this.selected = undefined;
                         this.renderPiece(old);
                         this.updateControls();
                     }
-                    this.drag.begin({ id: (_a = event.getID()) !== null && _a !== void 0 ? _a : 0, start: p, time: this.now(), piece, fromTray: InteractionGeometry_1.inRect(p, this.tray),
+                    const id = (_a = event.getID()) !== null && _a !== void 0 ? _a : 0, fromTray = InteractionGeometry_1.inRect(p, this.tray);
+                    if (fromTray && this.trayScrollMax > 0)
+                        this.trayPan = { id, startX: p.x, startY: p.y, startScroll: this.trayScrollX, active: false };
+                    this.drag.begin({ id, start: p, time: this.now(), piece, fromTray,
                         rotation: piece ? this.session.rotationFor(piece.id) : 0, offset: { x: 0, y: 0 } });
                 }
                 move(event) {
                     var _a, _b;
-                    const previous = (_a = this.drag.active) === null || _a === void 0 ? void 0 : _a.mode;
-                    const gesture = this.drag.move((_b = event.getID()) !== null && _b !== void 0 ? _b : 0, this.point(event));
+                    const id = (_a = event.getID()) !== null && _a !== void 0 ? _a : 0, p = this.point(event), pan = this.trayPan;
+                    if (pan && pan.id === id) {
+                        const dx = p.x - pan.startX, dy = p.y - pan.startY;
+                        if (!pan.active && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+                            pan.active = true;
+                            this.drag.cancel(id);
+                            this.selected = undefined;
+                        }
+                        if (pan.active) {
+                            this.trayScrollX = Math.max(0, Math.min(pan.startScroll - dx, this.trayScrollMax));
+                            this.sync();
+                            return;
+                        }
+                        if (Math.abs(dy) > 8)
+                            this.trayPan = undefined;
+                    }
+                    const previous = (_b = this.drag.active) === null || _b === void 0 ? void 0 : _b.mode;
+                    const gesture = this.drag.move(id, p);
                     if (!gesture || gesture.mode !== 'drag' || !gesture.piece)
                         return;
                     if (previous !== 'drag') {
@@ -1929,7 +2222,13 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                 }
                 end(event) {
                     var _a, _b, _c;
-                    const released = this.drag.release((_a = event.getID()) !== null && _a !== void 0 ? _a : 0, this.point(event), this.now());
+                    const id = (_a = event.getID()) !== null && _a !== void 0 ? _a : 0, pan = this.trayPan;
+                    this.trayPan = undefined;
+                    if (pan === null || pan === void 0 ? void 0 : pan.active) {
+                        this.drag.cancel(id);
+                        return;
+                    }
+                    const released = this.drag.release(id, this.point(event), this.now());
                     if (!released)
                         return;
                     const { gesture: g, tap } = released;
@@ -2057,9 +2356,9 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
                     this.sync();
                     this.updateOverlay();
                 }
-                cancelDrag() { if (this.drag.cancel())
+                cancelDrag() { this.trayPan = undefined; if (this.drag.cancel())
                     this.sync(); }
-                cancel(event) { var _a; if (this.drag.cancel((_a = event.getID()) !== null && _a !== void 0 ? _a : 0))
+                cancel(event) { var _a; this.trayPan = undefined; if (this.drag.cancel((_a = event.getID()) !== null && _a !== void 0 ? _a : 0))
                     this.sync(); }
             };
             exports_1("StagePage", StagePage);
@@ -2434,6 +2733,289 @@ System.register("chunks:///_virtual/FinishView.ts", ["cc","./FinishTimeline.ts",
     };
 });
 
+System.register("chunks:///_virtual/ItemArt.ts", ["cc","./items.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, items_1, tones, fallback;
+    var __moduleName = context_1 && context_1.id;
+    function itemTone(piece) {
+        var _a;
+        return (_a = tones[items_1.itemKey(piece)]) !== null && _a !== void 0 ? _a : fallback;
+    }
+    exports_1("itemTone", itemTone);
+    function block(g, color, x, y, w, h, r = 0) {
+        g.fillColor = color;
+        if (r)
+            g.roundRect(x, y, w, h, r);
+        else
+            g.rect(x, y, w, h);
+        g.fill();
+    }
+    function shape(g, color, points) {
+        g.fillColor = color;
+        g.moveTo(points[0][0], points[0][1]);
+        for (const [x, y] of points.slice(1))
+            g.lineTo(x, y);
+        g.close();
+        g.fill();
+    }
+    function line(g, color, width, points) {
+        g.strokeColor = color;
+        g.lineWidth = width;
+        g.moveTo(points[0][0], points[0][1]);
+        for (const [x, y] of points.slice(1))
+            g.lineTo(x, y);
+        g.stroke();
+    }
+    function dot(g, color, x, y, r) {
+        g.fillColor = color;
+        g.circle(x, y, r);
+        g.fill();
+    }
+    /** A compact, upright cargo emblem that stays legible at tray and board sizes. */
+    function drawItemFeature(g, piece, size, width, height, labelHeight, tone) {
+        const key = items_1.itemKey(piece);
+        const room = Math.max(12, height - labelHeight - 8), s = Math.max(12, Math.min(size * .95, room));
+        const long = Math.max(20, Math.min(width * .7, size * 2.45));
+        const y = 0, lw = Math.max(1, Math.min(3, s * .07));
+        const edge = tone.edge, accent = tone.accent, light = tone.light;
+        switch (key) {
+            case 'liquor': {
+                const bw = Math.max(13, s * .48), bh = Math.max(18, s * .9);
+                block(g, light, -bw / 2, y - bh * .43, bw, bh * .74, Math.max(2, bw * .16));
+                shape(g, light, [[-bw * .23, y + bh * .3], [-bw * .23, y + bh * .18], [bw * .23, y + bh * .18], [bw * .23, y + bh * .3]]);
+                block(g, accent, -bw * .17, y + bh * .35, bw * .34, bh * .13, 1);
+                block(g, accent, -bw / 2 + 2, y - bh * .17, bw - 4, bh * .3, 1);
+                g.strokeColor = edge;
+                g.lineWidth = Math.max(1.5, lw);
+                g.roundRect(-bw / 2, y - bh * .43, bw, bh * .77, Math.max(2, bw * .16));
+                g.stroke();
+                g.moveTo(-bw * .23, y + bh * .29);
+                g.lineTo(-bw * .23, y + bh * .18);
+                g.lineTo(bw * .23, y + bh * .18);
+                g.lineTo(bw * .23, y + bh * .29);
+                g.stroke();
+                dot(g, light, -bw * .14, y + bh * .02, Math.max(1.5, s * .045));
+                dot(g, light, bw * .1, y - bh * .08, Math.max(1.5, s * .045));
+                break;
+            }
+            case 'milk': {
+                const bw = Math.max(22, s * .75), bh = Math.max(18, s * .62), bodyH = bh * .68;
+                block(g, light, -bw / 2, y - bh * .45, bw, bodyH, 2);
+                shape(g, accent, [[-bw / 2, y + bh * .23], [0, y + bh * .45], [bw / 2, y + bh * .23], [bw / 2, y + bh * .13], [-bw / 2, y + bh * .13]]);
+                block(g, accent, -bw / 2 + 3, y - bh * .2, bw - 6, Math.max(3, bh * .15), 1);
+                g.strokeColor = edge;
+                g.lineWidth = Math.max(1.5, lw);
+                g.moveTo(-bw / 2, y + bh * .23);
+                g.lineTo(-bw / 2, y - bh * .45);
+                g.lineTo(bw / 2, y - bh * .45);
+                g.lineTo(bw / 2, y + bh * .23);
+                g.stroke();
+                shape(g, accent, [[bw * .02, y + bh * .07], [bw * .24, y + bh * .22], [bw * .34, y + bh * .03], [bw * .12, y - bh * .03]]);
+                dot(g, accent, bw * .3, y - bh * .06, Math.max(2, s * .05));
+                break;
+            }
+            case 'sugarcane': {
+                const half = long / 2, stalk = Math.max(3.5, s * .16);
+                line(g, accent, stalk, [[-half, y - s * .16], [-half * .42, y + s * .22], [half * .24, y + s * .12], [half * .9, y + s * .26]]);
+                line(g, tone.base, stalk, [[-half * .82, y - s * .32], [-half * .2, y - s * .02], [half * .48, y - s * .08], [half, y + s * .02]]);
+                line(g, edge, Math.max(2, s * .08), [[-half * .92, y + s * .3], [-half * .28, y + s * .38], [half * .4, y + s * .3], [half * .94, y + s * .4]]);
+                line(g, edge, Math.max(2, s * .08), [[-half * .86, y - s * .36], [-half * .2, y - s * .42], [half * .5, y - s * .37], [half * .94, y - s * .22]]);
+                for (const at of [-.38, .22, .65]) {
+                    line(g, light, Math.max(1, s * .035), [[half * at, y - s * .26], [half * at + s * .06, y + s * .18]]);
+                }
+                line(g, edge, Math.max(2, s * .065), [[0, y - s * .36], [0, y + s * .35]]);
+                dot(g, accent, 0, y + s * .02, Math.max(2.5, s * .08));
+                break;
+            }
+            case 'nutbox': {
+                const bw = Math.max(22, s * .68), bh = Math.max(18, s * .54);
+                block(g, tone.light, -bw / 2, y - bh * .28, bw, bh * .62, 2);
+                block(g, accent, -bw / 2, y + bh * .18, bw, bh * .2, 1);
+                block(g, light, -bw * .09, y - bh * .3, bw * .18, bh * .72, 1);
+                shape(g, edge, [[-bw * .09, y + bh * .37], [-bw * .3, y + bh * .52], [-bw * .11, y + bh * .27]]);
+                shape(g, edge, [[bw * .09, y + bh * .37], [bw * .3, y + bh * .52], [bw * .11, y + bh * .27]]);
+                dot(g, accent, 0, y + bh * .36, Math.max(2, s * .06));
+                break;
+            }
+            case 'frozenbox': {
+                const bw = Math.max(24, s * .76), bh = Math.max(18, s * .58);
+                block(g, light, -bw / 2, y - bh * .44, bw, bh * .88, 3);
+                block(g, accent, -bw / 2, y + bh * .2, bw, bh * .17, 1);
+                line(g, edge, lw, [[0, y + bh * .08], [0, y - bh * .27]]);
+                line(g, edge, lw, [[-bw * .17, y - bh * .09], [bw * .17, y - bh * .09]]);
+                line(g, edge, lw, [[-bw * .11, y + bh * .06], [bw * .11, y - bh * .22]]);
+                line(g, edge, lw, [[bw * .11, y + bh * .06], [-bw * .11, y - bh * .22]]);
+                break;
+            }
+            case 'tv': {
+                const bw = Math.min(width * .68, size * 1.9), bh = Math.max(16, s * .48);
+                block(g, edge, -bw / 2, y - bh * .28, bw, bh * .62, 3);
+                block(g, accent, -bw / 2 + 3, y - bh * .21, bw - 6, bh * .47, 2);
+                shape(g, new cc_1.Color(235, 252, 250, 150), [[-bw * .34, y + bh * .2], [-bw * .14, y + bh * .2], [-bw * .32, y - bh * .14]]);
+                block(g, edge, -bw * .28, y - bh * .46, bw * .56, bh * .14, 1);
+                line(g, tone.light, lw, [[-bw * .1, y + bh * .08], [bw * .22, y - bh * .1]]);
+                break;
+            }
+            case 'painting': {
+                const bw = Math.max(22, s * .56), bh = Math.max(18, s * .78);
+                block(g, tone.light, -bw / 2, y - bh * .42, bw, bh * .84, 2);
+                block(g, accent, -bw / 2 + 3, y - bh * .36, bw - 6, bh * .1, 1);
+                block(g, accent, -bw * .34, y - bh * .2, bw * .25, bh * .34, 1);
+                line(g, tone.base, Math.max(1, s * .035), [[-bw * .03, y + bh * .28], [-bw * .03, y - bh * .02]]);
+                line(g, tone.base, Math.max(1, s * .035), [[bw * .2, y + bh * .2], [bw * .2, y - bh * .12]]);
+                block(g, accent, bw * .16, y - bh * .4, bw * .07, bw * .07, 1);
+                block(g, edge, bw * .2, y + bh * .45, bw * .18, bh * .1, 1);
+                break;
+            }
+            case 'duck': {
+                const bw = Math.max(22, s * .72), bh = Math.max(18, s * .5);
+                block(g, tone.light, -bw / 2, y - bh * .25, bw, bh * .56, bh * .25);
+                dot(g, tone.light, bw * .29, y + bh * .22, Math.max(4, s * .12));
+                shape(g, accent, [[bw * .39, y + bh * .22], [bw * .57, y + bh * .16], [bw * .4, y + bh * .1]]);
+                shape(g, light, [[-bw * .17, y + bh * .05], [bw * .04, y + bh * .16], [bw * .12, y - bh * .05], [-bw * .1, y - bh * .12]]);
+                line(g, edge, lw, [[-bw * .42, y - bh * .23], [bw * .05, y - bh * .1], [bw * .48, y - bh * .19]]);
+                line(g, edge, lw, [[0, y + bh * .32], [0, y + bh * .55]]);
+                break;
+            }
+            case 'sausage': {
+                const bw = Math.min(width * .72, size * 2.1), bh = Math.max(16, s * .45);
+                for (const [ox, oy] of [[-bw * .3, bh * .18], [0, -bh * .02], [bw * .3, bh * .16]]) {
+                    block(g, tone.light, ox - bw * .19, oy - bh * .24, bw * .38, bh * .48, bh * .24);
+                    line(g, accent, Math.max(1, s * .035), [[ox - bw * .06, oy - bh * .22], [ox + bw * .06, oy + bh * .22]]);
+                }
+                line(g, edge, lw, [[-bw * .48, y + bh * .32], [0, y + bh * .45], [bw * .48, y + bh * .3]]);
+                break;
+            }
+            case 'fish': {
+                const bw = Math.min(width * .68, size * 1.9), bh = Math.max(16, s * .46);
+                block(g, tone.light, -bw * .34, y - bh * .32, bw * .66, bh * .64, bh * .3);
+                shape(g, accent, [[bw * .27, y], [bw * .5, y + bh * .3], [bw * .47, y - bh * .3]]);
+                shape(g, light, [[-bw * .1, y + bh * .05], [-bw * .24, y + bh * .3], [bw * .02, y + bh * .18]]);
+                dot(g, edge, -bw * .33, y + bh * .08, Math.max(1.5, s * .04));
+                line(g, edge, lw, [[-bw * .7, y], [bw * .5, y]]);
+                break;
+            }
+            case 'suitcase_s':
+            case 'suitcase_l': {
+                const bw = Math.max(24, s * .68), bh = Math.max(20, s * .58);
+                block(g, tone.light, -bw / 2, y - bh * .4, bw, bh * .78, 3);
+                line(g, accent, Math.max(2, s * .06), [[-bw * .24, y + bh * .38], [-bw * .24, y + bh * .56], [bw * .24, y + bh * .56], [bw * .24, y + bh * .38]]);
+                block(g, accent, -bw * .34, y - bh * .34, bw * .12, bh * .68, 1);
+                block(g, accent, bw * .22, y - bh * .34, bw * .12, bh * .68, 1);
+                dot(g, edge, -bw * .35, y - bh * .45, Math.max(1.5, s * .04));
+                dot(g, edge, bw * .35, y - bh * .45, Math.max(1.5, s * .04));
+                break;
+            }
+            case 'duffel': {
+                const bw = Math.max(26, s * .8), bh = Math.max(17, s * .48);
+                block(g, tone.light, -bw / 2, y - bh * .32, bw, bh * .64, bh * .24);
+                line(g, accent, Math.max(2, s * .055), [[-bw * .25, y + bh * .35], [-bw * .12, y + bh * .56], [bw * .12, y + bh * .56], [bw * .25, y + bh * .35]]);
+                line(g, edge, lw, [[-bw * .43, y - bh * .06], [bw * .43, y - bh * .06]]);
+                block(g, accent, bw * .34, y - bh * .1, bw * .08, bh * .22, 2);
+                break;
+            }
+            case 'quilt': {
+                const bw = Math.max(25, s * .76), bh = Math.max(17, s * .52);
+                block(g, tone.light, -bw / 2, y - bh * .3, bw, bh * .5, 4);
+                block(g, accent, -bw / 2, y + bh * .14, bw, bh * .18, 3);
+                line(g, edge, Math.max(1, s * .035), [[-bw * .38, y - bh * .1], [bw * .38, y + bh * .14]]);
+                line(g, edge, Math.max(1, s * .035), [[-bw * .38, y + bh * .14], [bw * .38, y - bh * .1]]);
+                line(g, accent, Math.max(1, s * .03), [[-bw * .4, y + bh * .23], [bw * .4, y + bh * .23]]);
+                break;
+            }
+            case 'coop': {
+                const bw = Math.max(24, s * .72), bh = Math.max(20, s * .58);
+                block(g, new cc_1.Color(66, 58, 48, 70), -bw / 2, y - bh * .4, bw, bh * .8, 3);
+                line(g, edge, lw, [[-bw / 2, y - bh * .4], [-bw / 2, y + bh * .4], [bw / 2, y + bh * .4], [bw / 2, y - bh * .4]]);
+                line(g, accent, Math.max(1, s * .035), [[-bw * .25, y - bh * .35], [-bw * .25, y + bh * .35]]);
+                line(g, accent, Math.max(1, s * .035), [[0, y - bh * .35], [0, y + bh * .35]]);
+                line(g, accent, Math.max(1, s * .035), [[bw * .25, y - bh * .35], [bw * .25, y + bh * .35]]);
+                line(g, edge, lw, [[-bw * .24, y + bh * .4], [0, y + bh * .58], [bw * .24, y + bh * .4]]);
+                break;
+            }
+            case 'crab': {
+                const bw = Math.max(25, s * .72), bh = Math.max(17, s * .5);
+                block(g, tone.light, -bw / 2, y - bh * .39, bw, bh * .74, 3);
+                block(g, accent, -bw / 2, y + bh * .18, bw, bh * .16, 1);
+                block(g, edge, -bw * .25, y - bh * .05, bw * .5, bh * .22, bh * .11);
+                line(g, edge, Math.max(2, s * .05), [[-bw * .24, y + bh * .06], [-bw * .43, y + bh * .28], [-bw * .5, y + bh * .13]]);
+                line(g, edge, Math.max(2, s * .05), [[bw * .24, y + bh * .06], [bw * .43, y + bh * .28], [bw * .5, y + bh * .13]]);
+                dot(g, accent, -bw * .1, y + bh * .08, Math.max(1.5, s * .035));
+                dot(g, accent, bw * .1, y + bh * .08, Math.max(1.5, s * .035));
+                break;
+            }
+            case 'lotusroot': {
+                const bw = Math.min(width * .72, size * 2.1), bh = Math.max(15, s * .42);
+                block(g, tone.light, -bw / 2, y - bh * .28, bw * .55, bh * .56, bh * .26);
+                block(g, tone.light, bw * .01, y - bh * .18, bw * .43, bh * .42, bh * .2);
+                dot(g, edge, -bw * .28, y, Math.max(1.4, s * .035));
+                dot(g, edge, -bw * .12, y, Math.max(1.4, s * .035));
+                dot(g, edge, bw * .15, y + bh * .02, Math.max(1.4, s * .035));
+                line(g, accent, Math.max(1, s * .03), [[-bw * .02, y - bh * .22], [-bw * .02, y + bh * .22]]);
+                break;
+            }
+            case 'couplets': {
+                const bw = Math.max(24, s * .7), bh = Math.max(20, s * .7);
+                for (const ox of [-bw * .28, bw * .28]) {
+                    block(g, tone.light, ox - bw * .13, y - bh * .4, bw * .26, bh * .8, 2);
+                    block(g, accent, ox - bw * .13, y + bh * .22, bw * .26, bh * .12, 1);
+                    block(g, accent, ox - bw * .13, y - bh * .34, bw * .26, bh * .09, 1);
+                    line(g, edge, Math.max(1, s * .035), [[ox, y + bh * .16], [ox, y - bh * .22]]);
+                }
+                line(g, accent, Math.max(2, s * .05), [[-bw * .15, y + bh * .42], [0, y + bh * .52], [bw * .15, y + bh * .42]]);
+                dot(g, accent, 0, y + bh * .46, Math.max(2, s * .06));
+                break;
+            }
+            case 'ricecooker': {
+                const bw = Math.max(25, s * .72), bh = Math.max(18, s * .55);
+                block(g, tone.light, -bw / 2, y - bh * .3, bw, bh * .64, bh * .16);
+                block(g, accent, -bw * .42, y + bh * .18, bw * .84, bh * .16, bh * .08);
+                line(g, edge, lw, [[-bw * .3, y + bh * .36], [-bw * .15, y + bh * .55], [bw * .15, y + bh * .55], [bw * .3, y + bh * .36]]);
+                dot(g, accent, bw * .33, y + bh * .05, Math.max(2, s * .06));
+                break;
+            }
+            default:
+                line(g, accent, Math.max(2, s * .06), [[-s * .22, y - s * .2], [s * .22, y + s * .2]]);
+                line(g, accent, Math.max(2, s * .06), [[-s * .22, y + s * .2], [s * .22, y - s * .2]]);
+        }
+    }
+    exports_1("drawItemFeature", drawItemFeature);
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (items_1_1) {
+                items_1 = items_1_1;
+            }
+        ],
+        execute: function () {
+            tones = {
+                liquor: { hex: '#EDF3F7', base: new cc_1.Color(237, 243, 247), edge: new cc_1.Color(27, 70, 113), accent: new cc_1.Color(49, 112, 164), light: new cc_1.Color(255, 255, 255) },
+                sausage: { hex: '#8B3B3B', base: new cc_1.Color(139, 59, 59), edge: new cc_1.Color(63, 18, 18), accent: new cc_1.Color(224, 146, 99), light: new cc_1.Color(193, 88, 72) },
+                ricecooker: { hex: '#D8DDD8', base: new cc_1.Color(216, 221, 216), edge: new cc_1.Color(70, 78, 77), accent: new cc_1.Color(87, 157, 146), light: new cc_1.Color(246, 248, 243) },
+                sugarcane: { hex: '#6DA552', base: new cc_1.Color(109, 165, 82), edge: new cc_1.Color(38, 82, 48), accent: new cc_1.Color(112, 63, 137), light: new cc_1.Color(187, 222, 135) },
+                milk: { hex: '#F4F6ED', base: new cc_1.Color(244, 246, 237), edge: new cc_1.Color(46, 95, 65), accent: new cc_1.Color(58, 135, 83), light: new cc_1.Color(255, 255, 255) },
+                suitcase_s: { hex: '#3B607C', base: new cc_1.Color(59, 96, 124), edge: new cc_1.Color(24, 44, 59), accent: new cc_1.Color(244, 194, 76), light: new cc_1.Color(124, 164, 184) },
+                duffel: { hex: '#BE8B44', base: new cc_1.Color(190, 139, 68), edge: new cc_1.Color(85, 53, 31), accent: new cc_1.Color(238, 213, 166), light: new cc_1.Color(232, 179, 100) },
+                nutbox: { hex: '#87542F', base: new cc_1.Color(135, 84, 47), edge: new cc_1.Color(66, 38, 23), accent: new cc_1.Color(222, 164, 85), light: new cc_1.Color(171, 113, 66) },
+                fish: { hex: '#73A2AE', base: new cc_1.Color(115, 162, 174), edge: new cc_1.Color(39, 76, 88), accent: new cc_1.Color(220, 240, 234), light: new cc_1.Color(159, 201, 206) },
+                duck: { hex: '#AE6036', base: new cc_1.Color(174, 96, 54), edge: new cc_1.Color(86, 41, 28), accent: new cc_1.Color(236, 171, 85), light: new cc_1.Color(207, 128, 76) },
+                quilt: { hex: '#CFA4B2', base: new cc_1.Color(207, 164, 178), edge: new cc_1.Color(100, 62, 78), accent: new cc_1.Color(247, 220, 215), light: new cc_1.Color(236, 198, 203) },
+                frozenbox: { hex: '#B8E1EB', base: new cc_1.Color(184, 225, 235), edge: new cc_1.Color(48, 103, 124), accent: new cc_1.Color(239, 252, 255), light: new cc_1.Color(255, 255, 255) },
+                tv: { hex: '#4D5664', base: new cc_1.Color(77, 86, 100), edge: new cc_1.Color(30, 33, 39), accent: new cc_1.Color(157, 210, 220), light: new cc_1.Color(112, 124, 140) },
+                coop: { hex: '#BF9A53', base: new cc_1.Color(191, 154, 83), edge: new cc_1.Color(83, 63, 37), accent: new cc_1.Color(240, 213, 147), light: new cc_1.Color(220, 184, 113) },
+                crab: { hex: '#346F67', base: new cc_1.Color(52, 111, 103), edge: new cc_1.Color(24, 57, 53), accent: new cc_1.Color(239, 129, 86), light: new cc_1.Color(104, 157, 143) },
+                painting: { hex: '#E7C782', base: new cc_1.Color(231, 199, 130), edge: new cc_1.Color(115, 73, 48), accent: new cc_1.Color(196, 53, 47), light: new cc_1.Color(255, 238, 193) },
+                lotusroot: { hex: '#DDCDA6', base: new cc_1.Color(221, 205, 166), edge: new cc_1.Color(110, 85, 62), accent: new cc_1.Color(96, 65, 53), light: new cc_1.Color(244, 232, 203) },
+                couplets: { hex: '#E1B858', base: new cc_1.Color(225, 184, 88), edge: new cc_1.Color(128, 59, 36), accent: new cc_1.Color(190, 56, 48), light: new cc_1.Color(250, 222, 143) },
+                suitcase_l: { hex: '#5A4482', base: new cc_1.Color(90, 68, 130), edge: new cc_1.Color(47, 33, 69), accent: new cc_1.Color(231, 170, 75), light: new cc_1.Color(142, 115, 177) },
+            };
+            fallback = { hex: '#4E7D78', base: new cc_1.Color(78, 125, 120), edge: new cc_1.Color(30, 55, 52), accent: new cc_1.Color(238, 196, 105), light: new cc_1.Color(128, 170, 161) };
+        }
+    };
+});
+
 System.register("chunks:///_virtual/JourneyArt.ts", ["cc","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
     var cc_1, UIKit_1, ink, night, hillside, roofs, gold, lantern, windowLight;
@@ -2532,16 +3114,20 @@ System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function 
     var __moduleName = context_1 && context_1.id;
     function vehicleLook(vehicle) { var _a; return (_a = looks[vehicle]) !== null && _a !== void 0 ? _a : fallback; }
     exports_1("vehicleLook", vehicleLook);
-    function itemName(piece) { return items_1.ITEMS[piece.shape].name; }
+    function itemName(piece) { return items_1.itemMeta(piece).name; }
     exports_1("itemName", itemName);
-    function itemShortName(piece) { var _a; return (_a = shorts[items_1.ITEMS[piece.shape].key]) !== null && _a !== void 0 ? _a : itemName(piece); }
+    function itemShortName(piece) { var _a; return (_a = shorts[items_1.itemMeta(piece).key]) !== null && _a !== void 0 ? _a : itemName(piece); }
     exports_1("itemShortName", itemShortName);
+    function controlContentLayout(rect) {
+        return { iconX: rect.x + 34, textX: rect.x + (rect.w + 62) / 2 };
+    }
+    exports_1("controlContentLayout", controlContentLayout);
     function computeStageLayout(level, height, top, bottom) {
         const buttonH = 112;
         const buttonY = height - bottom - 24 - buttonH;
         const trayH = Math.max(300, Math.min(420, height * .26));
         const trayY = buttonY - 24 - trayH;
-        const carTop = (level.mode === 'mom' ? 326 : 266) + top;
+        const carTop = (level.mode === 'mom' ? 326 : 286) + top;
         const carBottom = Math.max(carTop + 430, trayY - 46);
         const car = { x: 14, y: carTop, w: 722, h: carBottom - carTop };
         const trunk = { x: 44, y: carTop + 78, w: 662, h: Math.max(250, car.h - 78 - 144) };
@@ -2724,8 +3310,8 @@ System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function 
         // Trunk opening rim and deep interior.
         rect(trunk.x - 13, trunk.y - 13, trunk.w + 26, trunk.h + 26, look.trim, 20);
         rect(trunk.x - 8, trunk.y - 8, trunk.w + 16, trunk.h + 16, look.deep, 16);
-        rect(trunk.x, trunk.y, trunk.w, trunk.h, new cc_1.Color(48, 27, 32), 12);
-        rect(trunk.x + 8, trunk.y + 8, trunk.w - 16, trunk.h - 16, new cc_1.Color(70, 35, 37), 8);
+        rect(trunk.x, trunk.y, trunk.w, trunk.h, new cc_1.Color(27, 31, 34), 12);
+        rect(trunk.x + 8, trunk.y + 8, trunk.w - 16, trunk.h - 16, new cc_1.Color(37, 42, 45), 8);
         // Tail lights, reflector strip, plate recess and exhaust.
         for (const x of [car.x + 50, car.x + car.w - 190]) {
             rect(x, car.y + car.h - 128, 140, 45, new cc_1.Color(77, 20, 27), 14);
@@ -2754,17 +3340,17 @@ System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function 
                 graphics.fill();
             }
         };
-        rect(trunk.x + 12, trunk.y + 12, trunk.w - 24, trunk.h - 24, new cc_1.Color(59, 32, 34), 8);
+        rect(trunk.x + 12, trunk.y + 12, trunk.w - 24, trunk.h - 24, new cc_1.Color(24, 28, 31), 8);
         for (let y = trunk.y + 26; y < trunk.y + trunk.h - 20; y += 44)
-            rect(trunk.x + 17, y, trunk.w - 34, 2, new cc_1.Color(255, 214, 143, 24));
-        rect(board.x - 5, board.y - 5, board.w + 10, board.h + 10, new cc_1.Color(35, 20, 25), 8);
+            rect(trunk.x + 17, y, trunk.w - 34, 2, new cc_1.Color(226, 232, 225, 18));
+        rect(board.x - 5, board.y - 5, board.w + 10, board.h + 10, new cc_1.Color(13, 17, 19), 8);
         for (let y = 0; y < level.height; y++)
             for (let x = 0; x < level.width; x++) {
                 const blocked = level.blocked.some(([bx, by]) => bx === x && by === y);
                 const rx = board.x + x * cell, ry = board.y + y * cell;
-                rect(rx + 1, ry + 1, cell - 2, cell - 2, blocked ? new cc_1.Color(39, 24, 27) : (x + y) % 2 ? new cc_1.Color(96, 45, 44) : new cc_1.Color(105, 50, 46));
+                rect(rx + 1, ry + 1, cell - 2, cell - 2, blocked ? new cc_1.Color(24, 28, 31) : (x + y) % 2 ? new cc_1.Color(43, 49, 52) : new cc_1.Color(49, 56, 59));
                 if (blocked) {
-                    rect(rx + 7, ry + 7, cell - 14, cell - 14, new cc_1.Color(53, 30, 32), 7);
+                    rect(rx + 7, ry + 7, cell - 14, cell - 14, new cc_1.Color(31, 36, 39), 7);
                     graphics.strokeColor = new cc_1.Color(246, 195, 67, 145);
                     graphics.lineWidth = 2;
                     graphics.moveTo(p.x(rx + 15), p.y(ry + cell - 15));
@@ -2773,14 +3359,50 @@ System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function 
                     graphics.lineTo(p.x(rx + cell - 15), p.y(ry + cell - 15));
                     graphics.stroke();
                 }
-                rect(rx + cell - 1, ry + 1, 1, cell - 2, new cc_1.Color(255, 215, 151, 35));
-                rect(rx + 1, ry + cell - 1, cell - 2, 1, new cc_1.Color(255, 215, 151, 35));
+                rect(rx + cell - 1, ry + 1, 1, cell - 2, new cc_1.Color(224, 231, 226, 24));
+                rect(rx + 1, ry + cell - 1, cell - 2, 1, new cc_1.Color(224, 231, 226, 24));
             }
         // The mat around a small stage-one grid still reads as a real trunk floor.
         rect(board.x, board.y, board.w, 2, new cc_1.Color(255, 218, 153, 90));
         rect(board.x, board.y + board.h - 2, board.w, 2, new cc_1.Color(255, 218, 153, 90));
     }
     exports_1("drawTrunkFloor", drawTrunkFloor);
+    // Barely-there cell lines and wheel-arch cells over the painted trunk carpet.
+    function drawTrunkGrid(graphics, width, height, top, board, level, cell) {
+        const p = topDown(width, height, top);
+        graphics.fillColor = new cc_1.Color(255, 226, 170, 18);
+        graphics.roundRect(p.x(board.x), p.y(board.y + board.h), board.w, board.h, 6);
+        graphics.fill();
+        graphics.strokeColor = new cc_1.Color(255, 214, 140, 120);
+        graphics.lineWidth = 3;
+        graphics.roundRect(p.x(board.x - 3), p.y(board.y + board.h + 3), board.w + 6, board.h + 6, 8);
+        graphics.stroke();
+        graphics.strokeColor = new cc_1.Color(255, 226, 170, 38);
+        graphics.lineWidth = 1.5;
+        for (let x = 1; x < level.width; x++) {
+            graphics.moveTo(p.x(board.x + x * cell), p.y(board.y));
+            graphics.lineTo(p.x(board.x + x * cell), p.y(board.y + board.h));
+        }
+        for (let y = 1; y < level.height; y++) {
+            graphics.moveTo(p.x(board.x), p.y(board.y + y * cell));
+            graphics.lineTo(p.x(board.x + board.w), p.y(board.y + y * cell));
+        }
+        graphics.stroke();
+        for (const [x, y] of level.blocked) {
+            const rx = board.x + x * cell, ry = board.y + y * cell;
+            graphics.fillColor = new cc_1.Color(14, 11, 13, 235);
+            graphics.roundRect(p.x(rx + 2), p.y(ry + cell - 2), cell - 4, cell - 4, 10);
+            graphics.fill();
+            graphics.strokeColor = new cc_1.Color(246, 195, 67, 120);
+            graphics.lineWidth = 2;
+            graphics.moveTo(p.x(rx + 16), p.y(ry + cell - 16));
+            graphics.lineTo(p.x(rx + cell - 16), p.y(ry + 16));
+            graphics.moveTo(p.x(rx + 16), p.y(ry + 16));
+            graphics.lineTo(p.x(rx + cell - 16), p.y(ry + cell - 16));
+            graphics.stroke();
+        }
+    }
+    exports_1("drawTrunkGrid", drawTrunkGrid);
     return {
         setters: [
             function (cc_1_1) {
@@ -2861,8 +3483,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./JourneyArt.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
