@@ -411,10 +411,12 @@ System.register("chunks:///_virtual/generator.ts", ["./dlx.ts","./items.ts","./r
         };
         const buildResult = (pieces, shapes, result) => {
             const indices = rng_1.shuffle(shapes.map((_, index) => index), random);
-            const level = Object.assign(Object.assign({}, board), { pieces: indices.map((source, index) => ({
+            const level = Object.assign(Object.assign({}, board), { 
+                // Same shapes, ids and rotations as before; only the drawn cargo is mixed across skins.
+                pieces: items_1.diversifySkins(indices.map((source, index) => ({
                     id: index + 1, shape: shapes[source], item: items_1.ITEMS[shapes[source]].key,
                     initialRotation: (cfg.randomInitialRotation === false ? 0 : Math.floor(random() * 4)),
-                })) });
+                }))) });
             const placements = indices.map((source, index) => {
                 const { x, y, rotation } = pieces[source];
                 return { x, y, rotation, pieceId: index + 1 };
@@ -644,6 +646,11 @@ System.register("chunks:///_virtual/items.ts", [], function (exports_1, context_
                 { key: 'ham', name: '金华火腿', shape: 'L5' }, { key: 'kumquat', name: '金桔盆栽', shape: 'T5' }, { key: 'fruitbasket', name: '果篮', shape: 'U5' },
                 { key: 'apples', name: '苹果箱', shape: 'V5' }, { key: 'fudeco', name: '窗花礼包', shape: 'Z5' }, { key: 'larou', name: '腊肉', shape: 'N5' },
                 { key: 'lanterns', name: '红灯笼', shape: 'Y5' }, { key: 'woven', name: '土特产编织袋', shape: 'R6' },
+                { key: 'scallion', name: '大葱', shape: 'Y5' }, { key: 'dryfish', name: '腊鱼', shape: 'Y5' }, { key: 'giftstack', name: '年货礼盒', shape: 'Y5' },
+                { key: 'dates', name: '红枣礼盒', shape: 'Z4' }, { key: 'noodles', name: '方便面', shape: 'Z4' }, { key: 'milkflat', name: '牛奶饮料', shape: 'Z4' },
+                { key: 'firecracker', name: '鞭炮礼盒', shape: 'I3' }, { key: 'guamian', name: '挂面礼盒', shape: 'I4' }, { key: 'pomelo', name: '柚子', shape: 'L3' },
+                { key: 'thermos', name: '保温壶', shape: 'J4' }, { key: 'pastry', name: '糕点礼盒', shape: 'T4' }, { key: 'driedgoods', name: '干货礼包', shape: 'P5' },
+                { key: 'hongbao', name: '红包', shape: 'Z5' }, { key: 'oven', name: '电烤箱', shape: 'R6' },
             ]);
             byKey = new Map([...Object.values(ITEMS), ...EXTRA_ITEMS].map(item => [item.key, item]));
         }
@@ -3482,6 +3489,9 @@ System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function 
                 ricebag: '大米', drinks: '饮料', teabox: '茶叶', eggs: '鸡蛋', candy: '糖果', snacks: '零食',
                 ham: '火腿', kumquat: '金桔', fruitbasket: '果篮', apples: '苹果', fudeco: '窗花', larou: '腊肉',
                 lanterns: '灯笼', woven: '编织袋',
+                scallion: '大葱', dryfish: '腊鱼', giftstack: '礼盒', dates: '红枣', noodles: '方便面', milkflat: '牛奶',
+                firecracker: '鞭炮', guamian: '挂面', pomelo: '柚子', thermos: '保温壶', pastry: '糕点', driedgoods: '干货',
+                hongbao: '红包', oven: '烤箱',
             };
         }
     };
