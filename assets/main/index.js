@@ -1248,6 +1248,27 @@ System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, 
         return pool[Math.floor(value * pool.length)];
     }
     exports_1("pickMomItem", pickMomItem);
+    /**
+     * Mom prefers goods that are scarce on the board right now (fewest copies left), so her three
+     * cards cannot simply be matched against what is already lying around. Ties are broken randomly.
+     */
+    function pickRareMomItem(items, boardKinds, random = Math.random) {
+        var _a;
+        const preferredKeys = new Set(MOM_ITEM_KEYS);
+        const candidates = items.filter(item => preferredKeys.has(item.key));
+        const pool = candidates.length ? candidates : items;
+        if (!pool.length)
+            return { key: 'mandarin', name: '砂糖橘' };
+        const counts = new Map();
+        for (const kind of boardKinds)
+            counts.set(kind, ((_a = counts.get(kind)) !== null && _a !== void 0 ? _a : 0) + 1);
+        const fewest = Math.min(...pool.map(item => { var _a; return (_a = counts.get(item.key)) !== null && _a !== void 0 ? _a : 0; }));
+        const rare = pool.filter(item => { var _a; return ((_a = counts.get(item.key)) !== null && _a !== void 0 ? _a : 0) === fewest; });
+        const drawn = random();
+        const value = Number.isFinite(drawn) ? Math.max(0, Math.min(0.999999, drawn)) : 0;
+        return rare[Math.floor(value * rare.length)];
+    }
+    exports_1("pickRareMomItem", pickRareMomItem);
     return {
         setters: [],
         execute: function () {
@@ -1277,6 +1298,20 @@ System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, 
             exports_1("MOM_ITEM_KEYS", MOM_ITEM_KEYS = [
                 'mandarin', 'duck', 'fruitbasket', 'suitcase_l', 'toycar', 'milk', 'oven',
             ]);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-constants.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var SLOT_CAPACITY, PACK_SIZE;
+    var __moduleName = context_1 && context_1.id;
+    return {
+        setters: [],
+        execute: function () {
+            /** Shared rule constants (kept dependency-free so solver and rules never import each other). */
+            exports_1("SLOT_CAPACITY", SLOT_CAPACITY = 7);
+            exports_1("PACK_SIZE", PACK_SIZE = 3);
         }
     };
 });
@@ -1473,7 +1508,7 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
 
 System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, context_1) {
     "use strict";
-    var STACK_DESIGN_WIDTH, STACK_HUD_BOTTOM, STACK_MIN_HEIGHT, STACK_CARD_SIZE, STACK_CAR_SCALE_Y, STACK_ACTION_HEIGHT, STACK_BODY_SIZE, STACK_BODY_HOLE, STACK_BODY_SLICE;
+    var STACK_DESIGN_WIDTH, STACK_HUD_BOTTOM, STACK_MIN_HEIGHT, STACK_CARD_SIZE, STACK_CAR_SCALE_Y, STACK_ACTION_HEIGHT, STACK_BODY_SIZE, STACK_BODY_HOLE, STACK_BODY_SLICE, STACK_LID_RISE, STACK_BOARD_GAP, STACK_MIN_SAFE_BOTTOM, STACK_BOARD_MAX_SCALE, IDENTITY_BOARD;
     var __moduleName = context_1 && context_1.id;
     /** Converts a phone viewport to the 750-wide design coordinate used by StackPage. */
     function stackPageHeight(screenWidth, screenHeight) {
@@ -1484,9 +1519,10 @@ System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, c
     exports_1("stackPageHeight", stackPageHeight);
     /** Shared, renderer-independent geometry for the board, car and bottom action row. */
     function createStackPageLayout(height, safeBottom = 0) {
-        const actionY = height - Math.max(0, safeBottom) - 20 - STACK_ACTION_HEIGHT;
+        safeBottom = Math.max(STACK_MIN_SAFE_BOTTOM, safeBottom);
+        const actionY = height - safeBottom - 20 - STACK_ACTION_HEIGHT;
         const bodyHeight = Math.round(STACK_BODY_SIZE.h * STACK_CAR_SCALE_Y);
-        const carBottom = actionY - 52;
+        const carBottom = actionY - 26;
         const carTop = carBottom - bodyHeight;
         const trunk = {
             x: Math.round((STACK_BODY_HOLE.left - STACK_BODY_SIZE.w / 2) + STACK_DESIGN_WIDTH / 2),
@@ -1495,10 +1531,11 @@ System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, c
             h: Math.round((STACK_BODY_HOLE.bottom - STACK_BODY_HOLE.top) * STACK_CAR_SCALE_Y),
         };
         const stackTop = STACK_HUD_BOTTOM;
-        const stackBottom = trunk.y;
+        // Cards must stay above the open lid, not merely above the trunk hole.
+        const stackBottom = carTop - STACK_LID_RISE - STACK_BOARD_GAP;
         return {
             height,
-            safeBottom: Math.max(0, safeBottom),
+            safeBottom,
             actionY,
             carBottom,
             carTop,
@@ -1521,12 +1558,55 @@ System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, c
         };
     }
     exports_1("stackCardBounds", stackCardBounds);
-    function stackCardsAreVisible(cards, layout) {
-        const bounds = stackCardBounds(cards);
-        return bounds.left >= 0
-            && bounds.right <= STACK_DESIGN_WIDTH
-            && bounds.top >= layout.stackTop
-            && bounds.bottom <= layout.stackBottom;
+    /**
+     * Everything the board can ever show in level space: the dealt cards, the reserve shelf that
+     * move-out fills, and where mom drops her goods. Fitting this box keeps later cards inside too.
+     */
+    function stackContentBounds(level) {
+        const reserve = Math.round(level.cardW * .72);
+        const boxes = [
+            ...level.cards,
+            ...level.reservePositions.map(p => ({ x: p.x, y: p.y, w: reserve, h: reserve })),
+            ...level.momPositions.map(p => ({ x: p.x, y: p.y, w: level.cardW, h: level.cardH })),
+        ];
+        return {
+            left: Math.min(...boxes.map(b => b.x)),
+            right: Math.max(...boxes.map(b => b.x + b.w)),
+            top: Math.min(...boxes.map(b => b.y)),
+            bottom: Math.max(...boxes.map(b => b.y + b.h)),
+        };
+    }
+    exports_1("stackContentBounds", stackContentBounds);
+    /** Scales the board to the real space between the title bar and the trunk lid and centres it. */
+    function fitStackBoard(bounds, layout) {
+        const width = Math.max(1, bounds.right - bounds.left);
+        const height = Math.max(1, bounds.bottom - bounds.top);
+        const availableW = STACK_DESIGN_WIDTH - 16;
+        const availableH = Math.max(1, layout.stackBottom - layout.stackTop);
+        const scale = Math.min(STACK_BOARD_MAX_SCALE, availableW / width, availableH / height);
+        return {
+            scale,
+            offsetX: (STACK_DESIGN_WIDTH - width * scale) / 2 - bounds.left * scale,
+            offsetY: layout.stackTop + (availableH - height * scale) / 2 - bounds.top * scale,
+        };
+    }
+    exports_1("fitStackBoard", fitStackBoard);
+    function mapStackRect(fit, rect) {
+        return { x: fit.offsetX + rect.x * fit.scale, y: fit.offsetY + rect.y * fit.scale, w: rect.w * fit.scale, h: rect.h * fit.scale };
+    }
+    exports_1("mapStackRect", mapStackRect);
+    /** Page point → level point (inverse of mapStackRect), for hit-testing taps. */
+    function unmapStackPoint(fit, x, y) {
+        return { x: (x - fit.offsetX) / fit.scale, y: (y - fit.offsetY) / fit.scale };
+    }
+    exports_1("unmapStackPoint", unmapStackPoint);
+    function stackCardsAreVisible(cards, layout, fit = IDENTITY_BOARD) {
+        const bounds = stackCardBounds(cards.map(card => (Object.assign(Object.assign({}, card), mapStackRect(fit, card)))));
+        const eps = 0.5;
+        return bounds.left >= -eps
+            && bounds.right <= STACK_DESIGN_WIDTH + eps
+            && bounds.top >= layout.stackTop - eps
+            && bounds.bottom <= layout.stackBottom + eps;
     }
     exports_1("stackCardsAreVisible", stackCardsAreVisible);
     return {
@@ -1541,13 +1621,22 @@ System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, c
             exports_1("STACK_BODY_SIZE", STACK_BODY_SIZE = { w: 1024, h: 640 });
             exports_1("STACK_BODY_HOLE", STACK_BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 });
             exports_1("STACK_BODY_SLICE", STACK_BODY_SLICE = { top: 150, bottom: 380 });
+            /** The open trunk lid is drawn 82 tall centred 34 above the car top, so it reaches 75 above it. */
+            exports_1("STACK_LID_RISE", STACK_LID_RISE = 75);
+            /** Breathing room between the lowest card and the lid. */
+            exports_1("STACK_BOARD_GAP", STACK_BOARD_GAP = 10);
+            /** Minimum bottom margin (design units) kept clear for the Android gesture bar / iOS home indicator. */
+            exports_1("STACK_MIN_SAFE_BOTTOM", STACK_MIN_SAFE_BOTTOM = 28);
+            /** The board never grows past this, so wide phones keep the approved card size. */
+            exports_1("STACK_BOARD_MAX_SCALE", STACK_BOARD_MAX_SCALE = 1);
+            exports_1("IDENTITY_BOARD", IDENTITY_BOARD = { scale: 1, offsetX: 0, offsetY: 0 });
         }
     };
 });
 
-System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalog.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalog.ts","./stack-state-solver.ts","./stack-constants.ts"], function (exports_1, context_1) {
     "use strict";
-    var rng_1, stack_catalog_1, SLOT_CAPACITY, PACK_SIZE, MOM_INTERVAL_MS, StackGame;
+    var rng_1, stack_catalog_1, stack_state_solver_1, stack_constants_1, MOM_INTERVAL_MS, MOM_SOLVE_NODES, MOM_PLACEMENT_ATTEMPTS, StackGame;
     var __moduleName = context_1 && context_1.id;
     function rectsOverlap(a, b) {
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -1588,12 +1677,21 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
             },
             function (stack_catalog_1_1) {
                 stack_catalog_1 = stack_catalog_1_1;
+            },
+            function (stack_state_solver_1_1) {
+                stack_state_solver_1 = stack_state_solver_1_1;
+            },
+            function (stack_constants_1_1) {
+                stack_constants_1 = stack_constants_1_1;
             }
         ],
         execute: function () {
-            exports_1("SLOT_CAPACITY", SLOT_CAPACITY = 7);
-            exports_1("PACK_SIZE", PACK_SIZE = 3);
+            exports_1("PACK_SIZE", stack_constants_1.PACK_SIZE);
+            exports_1("SLOT_CAPACITY", stack_constants_1.SLOT_CAPACITY);
             exports_1("MOM_INTERVAL_MS", MOM_INTERVAL_MS = 25000);
+            /** Solver budget per candidate placement of mom's goods. */
+            exports_1("MOM_SOLVE_NODES", MOM_SOLVE_NODES = 6000);
+            exports_1("MOM_PLACEMENT_ATTEMPTS", MOM_PLACEMENT_ATTEMPTS = 8);
             /** Pure match-three state machine. Rendering owns card nodes, never this class. */
             StackGame = class StackGame {
                 constructor(level, random = Math.random, now = 0) {
@@ -1605,6 +1703,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     this.groupsCleared = 0;
                     this.lastMomGroup = 0;
                     this.momEvents = 0;
+                    this.lastMomSolvable = true;
                     this.cardList = cloneCards(level.cards);
                     this.maxCardId = Math.max(0, ...this.cardList.map(card => card.id));
                     this.nextMomAt = now + MOM_INTERVAL_MS;
@@ -1644,13 +1743,13 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     const beforePack = cloneCards(this.slotList);
                     const matching = this.slotList.filter(candidate => candidate.kind === card.kind);
                     let packed = [];
-                    if (matching.length >= PACK_SIZE) {
-                        packed = matching.slice(0, PACK_SIZE);
+                    if (matching.length >= stack_constants_1.PACK_SIZE) {
+                        packed = matching.slice(0, stack_constants_1.PACK_SIZE);
                         const packedIds = new Set(packed.map(candidate => candidate.id));
                         this.slotList = this.slotList.filter(candidate => !packedIds.has(candidate.id));
                         this.groupsCleared++;
                     }
-                    else if (this.slotList.length >= SLOT_CAPACITY) {
+                    else if (this.slotList.length >= stack_constants_1.SLOT_CAPACITY) {
                         this.currentStatus = 'lost';
                     }
                     if (this.cardList.length === 0 && this.slotList.length === 0)
@@ -1671,13 +1770,13 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     return true;
                 }
                 useMoveOut() {
-                    if (this.propState.moveOut || this.currentStatus !== 'playing' || this.slotList.length < PACK_SIZE)
+                    if (this.propState.moveOut || this.currentStatus !== 'playing' || this.slotList.length < stack_constants_1.PACK_SIZE)
                         return [];
                     this.propState = Object.assign(Object.assign({}, this.propState), { moveOut: true });
                     return this.moveOutCards();
                 }
                 revive() {
-                    if (this.currentStatus !== 'lost' || this.slotList.length < PACK_SIZE)
+                    if (this.currentStatus !== 'lost' || this.slotList.length < stack_constants_1.PACK_SIZE)
                         return [];
                     const moved = this.moveOutCards();
                     this.currentStatus = 'playing';
@@ -1694,46 +1793,94 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     this.history = undefined;
                     return true;
                 }
+                /**
+                 * Mom slips three goods of one (currently scarce) kind into the pile at three different spots:
+                 * one on top of a reachable card and two tucked between layers under other cards. A placement
+                 * is only kept when the solver confirms the board can still be cleared from the current slot.
+                 */
                 triggerMom() {
-                    if (this.level.stage !== 2 || this.currentStatus !== 'playing')
+                    var _a;
+                    if (this.level.stage < 2 || this.currentStatus !== 'playing')
                         return [];
-                    const item = stack_catalog_1.pickMomItem(this.level.items, this.random);
-                    const added = [];
-                    for (let i = 0; i < PACK_SIZE; i++) {
-                        const pos = this.level.momPositions[i % this.level.momPositions.length];
-                        this.maxCardId++;
-                        added.push({
-                            id: this.maxCardId,
-                            kind: item.key,
-                            name: item.name,
-                            x: pos.x,
-                            y: pos.y,
-                            w: this.level.cardW,
-                            h: this.level.cardH,
-                            layer: 2000 + this.momEvents * PACK_SIZE + i,
-                            source: 'mom',
-                        });
+                    const item = stack_catalog_1.pickRareMomItem(this.level.items, this.cardList.map(card => card.kind), this.random);
+                    const slotKinds = this.slotList.map(card => card.kind);
+                    let chosen;
+                    let fallback;
+                    for (let attempt = 0; attempt < MOM_PLACEMENT_ATTEMPTS && !chosen; attempt++) {
+                        const added = this.momPlacement(item, attempt);
+                        fallback !== null && fallback !== void 0 ? fallback : (fallback = added);
+                        const check = stack_state_solver_1.solveStackState([...this.cardList, ...added], slotKinds, { maxNodes: MOM_SOLVE_NODES });
+                        if (check.solvable)
+                            chosen = added;
                     }
+                    const added = (_a = chosen !== null && chosen !== void 0 ? chosen : fallback) !== null && _a !== void 0 ? _a : [];
                     this.momEvents++;
+                    this.lastMomSolvable = !!chosen;
                     this.cardList.push(...added);
                     this.history = undefined;
                     return added;
                 }
+                /** Whether the last mom insertion was verified solvable (false only if every candidate failed). */
+                get momVerified() { return this.lastMomSolvable; }
+                momPlacement(item, attempt) {
+                    const hosts = this.cardList.filter(card => card.source === 'pile' || card.source === 'side-left' || card.source === 'side-right');
+                    const free = rng_1.shuffle(hosts.filter(card => !isBlocked(card, this.cardList)), this.random);
+                    const covered = rng_1.shuffle(hosts.filter(card => isBlocked(card, this.cardList)), this.random);
+                    const spots = [];
+                    const farEnough = (card) => spots.every(spot => Math.abs(spot.x - card.x) + Math.abs(spot.y - card.y) >= card.w * 1.5);
+                    const take = (pool, count) => {
+                        for (const card of pool) {
+                            if (count <= 0)
+                                break;
+                            if (!spots.includes(card) && farEnough(card)) {
+                                spots.push(card);
+                                count--;
+                            }
+                        }
+                    };
+                    // Late in a level there may be nothing covered left: fall back to reachable spots.
+                    const coveredWanted = attempt < MOM_PLACEMENT_ATTEMPTS - 2 ? 2 : 1;
+                    take(free, 1);
+                    take(covered, coveredWanted);
+                    take(free, stack_constants_1.PACK_SIZE - spots.length);
+                    take(covered, stack_constants_1.PACK_SIZE - spots.length);
+                    take([...free, ...covered], stack_constants_1.PACK_SIZE - spots.length);
+                    const positions = spots.length
+                        ? spots
+                        : this.level.momPositions.map(p => ({ x: p.x, y: p.y, w: this.level.cardW, h: this.level.cardH, layer: 1999 }));
+                    return Array.from({ length: stack_constants_1.PACK_SIZE }, (_, i) => {
+                        const host = positions[i % positions.length];
+                        this.maxCardId++;
+                        const nudge = (this.random() - .5) * 12;
+                        return {
+                            id: this.maxCardId,
+                            kind: item.key,
+                            name: item.name,
+                            x: Math.round(host.x + nudge),
+                            y: Math.round(host.y - nudge),
+                            w: host.w,
+                            h: host.h,
+                            // Half a layer above its host: it hides the host card but stays under the host's own covers.
+                            layer: host.layer + 0.5 + i * 0.01,
+                            source: 'mom',
+                        };
+                    });
+                }
                 tickMom(now) {
-                    if (this.level.stage !== 2 || this.currentStatus !== 'playing' || now < this.nextMomAt)
+                    if (this.level.stage < 2 || this.currentStatus !== 'playing' || now < this.nextMomAt)
                         return [];
                     this.nextMomAt = now + MOM_INTERVAL_MS;
                     return this.triggerMom();
                 }
                 maybeMomByGroups(now) {
-                    if (this.level.stage === 2 && this.groupsCleared - this.lastMomGroup >= 10) {
+                    if (this.level.stage >= 2 && this.groupsCleared - this.lastMomGroup >= 10) {
                         this.lastMomGroup = this.groupsCleared;
                         this.triggerMom();
                         this.nextMomAt = now + MOM_INTERVAL_MS;
                     }
                 }
                 moveOutCards() {
-                    const moved = this.slotList.splice(0, PACK_SIZE);
+                    const moved = this.slotList.splice(0, stack_constants_1.PACK_SIZE);
                     const offset = this.cardList.filter(card => card.source === 'reserve').length;
                     const reserveSize = Math.round(this.level.cardW * .72);
                     const restored = moved.map((card, index) => {
@@ -1828,7 +1975,7 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (e
     };
 });
 
-System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts","./stack-state-solver.ts"], function (exports_1, context_1) {
     "use strict";
     var stack_rules_1;
     var __moduleName = context_1 && context_1.id;
@@ -1968,6 +2115,142 @@ System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts"], func
         setters: [
             function (stack_rules_1_1) {
                 stack_rules_1 = stack_rules_1_1;
+            },
+            function (stack_state_solver_1_1) {
+                exports_1({
+                    "solveStackState": stack_state_solver_1_1["solveStackState"]
+                });
+            }
+        ],
+        execute: function () {
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-state-solver.ts", ["./stack-constants.ts"], function (exports_1, context_1) {
+    "use strict";
+    var stack_constants_1;
+    var __moduleName = context_1 && context_1.id;
+    /**
+     * Depth-first search from a live game state (cards still on the board plus the kinds already in
+     * the slot). Blocking is precomputed once; every step only updates blocker counts, so a few
+     * thousand nodes stay cheap enough to run on the main thread when mom inserts goods.
+     */
+    function solveStackState(cards, slotKinds, options = {}) {
+        var _a, _b;
+        const maxNodes = (_a = options.maxNodes) !== null && _a !== void 0 ? _a : 20000;
+        const capacity = (_b = options.capacity) !== null && _b !== void 0 ? _b : stack_constants_1.SLOT_CAPACITY;
+        const n = cards.length;
+        const kindIndex = new Map();
+        const kinds = cards.map(card => {
+            if (!kindIndex.has(card.kind))
+                kindIndex.set(card.kind, kindIndex.size);
+            return kindIndex.get(card.kind);
+        });
+        for (const kind of slotKinds)
+            if (!kindIndex.has(kind))
+                kindIndex.set(kind, kindIndex.size);
+        const slot = new Array(kindIndex.size).fill(0);
+        let slotSize = 0;
+        for (const kind of slotKinds) {
+            slot[kindIndex.get(kind)]++;
+            slotSize++;
+        }
+        for (let k = 0; k < slot.length; k++) {
+            while (slot[k] >= stack_constants_1.PACK_SIZE) {
+                slot[k] -= stack_constants_1.PACK_SIZE;
+                slotSize -= stack_constants_1.PACK_SIZE;
+            }
+        }
+        // covers[i] = cards that card i sits on top of; blockers[j] = how many active cards cover j.
+        const covers = cards.map(() => []);
+        const blockers = new Array(n).fill(0);
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                if (i === j)
+                    continue;
+                const a = cards[i], b = cards[j];
+                if (a.layer > b.layer && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) {
+                    covers[i].push(j);
+                    blockers[j]++;
+                }
+            }
+        }
+        const active = new Array(n).fill(true);
+        const picks = [];
+        const seen = new Set();
+        let nodes = 0;
+        let limited = false;
+        let remaining = n;
+        const search = () => {
+            if (remaining === 0)
+                return slotSize === 0;
+            if (nodes >= maxNodes) {
+                limited = true;
+                return false;
+            }
+            nodes++;
+            let key = '';
+            for (let i = 0; i < n; i++)
+                key += active[i] ? '1' : '0';
+            key += `|${slot.join(',')}`;
+            if (seen.has(key))
+                return false;
+            seen.add(key);
+            const free = [];
+            const freeOfKind = new Array(slot.length).fill(0);
+            for (let i = 0; i < n; i++)
+                if (active[i] && blockers[i] === 0) {
+                    free.push(i);
+                    freeOfKind[kinds[i]]++;
+                }
+            free.sort((a, b) => (slot[kinds[b]] - slot[kinds[a]]) || (freeOfKind[kinds[b]] - freeOfKind[kinds[a]]));
+            for (const i of free) {
+                const k = kinds[i];
+                const packs = slot[k] === stack_constants_1.PACK_SIZE - 1;
+                if (!packs && slotSize + 1 >= capacity)
+                    continue;
+                active[i] = false;
+                remaining--;
+                for (const j of covers[i])
+                    blockers[j]--;
+                if (packs) {
+                    slot[k] = 0;
+                    slotSize -= stack_constants_1.PACK_SIZE - 1;
+                }
+                else {
+                    slot[k]++;
+                    slotSize++;
+                }
+                picks.push(cards[i].id);
+                if (search())
+                    return true;
+                picks.pop();
+                if (packs) {
+                    slot[k] = stack_constants_1.PACK_SIZE - 1;
+                    slotSize += stack_constants_1.PACK_SIZE - 1;
+                }
+                else {
+                    slot[k]--;
+                    slotSize--;
+                }
+                for (const j of covers[i])
+                    blockers[j]++;
+                active[i] = true;
+                remaining++;
+                if (limited)
+                    return false;
+            }
+            return false;
+        };
+        const solvable = search();
+        return { solvable, picks: solvable ? [...picks] : [], nodes, limited };
+    }
+    exports_1("solveStackState", solveStackState);
+    return {
+        setters: [
+            function (stack_constants_1_1) {
+                stack_constants_1 = stack_constants_1_1;
             }
         ],
         execute: function () {
@@ -3474,8 +3757,24 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./OptionalR
 
 System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./RankPage.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage;
+    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
     var __moduleName = context_1 && context_1.id;
+    /** CSS env(safe-area-inset-bottom) in CSS pixels (iOS home indicator, Android gesture bar). */
+    function cssSafeBottomPx() {
+        if (typeof document === 'undefined' || !document.body)
+            return 0;
+        try {
+            if (!safeProbe) {
+                safeProbe = document.createElement('div');
+                safeProbe.style.cssText = 'position:fixed;left:0;bottom:0;width:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-bottom,0px)';
+                document.body.appendChild(safeProbe);
+            }
+            return safeProbe.getBoundingClientRect().height || 0;
+        }
+        catch (_a) {
+            return 0;
+        }
+    }
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
     }
@@ -3596,6 +3895,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.slotY = 1185;
                     this.slotCell = 96;
                     this.safeBottom = 0;
+                    /** Level → page mapping that keeps the whole board between the title bar and the trunk lid. */
+                    this.board = stack_layout_1.IDENTITY_BOARD;
                     this.actionY = 1527;
                     this.actionH = stack_layout_1.STACK_ACTION_HEIGHT;
                     this.level = stack_generator_1.generateStackLevel(stage, stack_generator_1.STACK_SEEDS[stage - 1]).level;
@@ -3740,7 +4041,10 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.node.setScale(scale, scale, 1);
                         this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
                         const safe = cc_1.sys.getSafeAreaRect(false);
-                        const bottom = Math.max(0, safe.y / size.height * this.height);
+                        const cssInset = cssSafeBottomPx();
+                        const innerHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
+                        const cssBottom = innerHeight > 0 ? cssInset / innerHeight * this.height : 0;
+                        const bottom = Math.max(0, safe.y / size.height * this.height, cssBottom);
                         this.layout(bottom);
                     }
                     if (this.finish) {
@@ -3764,6 +4068,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.safeBottom = Math.max(0, bottom);
                     this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
                     const metrics = stack_layout_1.createStackPageLayout(this.height, bottom);
+                    this.safeBottom = metrics.safeBottom;
+                    this.board = stack_layout_1.fitStackBoard(stack_layout_1.stackContentBounds(this.level), metrics);
                     this.actionY = metrics.actionY;
                     this.trunk = Object.assign({}, metrics.trunk);
                     this.carRect = {
@@ -3950,7 +4256,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.drawActions();
                 }
                 updateReserve() {
-                    const reserve = this.game.cards.filter(card => card.source === 'reserve');
+                    const reserve = this.game.cards.filter(card => card.source === 'reserve').map(card => stack_layout_1.mapStackRect(this.board, card));
                     this.reserveLayer.active = reserve.length > 0;
                     if (!reserve.length)
                         return;
@@ -3982,17 +4288,18 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         const card = sorted[index];
                         let view = this.cardViews.get(card.id);
                         if (!view) {
-                            view = this.makeCardView(card, card.w, this.pileLayer);
+                            view = this.makeCardView(card, card.w * this.board.scale, this.pileLayer);
                             this.cardViews.set(card.id, view);
                             view.born = true;
                         }
-                        if (view.kind !== card.kind || view.size !== card.w)
-                            this.configureCard(view, card, card.w);
+                        const size = card.w * this.board.scale;
+                        if (view.kind !== card.kind || Math.abs(view.size - size) > .01)
+                            this.configureCard(view, card, size);
                         view.node.active = true;
                         view.node.setSiblingIndex(index);
                         const center = this.cardCenter(card);
                         if (view.born) {
-                            view.node.setPosition(center.x, center.y + (card.source === 'mom' ? 120 : 0), 0);
+                            view.node.setPosition(center.x, center.y + (card.source === 'mom' ? 120 * this.board.scale : 0), 0);
                             if (card.source === 'mom')
                                 cc_1.tween(view.node).to(0.28, { position: center }, { easing: 'bounceOut' }).start();
                             view.born = false;
@@ -4097,7 +4404,15 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     UIKit_1.fill(g, blockedShade, -view.size / 2 + 2, -view.size / 2 + 2, view.size - 4, view.size - 4, Math.max(8, view.size * .13));
                 }
                 cardCenter(card) {
-                    return new cc_1.Vec3(card.x + card.w / 2 - 375, this.height / 2 - (card.y + card.h / 2), 0);
+                    const rect = stack_layout_1.mapStackRect(this.board, card);
+                    return new cc_1.Vec3(rect.x + rect.w / 2 - 375, this.height / 2 - (rect.y + rect.h / 2), 0);
+                }
+                /** Page (750-wide design) point → CSS pixel on screen, including letterboxing. */
+                toScreen(x, y) {
+                    const sw = typeof window === 'undefined' ? 750 : window.innerWidth;
+                    const sh = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    const k = Math.min(sw / 750, sh / this.height);
+                    return { x: (sw - 750 * k) / 2 + x * k, y: (sh - this.height * k) / 2 + y * k, k };
                 }
                 touch(event) {
                     var _a;
@@ -4142,7 +4457,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.useAction(action.key);
                         return;
                     }
-                    const hit = stack_rules_1.topCardAt(this.game.cards, p.x, p.y);
+                    const lp = stack_layout_1.unmapStackPoint(this.board, p.x, p.y);
+                    const hit = stack_rules_1.topCardAt(this.game.cards, lp.x, lp.y);
                     if (!hit)
                         return;
                     if (!this.game.canTap(hit.id)) {
@@ -4169,12 +4485,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.sounds.play('tap');
                     setTimeout(() => { if (this.node.isValid)
                         this.sounds.play('fly'); }, 35);
-                    const flyer = this.makeCardView(result.card, result.card.w, this.fxLayer);
+                    const flyer = this.makeCardView(result.card, result.card.w * this.board.scale, this.fxLayer);
                     flyer.node.setPosition(this.cardCenter(result.card));
                     const targetIndex = Math.min(result.insertIndex, stack_rules_1.SLOT_CAPACITY - 1);
                     const slot = this.slotRects[targetIndex];
                     const target = new cc_1.Vec3(slot.x + slot.w / 2 - 375, this.height / 2 - (slot.y + slot.h / 2), 0);
-                    const scale = Math.max(.35, (slot.w - 6) / result.card.w);
+                    const scale = Math.max(.35, (slot.w - 6) / (result.card.w * this.board.scale));
                     this.syncPile();
                     this.updateHud();
                     cc_1.tween(flyer.node).to(.2, { position: target, scale: new cc_1.Vec3(scale, scale, 1) }, { easing: 'quadOut' }).call(() => {
@@ -4548,19 +4864,26 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     return this.game.cards
                         .filter(card => this.game.canTap(card.id))
                         .sort((a, b) => b.layer - a.layer)
-                        .map(card => ({
-                        id: card.id,
-                        kind: card.kind,
-                        name: card.name,
-                        screenX: (card.x + card.w / 2) / 750 * screenWidth,
-                        screenY: (card.y + card.h / 2) / this.height * screenHeight,
-                        screenLeft: card.x / 750 * screenWidth,
-                        screenRight: (card.x + card.w) / 750 * screenWidth,
-                        screenTop: card.y / this.height * screenHeight,
-                        screenBottom: (card.y + card.h) / this.height * screenHeight,
-                        screenW: card.w / 750 * screenWidth,
-                        screenH: card.h / this.height * screenHeight,
-                    }));
+                        .map(card => {
+                        const rect = stack_layout_1.mapStackRect(this.board, card);
+                        const a = this.toScreen(rect.x, rect.y);
+                        const b = this.toScreen(rect.x + rect.w, rect.y + rect.h);
+                        void screenWidth;
+                        void screenHeight;
+                        return {
+                            id: card.id,
+                            kind: card.kind,
+                            name: card.name,
+                            screenX: (a.x + b.x) / 2,
+                            screenY: (a.y + b.y) / 2,
+                            screenLeft: a.x,
+                            screenRight: b.x,
+                            screenTop: a.y,
+                            screenBottom: b.y,
+                            screenW: b.x - a.x,
+                            screenH: b.y - a.y,
+                        };
+                    });
                 }
                 debugActions() {
                     const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
@@ -4573,28 +4896,33 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     }));
                 }
                 debugLayout() {
-                    const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
-                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
-                    const cards = this.game.cards;
+                    const viewport = this.toScreen(750, this.height);
+                    const origin = this.toScreen(0, 0);
+                    const cards = this.game.cards.map(card => (Object.assign(Object.assign({}, card), stack_layout_1.mapStackRect(this.board, card))));
                     const bounds = stack_layout_1.stackCardBounds(cards);
                     const layout = stack_layout_1.createStackPageLayout(this.height, this.safeBottom);
+                    const topLeft = this.toScreen(bounds.left, bounds.top);
+                    const bottomRight = this.toScreen(bounds.right, bounds.bottom);
+                    const lidTop = this.carRect.y - 75;
+                    const actionsBottom = this.actionY + this.actionH;
                     return {
-                        viewport: { width: screenWidth, height: screenHeight },
+                        viewport: { width: typeof window === 'undefined' ? 750 : window.innerWidth, height: typeof window === 'undefined' ? this.height : window.innerHeight },
+                        canvas: { left: origin.x, top: origin.y, right: viewport.x, bottom: viewport.y },
+                        boardScale: this.board.scale,
                         cardSize: {
-                            width: this.level.cardW / 750 * screenWidth,
-                            height: this.level.cardH / this.height * screenHeight,
+                            width: this.level.cardW * this.board.scale * origin.k,
+                            height: this.level.cardH * this.board.scale * origin.k,
                         },
-                        cardBounds: {
-                            left: bounds.left / 750 * screenWidth,
-                            right: bounds.right / 750 * screenWidth,
-                            top: bounds.top / this.height * screenHeight,
-                            bottom: bounds.bottom / this.height * screenHeight,
-                        },
-                        hudBottom: 140 / this.height * screenHeight,
-                        trunkTop: this.trunk.y / this.height * screenHeight,
+                        cardBounds: { left: topLeft.x, right: bottomRight.x, top: topLeft.y, bottom: bottomRight.y },
+                        hudBottom: this.toScreen(0, layout.stackTop).y,
+                        trunkTop: this.toScreen(0, this.trunk.y).y,
+                        lidTop: this.toScreen(0, lidTop).y,
+                        carTop: this.toScreen(0, this.carRect.y).y,
+                        actionsBottom: this.toScreen(0, actionsBottom).y,
+                        safeBottom: this.safeBottom * origin.k,
                         stackRegion: {
-                            top: 140 / this.height * screenHeight,
-                            bottom: this.trunk.y / this.height * screenHeight,
+                            top: this.toScreen(0, layout.stackTop).y,
+                            bottom: this.toScreen(0, layout.stackBottom).y,
                             ratio: layout.stackRatio,
                         },
                         sideCounts: {
@@ -4657,6 +4985,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 }
             };
             exports_1("StackPage", StackPage);
+            safeProbe = null;
         }
     };
 });
@@ -8188,8 +8517,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
