@@ -1531,6 +1531,42 @@ System.register("chunks:///_virtual/generator.ts", ["./dlx.ts","./items.ts","./r
     };
 });
 
+System.register("chunks:///_virtual/home-layout.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, PROVINCE_Y, PROVINCE_HEIGHT, RULES_HEIGHT, PROGRESS_HEIGHT, TAG_HEIGHT;
+    var __moduleName = context_1 && context_1.id;
+    function homeLayoutSlots(height) {
+        const classic = height - 70 - CLASSIC_HEIGHT;
+        const start = classic - 22 - START_HEIGHT;
+        const rank = start - 26 - 58;
+        const rules = rank - 24 - RULES_HEIGHT;
+        const progress = rules - 18 - PROGRESS_HEIGHT;
+        const areaTop = PROVINCE_Y + PROVINCE_HEIGHT + 14;
+        const areaBottom = progress - 10 - TAG_HEIGHT;
+        const carScale = Math.max(.5, Math.min(1, (areaBottom - areaTop) / CAR_HEIGHT));
+        const carTop = Math.round(areaTop + Math.max(0, areaBottom - areaTop - CAR_HEIGHT * carScale) / 2);
+        return { province: PROVINCE_Y, carTop, carScale, tag: carTop + CAR_HEIGHT * carScale + 4, progress, rules, rank, start, classic };
+    }
+    exports_1("homeLayoutSlots", homeLayoutSlots);
+    return {
+        setters: [],
+        execute: function () {
+            // Pure vertical layout of the title screen (design px, 750 wide), shared by HomePage and tests.
+            exports_1("CAR_WIDTH", CAR_WIDTH = 700);
+            exports_1("CAR_HEIGHT", CAR_HEIGHT = 438);
+            exports_1("START_WIDTH", START_WIDTH = 600);
+            exports_1("START_HEIGHT", START_HEIGHT = 88);
+            exports_1("CLASSIC_WIDTH", CLASSIC_WIDTH = 360);
+            exports_1("CLASSIC_HEIGHT", CLASSIC_HEIGHT = 66);
+            exports_1("PROVINCE_Y", PROVINCE_Y = 362);
+            exports_1("PROVINCE_HEIGHT", PROVINCE_HEIGHT = 56);
+            exports_1("RULES_HEIGHT", RULES_HEIGHT = 96);
+            exports_1("PROGRESS_HEIGHT", PROGRESS_HEIGHT = 50);
+            exports_1("TAG_HEIGHT", TAG_HEIGHT = 44);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/input.ts", [], function (exports_1, context_1) {
     "use strict";
     var __moduleName = context_1 && context_1.id;
@@ -1688,6 +1724,62 @@ System.register("chunks:///_virtual/level.ts", ["./shapes.ts"], function (export
             }
         ],
         execute: function () {
+        }
+    };
+});
+
+System.register("chunks:///_virtual/plate.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var PROVINCE_PLATE_ABBR, VEHICLE_PLATES;
+    var __moduleName = context_1 && context_1.id;
+    /** Festive (never real-format) plate text: “豫A·春节” for a chosen province, “回家·春节” before one is picked. */
+    function plateText(province) {
+        const abbr = province ? PROVINCE_PLATE_ABBR[province] : undefined;
+        return abbr ? `${abbr}A·春节` : '回家·春节';
+    }
+    exports_1("plateText", plateText);
+    /**
+     * Where to draw the plate badge, as 0..1 fractions of the art: centred on the painted plate, a bit
+     * larger than it and never flatter than 3.4:1 so the text stays legible at small sizes.
+     */
+    function plateBox(key, art) {
+        const p = VEHICLE_PLATES[key];
+        const w = p.w * 1.1;
+        const h = Math.max(p.h * 1.15, w / 3.4);
+        return { cx: (p.x + p.w / 2) / art.w, cy: (p.y + p.h / 2) / art.h, w: w / art.w, h: h / art.h };
+    }
+    exports_1("plateBox", plateBox);
+    /** Font size that fits plate text into a w×h box (CJK ≈ 1em, Latin ≈ .62em, middle dot ≈ .4em). */
+    function plateFontSize(text, w, h) {
+        let em = 0;
+        for (const ch of text)
+            em += /[\u3400-\u9fff]/.test(ch) ? 1 : ch === '·' ? .4 : .62;
+        return Math.max(6, Math.min(h * .7, w * .86 / Math.max(1, em)));
+    }
+    exports_1("plateFontSize", plateFontSize);
+    return {
+        setters: [],
+        execute: function () {
+            /** One-character plate abbreviation for each of the 34 provincial-level regions. */
+            exports_1("PROVINCE_PLATE_ABBR", PROVINCE_PLATE_ABBR = {
+                北京: '京', 天津: '津', 河北: '冀', 山西: '晋', 内蒙古: '蒙', 辽宁: '辽', 吉林: '吉', 黑龙江: '黑',
+                上海: '沪', 江苏: '苏', 浙江: '浙', 安徽: '皖', 福建: '闽', 江西: '赣', 山东: '鲁', 河南: '豫',
+                湖北: '鄂', 湖南: '湘', 广东: '粤', 广西: '桂', 海南: '琼', 重庆: '渝', 四川: '川', 贵州: '贵',
+                云南: '云', 西藏: '藏', 陕西: '陕', 甘肃: '甘', 青海: '青', 宁夏: '宁', 新疆: '新', 香港: '港',
+                澳门: '澳', 台湾: '台',
+            });
+            /** The painted (blank yellow) plate on each rear-view sprite, measured on the PNGs (art px). */
+            exports_1("VEHICLE_PLATES", VEHICLE_PLATES = {
+                moto: { x: 227, y: 496, w: 94, h: 45 },
+                trike: { x: 246, y: 519, w: 155, h: 46 },
+                sedan: { x: 402, y: 472, w: 232, h: 53 },
+                suv: { x: 251, y: 499, w: 180, h: 48 },
+                van: { x: 136, y: 567, w: 99, h: 37 },
+                pickup: { x: 270, y: 514, w: 166, h: 29 },
+                truck: { x: 297, y: 472, w: 176, h: 46 },
+                bus: { x: 190, y: 539, w: 139, h: 37 },
+                tractor: { x: 167, y: 572, w: 121, h: 28 },
+            });
         }
     };
 });
@@ -3437,12 +3529,16 @@ System.register("chunks:///_virtual/stack-progress.ts", ["./stack-daily.ts","./s
         catch ( /* storage optional */_a) { /* storage optional */ }
     }
     exports_1("markHomeDone", markHomeDone);
-    /** Home-screen progress: “回家进度 N/9”, or “已到家” once the finale is cleared. */
-    function homeProgressLabel(storage) {
+    /** Home-screen road progress: farthest level reached out of 9, or 已到家 once the finale is cleared. */
+    function homeProgress(storage) {
         if (isHomeDone(storage))
-            return '已到家';
-        const best = readBestLevel(storage);
-        return best >= 2 ? `回家进度 ${best}/${stack_endless_1.ROAD_FINAL_STAGE}` : '';
+            return { steps: stack_endless_1.ROAD_FINAL_STAGE, label: '已到家', done: true };
+        const steps = Math.min(stack_endless_1.ROAD_FINAL_STAGE, readBestLevel(storage));
+        return { steps, label: `回家进度 ${steps}/${stack_endless_1.ROAD_FINAL_STAGE}`, done: false };
+    }
+    exports_1("homeProgress", homeProgress);
+    function homeProgressLabel(storage) {
+        return homeProgress(storage).label;
     }
     exports_1("homeProgressLabel", homeProgressLabel);
     function browserStorage() {
@@ -5183,9 +5279,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./stack-progress.ts","./RankPage.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./stack-progress.ts","./RankPage.ts","./PlateBadge.ts","./home-layout.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, stack_progress_1, RankPage_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, HomePage;
+    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, stack_progress_1, RankPage_1, PlateBadge_1, home_layout_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, PROGRESS_WIDTH, SEGMENT, HomePage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -5221,6 +5317,12 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
             },
             function (RankPage_1_1) {
                 RankPage_1 = RankPage_1_1;
+            },
+            function (PlateBadge_1_1) {
+                PlateBadge_1 = PlateBadge_1_1;
+            },
+            function (home_layout_1_1) {
+                home_layout_1 = home_layout_1_1;
             }
         ],
         execute: function () {
@@ -5232,12 +5334,8 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
             cream = new cc_1.Color(255, 246, 229);
             ink = new cc_1.Color(75, 28, 20);
             shadowInk = new cc_1.Color(49, 8, 14, 180);
-            CAR_WIDTH = 700;
-            CAR_HEIGHT = 438;
-            START_WIDTH = 600;
-            START_HEIGHT = 88;
-            CLASSIC_WIDTH = 360;
-            CLASSIC_HEIGHT = 66;
+            PROGRESS_WIDTH = 540;
+            SEGMENT = { w: 24, h: 14, gap: 6 };
             /** Code-built title screen. The night scene, red-gold chrome and packed car preview the match-three game. */
             HomePage = class HomePage {
                 constructor(parent, actions) {
@@ -5246,16 +5344,19 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.cargoSprites = [];
                     this.touchWorld = new cc_1.Vec3();
                     this.touchLocal = new cc_1.Vec3();
-                    this.startRect = { x: 75, y: 0, w: START_WIDTH, h: START_HEIGHT };
-                    this.classicRect = { x: 195, y: 0, w: CLASSIC_WIDTH, h: CLASSIC_HEIGHT };
+                    this.startRect = { x: 75, y: 0, w: home_layout_1.START_WIDTH, h: home_layout_1.START_HEIGHT };
+                    this.classicRect = { x: 195, y: 0, w: home_layout_1.CLASSIC_WIDTH, h: home_layout_1.CLASSIC_HEIGHT };
                     this.provinceRect = { x: 185, y: 0, w: 380, h: 56 };
                     this.rankRect = { x: 225, y: 0, w: 300, h: 58 };
                     this.dailyRect = { x: 390, y: 0, w: 290, h: 58 };
+                    this.progressSteps = 0;
+                    this.progressDone = false;
+                    this.slots = home_layout_1.homeLayoutSlots(1334);
                     this.width = 750;
                     this.height = 1334;
                     this.layoutWidth = -1;
                     this.layoutHeight = -1;
-                    this.hole = { x: 0, y: 0, w: CAR_WIDTH, h: CAR_HEIGHT };
+                    this.hole = { x: 0, y: 0, w: home_layout_1.CAR_WIDTH, h: home_layout_1.CAR_HEIGHT };
                     this.carTop = 400;
                     this.node = UIKit_1.uiNode('HomePage', parent, 750, 1334);
                     this.background = UIKit_1.uiNode('HomeNight', this.node, 750, 1334).addComponent(cc_1.Sprite);
@@ -5270,14 +5371,15 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                         this.layoutBackground();
                     });
                     this.chrome = UIKit_1.uiNode('HomeChrome', this.node, 750, 1334).addComponent(cc_1.Graphics);
-                    this.car = UIKit_1.uiNode('PackedCar', this.node, CAR_WIDTH, CAR_HEIGHT);
-                    this.carFallback = UIKit_1.uiNode('CarFallback', this.car, CAR_WIDTH, CAR_HEIGHT).addComponent(cc_1.Graphics);
+                    this.car = UIKit_1.uiNode('PackedCar', this.node, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
+                    this.carFallback = UIKit_1.uiNode('CarFallback', this.car, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT).addComponent(cc_1.Graphics);
                     this.trunkImage = this.imageNode('TrunkWell', this.car);
-                    this.cargo = UIKit_1.uiNode('HomeCargo', this.car, CAR_WIDTH, CAR_HEIGHT);
+                    this.cargo = UIKit_1.uiNode('HomeCargo', this.car, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
                     for (let index = 0; index < stack_share_1.STACK_SHARE_ITEM_KEYS.length; index++) {
                         this.cargoSprites.push(this.imageNode(`CargoItem${index}`, this.cargo));
                     }
                     this.bodyImage = this.imageNode('CarBody', this.car);
+                    this.plate = new PlateBadge_1.PlateBadge(this.bodyImage.node, 'sedan', { w: 1024, h: 640 });
                     void Promise.all([
                         OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
                         OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
@@ -5319,12 +5421,12 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.cargoTag.color = paleGold;
                     this.ruleLineOne = UIKit_1.label(this.node, 'RuleOne', '点没被压住的年货，凑齐 3 件同款就打包装车', 22, 0, 0);
                     this.ruleLineOne.color = cream;
-                    this.ruleLineTwo = UIKit_1.label(this.node, 'RuleTwo', '7 格塞满就失败', 20, 0, 0);
+                    this.ruleLineTwo = UIKit_1.label(this.node, 'RuleTwo', '后备箱塞满就失败', 20, 0, 0);
                     this.ruleLineTwo.color = paleGold;
-                    this.startNode = UIKit_1.uiNode('HomeStart', this.node, START_WIDTH, START_HEIGHT);
+                    this.startNode = UIKit_1.uiNode('HomeStart', this.node, home_layout_1.START_WIDTH, home_layout_1.START_HEIGHT);
                     this.startLabel = UIKit_1.label(this.startNode, 'HomeStartText', '开始装车', 34, 0, 0);
                     this.startLabel.color = ink;
-                    this.classicNode = UIKit_1.uiNode('HomeClassic', this.node, CLASSIC_WIDTH, CLASSIC_HEIGHT);
+                    this.classicNode = UIKit_1.uiNode('HomeClassic', this.node, home_layout_1.CLASSIC_WIDTH, home_layout_1.CLASSIC_HEIGHT);
                     this.classicLabel = UIKit_1.label(this.classicNode, 'HomeClassicText', '经典装箱玩法', 24, 0, 0);
                     this.classicLabel.color = paleGold;
                     this.provinceLabel = UIKit_1.label(this.node, 'HomeProvinceText', '选择你的省份', 25, 0, 0);
@@ -5334,21 +5436,23 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     const storage = stack_progress_1.browserStorage();
                     this.dailyLabel = UIKit_1.label(this.node, 'HomeDailyText', stack_progress_1.isDailyDone(storage) ? '每日一关 · 今日已塞满' : '每日一关', 24, 0, 0);
                     this.dailyLabel.color = paleGold;
-                    this.bestLabel = UIKit_1.label(this.startNode, 'HomeBestText', stack_progress_1.homeProgressLabel(storage), 19, 0, -26);
-                    this.bestLabel.color = new cc_1.Color(110, 40, 20);
-                    if (this.bestLabel.string)
-                        this.startLabel.node.setPosition(0, 10);
+                    const progress = stack_progress_1.homeProgress(storage);
+                    this.progressSteps = progress.steps;
+                    this.progressDone = progress.done;
+                    this.progressLabel = UIKit_1.label(this.node, 'HomeProgressText', progress.label, 23, 0, 0);
+                    this.progressLabel.color = progress.done ? gold : paleGold;
                     this.refreshProvinceLabel();
                     this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
                     this.debugHook = Object.freeze({
                         getButtons: () => this.debugButtons(),
-                        getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height }),
+                        getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height, boxes: this.debugBoxes() }),
                         getState: () => {
                             var _a, _b;
                             return ({
                                 province: this.rankApi.province,
                                 overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : null,
-                                progress: (_b = (_a = this.bestLabel) === null || _a === void 0 ? void 0 : _a.string) !== null && _b !== void 0 ? _b : '',
+                                progress: (_b = (_a = this.progressLabel) === null || _a === void 0 ? void 0 : _a.string) !== null && _b !== void 0 ? _b : '',
+                                plate: this.plate.node.active ? this.plate.text : null,
                             });
                         },
                     });
@@ -5382,27 +5486,32 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.titleShadow.node.setPosition(4, this.height / 2 - 165);
                     this.title.node.setPosition(0, this.height / 2 - 160);
                     this.subtitle.node.setPosition(0, this.height / 2 - 296);
-                    this.carTop = Math.round(Math.max(398, Math.min(this.height - 842, this.height * .30)));
-                    this.car.setPosition(0, this.height / 2 - (this.carTop + CAR_HEIGHT / 2));
-                    this.cargoTag.node.setPosition(0, this.height / 2 - (this.carTop + CAR_HEIGHT + 56));
+                    const slots = home_layout_1.homeLayoutSlots(this.height);
+                    this.slots = slots;
+                    this.carTop = slots.carTop;
+                    this.car.setScale(slots.carScale, slots.carScale, 1);
+                    this.car.setPosition(0, this.height / 2 - (this.carTop + home_layout_1.CAR_HEIGHT * slots.carScale / 2));
+                    this.cargoTag.node.setPosition(0, this.height / 2 - (slots.tag + home_layout_1.TAG_HEIGHT / 2));
                     this.layoutCar();
-                    const rulesY = Math.round(this.height * .70);
-                    this.ruleLineOne.node.setPosition(0, this.height / 2 - rulesY);
-                    this.ruleLineTwo.node.setPosition(0, this.height / 2 - rulesY - 42);
-                    const provinceY = Math.max(340, this.carTop - 112);
-                    this.provinceRect = { x: (750 - 380) / 2, y: provinceY, w: 380, h: 56 };
+                    const progressX = (750 - PROGRESS_WIDTH) / 2;
+                    this.progressLabel.node.setPosition(progressX + 125 - 375, this.height / 2 - (slots.progress + home_layout_1.PROGRESS_HEIGHT / 2));
+                    const rulesY = slots.rules;
+                    this.ruleLineOne.node.setPosition(0, this.height / 2 - (rulesY + 32));
+                    this.ruleLineTwo.node.setPosition(0, this.height / 2 - (rulesY + 68));
+                    const provinceY = slots.province;
+                    this.provinceRect = { x: (750 - 380) / 2, y: provinceY, w: 380, h: home_layout_1.PROVINCE_HEIGHT };
                     this.provinceLabel.node.setPosition(0, this.height / 2 - (provinceY + 28));
-                    const rankY = this.height - 382;
+                    const rankY = slots.rank;
                     this.rankRect = { x: 70, y: rankY, w: 290, h: 58 };
                     this.rankLabel.node.setPosition(this.rankRect.x + 145 - 375, this.height / 2 - (rankY + 29));
                     this.dailyRect = { x: 390, y: rankY, w: 290, h: 58 };
                     this.dailyLabel.node.setPosition(this.dailyRect.x + 145 - 375, this.height / 2 - (rankY + 29));
-                    const startY = this.height - 272;
-                    this.startRect = { x: (750 - START_WIDTH) / 2, y: startY, w: START_WIDTH, h: START_HEIGHT };
-                    this.startNode.setPosition(0, this.height / 2 - (startY + START_HEIGHT / 2));
-                    const classicY = this.height - 158;
-                    this.classicRect = { x: (750 - CLASSIC_WIDTH) / 2, y: classicY, w: CLASSIC_WIDTH, h: CLASSIC_HEIGHT };
-                    this.classicNode.setPosition(0, this.height / 2 - (classicY + CLASSIC_HEIGHT / 2));
+                    const startY = slots.start;
+                    this.startRect = { x: (750 - home_layout_1.START_WIDTH) / 2, y: startY, w: home_layout_1.START_WIDTH, h: home_layout_1.START_HEIGHT };
+                    this.startNode.setPosition(0, this.height / 2 - (startY + home_layout_1.START_HEIGHT / 2));
+                    const classicY = slots.classic;
+                    this.classicRect = { x: (750 - home_layout_1.CLASSIC_WIDTH) / 2, y: classicY, w: home_layout_1.CLASSIC_WIDTH, h: home_layout_1.CLASSIC_HEIGHT };
+                    this.classicNode.setPosition(0, this.height / 2 - (classicY + home_layout_1.CLASSIC_HEIGHT / 2));
                     this.drawChrome(rulesY);
                 }
                 layoutBackground() {
@@ -5427,12 +5536,23 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     rect(new cc_1.Color(224, 56, 48), 68, 72, 614, 248, 18);
                     rect(new cc_1.Color(255, 229, 164, 150), 126, 224, 498, 2, 1);
                     rect(gold, 292, 250, 166, 3, 1);
-                    rect(new cc_1.Color(48, 12, 23, 186), 54, rulesY - 34, 642, 106, 26);
-                    rect(new cc_1.Color(255, 211, 117, 42), 62, rulesY - 26, 626, 90, 22);
+                    rect(new cc_1.Color(48, 12, 23, 186), 54, rulesY, 642, home_layout_1.RULES_HEIGHT, 26);
+                    rect(new cc_1.Color(255, 211, 117, 42), 62, rulesY + 8, 626, home_layout_1.RULES_HEIGHT - 16, 22);
                     g.strokeColor = new cc_1.Color(255, 205, 105, 130);
                     g.lineWidth = 2;
-                    g.roundRect(left + 56, top - (rulesY - 32) - 102, 638, 102, 24);
+                    g.roundRect(left + 56, top - rulesY - home_layout_1.RULES_HEIGHT + 2, 638, home_layout_1.RULES_HEIGHT - 4, 24);
                     g.stroke();
+                    // Road progress: label plus one lamp per level, lit up to the farthest level reached.
+                    const px = (750 - PROGRESS_WIDTH) / 2;
+                    const py = this.slots.progress;
+                    rect(new cc_1.Color(25, 8, 15, 190), px, py, PROGRESS_WIDTH, home_layout_1.PROGRESS_HEIGHT, 24);
+                    rect(new cc_1.Color(84, 19, 31, 226), px + 3, py + 3, PROGRESS_WIDTH - 6, home_layout_1.PROGRESS_HEIGHT - 6, 21);
+                    const segLeft = px + PROGRESS_WIDTH - 30 - (stack_progress_1.ROAD_FINAL_STAGE * SEGMENT.w + (stack_progress_1.ROAD_FINAL_STAGE - 1) * SEGMENT.gap);
+                    for (let index = 0; index < stack_progress_1.ROAD_FINAL_STAGE; index++) {
+                        const lit = index < this.progressSteps;
+                        const color = lit ? (this.progressDone || index === stack_progress_1.ROAD_FINAL_STAGE - 1 ? new cc_1.Color(255, 214, 92) : gold) : new cc_1.Color(255, 214, 140, 46);
+                        rect(color, segLeft + index * (SEGMENT.w + SEGMENT.gap), py + (home_layout_1.PROGRESS_HEIGHT - SEGMENT.h) / 2, SEGMENT.w, SEGMENT.h, 6);
+                    }
                     const start = this.startRect;
                     rect(new cc_1.Color(26, 8, 13, 150), start.x + 5, start.y + 10, start.w, start.h, 28);
                     rect(new cc_1.Color(111, 45, 18), start.x, start.y, start.w, start.h, 28);
@@ -5471,14 +5591,16 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.drawCarFallback();
                 }
                 layoutCar() {
-                    const trunkW = CAR_WIDTH;
-                    const trunkH = CAR_HEIGHT;
+                    const trunkW = home_layout_1.CAR_WIDTH;
+                    const trunkH = home_layout_1.CAR_HEIGHT;
                     const holeX = Math.round((stack_layout_1.STACK_BODY_HOLE.left + stack_layout_1.STACK_BODY_HOLE.right) / 2 / 1024 * trunkW - trunkW / 2);
                     const holeY = Math.round((stack_layout_1.STACK_BODY_HOLE.top + stack_layout_1.STACK_BODY_HOLE.bottom) / 2 / 640 * trunkH - trunkH / 2);
                     const holeW = Math.round((stack_layout_1.STACK_BODY_HOLE.right - stack_layout_1.STACK_BODY_HOLE.left) / 1024 * trunkW);
                     const holeH = Math.round((stack_layout_1.STACK_BODY_HOLE.bottom - stack_layout_1.STACK_BODY_HOLE.top) / 640 * trunkH);
                     this.hole = { x: holeX, y: holeY, w: holeW, h: holeH };
-                    this.show(this.bodyImage, 0, 0, CAR_WIDTH, CAR_HEIGHT);
+                    this.show(this.bodyImage, 0, 0, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
+                    if (this.bodyImage.spriteFrame)
+                        this.plate.layout(home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
                     this.show(this.trunkImage, 0, holeY, holeW, holeH);
                     const max = Math.min(holeW * .26, holeH * .55, 168);
                     for (let index = 0; index < this.cargoSprites.length && index < stack_share_1.STACK_CARGO_POSITIONS.length; index++) {
@@ -5568,6 +5690,21 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                         };
                     });
                 }
+                debugBoxes() {
+                    const s = this.slots;
+                    const carW = home_layout_1.CAR_WIDTH * s.carScale;
+                    return {
+                        province: this.provinceRect,
+                        car: { x: (750 - carW) / 2, y: s.carTop, w: carW, h: home_layout_1.CAR_HEIGHT * s.carScale },
+                        tag: { x: 60, y: s.tag, w: 630, h: home_layout_1.TAG_HEIGHT },
+                        progress: { x: (750 - PROGRESS_WIDTH) / 2, y: s.progress, w: PROGRESS_WIDTH, h: home_layout_1.PROGRESS_HEIGHT },
+                        rules: { x: 54, y: s.rules, w: 642, h: home_layout_1.RULES_HEIGHT },
+                        rank: this.rankRect,
+                        daily: this.dailyRect,
+                        start: this.startRect,
+                        classic: this.classicRect,
+                    };
+                }
                 openProvincePicker() {
                     if (this.provincePicker)
                         return;
@@ -5590,8 +5727,12 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     }, this.actions.onStart);
                 }
                 refreshProvinceLabel() {
+                    var _a, _b;
                     const province = this.rankApi.province;
                     this.provinceLabel.string = province ? `你的省份 · ${province}` : '选择你的省份';
+                    (_a = this.plate) === null || _a === void 0 ? void 0 : _a.refresh();
+                    if ((_b = this.bodyImage) === null || _b === void 0 ? void 0 : _b.spriteFrame)
+                        this.plate.layout(home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
                 }
                 screenWidth() {
                     return typeof window === 'undefined' ? 750 : window.innerWidth;
@@ -6098,9 +6239,9 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./OptionalR
     };
 });
 
-System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","./stack-layout.ts","./stack-rules.ts","./stack-vehicles.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./StackHomecomingView.ts","./RankPage.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","./stack-layout.ts","./stack-rules.ts","./stack-vehicles.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./StackHomecomingView.ts","./RankPage.ts","./PlateBadge.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_progress_1, stack_layout_1, stack_rules_1, stack_vehicles_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, StackHomecomingView_1, RankPage_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
+    var cc_1, stack_progress_1, stack_layout_1, stack_rules_1, stack_vehicles_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, StackHomecomingView_1, RankPage_1, PlateBadge_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
     var __moduleName = context_1 && context_1.id;
     /** CSS env(safe-area-inset-bottom) in CSS pixels (iOS home indicator, Android gesture bar). */
     function cssSafeBottomPx() {
@@ -6183,6 +6324,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
             },
             function (RankPage_1_1) {
                 RankPage_1 = RankPage_1_1;
+            },
+            function (PlateBadge_1_1) {
+                PlateBadge_1 = PlateBadge_1_1;
             }
         ],
         execute: function () {
@@ -6294,6 +6438,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     this.bodyImage = this.makeImageNode('CarBody', this.carLayer);
                     this.lidImage = this.makeImageNode('TrunkLid', this.carLayer);
                     this.vehicleImage = this.makeImageNode('VehicleRear', this.carLayer);
+                    this.plate = this.vehicle.def.art
+                        ? new PlateBadge_1.PlateBadge(this.vehicleImage.node, this.vehicle.def.key, this.vehicle.def.artSize)
+                        : new PlateBadge_1.PlateBadge(this.bodyImage.node, 'sedan', { w: stack_layout_1.STACK_BODY_SIZE.w, h: stack_layout_1.STACK_BODY_SIZE.h });
                     this.carDetail = UIKit_1.uiNode('TrunkDetails', this.carLayer, 750, 1334).addComponent(cc_1.Graphics);
                     if (this.vehicle.def.art) {
                         void OptionalResources_1.loadArt(this.vehicle.def.art).then(frame => {
@@ -6591,6 +6738,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     this.rect(g, new cc_1.Color(8, 4, 8, 90), art.x + art.w * .08, art.y + art.h * .9, art.w * .84, art.h * .08, art.h * .04);
                     if (this.vehicleFrame) {
                         this.showImage(this.vehicleImage, this.vehicleFrame, art.x + art.w / 2, art.y + art.h / 2, art.w, art.h);
+                        this.plate.layout(art.w, art.h);
                         this.vehicleImage.color = cc_1.Color.WHITE;
                     }
                     else {
@@ -6715,6 +6863,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                         this.bodyImage.type = cc_1.Sprite.Type.SLICED;
                         this.showImage(this.bodyImage, frame, this.carRect.x + this.carRect.w / 2, this.carRect.y + this.carRect.h / 2, stack_layout_1.STACK_BODY_SIZE.w, stack_layout_1.STACK_BODY_SIZE.h);
                         this.bodyImage.node.setScale(this.carScale, this.carScaleY * this.carScale, 1);
+                        this.plate.layout(stack_layout_1.STACK_BODY_SIZE.w, stack_layout_1.STACK_BODY_SIZE.h, this.carScaleY);
                     }
                     if (lid) {
                         const lidW = 642 * this.carScale, lidH = 82 * this.carScale;
@@ -7446,6 +7595,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     const totalBoxes = Math.floor(this.level.cards.length / 3);
                     this.finishStats = { elapsedSec, boxes: instant ? totalBoxes : this.game.clearedGroups };
                     this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, this.finishStats, action => this.mapFinish(action), () => this.openShare(true), () => this.openRankPage(), this.vehicle.def.art ? {
+                        key: this.vehicle.def.key,
                         art: this.vehicle.def.art,
                         w: this.vehicle.def.artSize.w,
                         h: this.vehicle.def.artSize.h,
@@ -7566,6 +7716,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                         counted: (this.route === 1 || this.route === 2) && !(typeof window !== 'undefined' && rank_1.isDebugRun(window.location.search)),
                         ending: victory && this.route === stack_progress_1.ROAD_FINAL_STAGE,
                         ride: {
+                            key: def.key,
                             name: this.vehicle.displayName,
                             art: def.art,
                             w: def.artSize.w,
@@ -7687,6 +7838,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                         capacity: this.capacity,
                         hideCovered: this.hideCovered,
                         cartonCards: this.game.cards.filter(card => card.carton).length,
+                        plate: this.plate.node.active ? this.plate.text : null,
                         cartonBacks: [...this.cardViews.values()].filter(view => view.node.active && view.back.node.active).length,
                         status: this.game.status,
                         remaining: this.game.pileRemaining,
@@ -9297,9 +9449,9 @@ System.register("chunks:///_virtual/SoundEffects.ts", ["cc","./OptionalResources
     };
 });
 
-System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackShareImage.ts", ["./plate.ts","cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, FONT, gold, pale;
+    var plate_1, VEHICLE_ART_SIZE, cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, FONT, gold, pale;
     var __moduleName = context_1 && context_1.id;
     function canUseBrowserCanvas() {
         return typeof document !== 'undefined' && typeof HTMLCanvasElement !== 'undefined';
@@ -9559,7 +9711,35 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.fillText(text, 540, y + 1);
     }
     /** Non-sedan ride: its rear art with the goods heaped on the load area. */
-    function drawRide(context, ride, art, items) {
+    function roundFill(context, x, y, w, h, r) {
+        context.beginPath();
+        if (typeof context.roundRect === 'function')
+            context.roundRect(x, y, w, h, r);
+        else
+            context.rect(x, y, w, h);
+        context.fill();
+    }
+    /** Festive province plate over the painted blank plate of a ride drawn at (x, y, w, h) on the card. */
+    function drawPlate(context, key, art, x, y, w, h, text) {
+        const box = plate_1.plateBox(key, art);
+        const pw = box.w * w, ph = box.h * h;
+        const px = x + box.cx * w - pw / 2, py = y + box.cy * h - ph / 2;
+        const radius = Math.min(ph * .2, 10);
+        context.save();
+        context.fillStyle = '#16120e';
+        roundFill(context, px, py, pw, ph, radius);
+        const inset = Math.max(2, ph * .07);
+        context.fillStyle = '#ffcc26';
+        roundFill(context, px + inset, py + inset, pw - inset * 2, ph - inset * 2, Math.max(1, radius - inset));
+        const size = plate_1.plateFontSize(text, pw - inset * 2, ph - inset * 2);
+        context.fillStyle = '#16120e';
+        context.font = `900 ${size.toFixed(1)}px ${FONT}`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(text, px + pw / 2, py + ph / 2 + size * .04);
+        context.restore();
+    }
+    function drawRide(context, ride, art, items, plate) {
         var _a, _b, _c;
         const maxH = 610, maxW = 900;
         let h = maxH, w = h * ride.w / ride.h * ((_a = ride.stretchX) !== null && _a !== void 0 ? _a : 1);
@@ -9575,6 +9755,8 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
             context.shadowOffsetY = 18;
             drawFrame(context, art, x + w / 2, y + h / 2, w, h);
             context.restore();
+            if (ride.key)
+                drawPlate(context, ride.key, { w: ride.w, h: ride.h }, x, y, w, h, plate);
         }
         else {
             drawFallbackCar(context);
@@ -9647,6 +9829,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
             context.shadowOffsetY = 14;
             drawFrame(context, tractor, 840, 1180 - h / 2, w, h);
             context.restore();
+            drawPlate(context, 'tractor', VEHICLE_ART_SIZE.tractor, 840 - w / 2, 1180 - h, w, h, plate_1.plateText(scene.province));
         }
         const copy = drawTexts(context, scene);
         const provinceLine = stack_share_1.formatStackShareProvince(scene.province, scene.result.victory, (_a = scene.rank) !== null && _a !== void 0 ? _a : null, Math.random, (_b = scene.counted) !== null && _b !== void 0 ? _b : true);
@@ -9679,7 +9862,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
             drawBackground(context);
             const copy = drawTexts(context, scene);
             if ((_c = scene.ride) === null || _c === void 0 ? void 0 : _c.art) {
-                drawRide(context, scene.ride, bodyArt, itemArt);
+                drawRide(context, scene.ride, bodyArt, itemArt, plate_1.plateText(scene.province));
             }
             else {
                 const bodyX = 90, bodyY = 474, bodyWidth = 900, bodyHeight = 562;
@@ -9689,6 +9872,8 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
                 else
                     drawFallbackCar(context);
                 drawCargo(context, trunkArt, itemArt, bodyX, bodyY, bodyWidth, bodyHeight);
+                if (body)
+                    drawPlate(context, 'sedan', { w: 1024, h: 640 }, bodyX, bodyY, bodyWidth, bodyHeight, plate_1.plateText(scene.province));
             }
             const provinceLine = stack_share_1.formatStackShareProvince(scene.province, scene.result.victory, (_d = scene.rank) !== null && _d !== void 0 ? _d : null, Math.random, (_e = scene.counted) !== null && _e !== void 0 ? _e : true);
             if (provinceLine)
@@ -9780,6 +9965,9 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
     exports_1("showStackShareImage", showStackShareImage);
     return {
         setters: [
+            function (plate_1_1) {
+                plate_1 = plate_1_1;
+            },
             function (cc_1_1) {
                 cc_1 = cc_1_1;
             },
@@ -9797,6 +9985,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
             }
         ],
         execute: function () {
+            VEHICLE_ART_SIZE = { tractor: { w: 457, h: 647 } };
             FONT = '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
             gold = '#ffd27a';
             pale = '#fff2cf';
@@ -10748,6 +10937,88 @@ System.register("chunks:///_virtual/JourneyArt.ts", ["cc","./UIKit.ts"], functio
     };
 });
 
+System.register("chunks:///_virtual/PlateBadge.ts", ["cc","./plate.ts","./stack-progress.ts","./rank.ts","./UIKit.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, plate_1, stack_progress_1, rank_1, UIKit_1, plateYellow, plateInk, PlateBadge;
+    var __moduleName = context_1 && context_1.id;
+    /** Text for the plate of the player's currently chosen province. */
+    function currentPlateText() {
+        return plate_1.plateText(rank_1.readStoredProvince(stack_progress_1.browserStorage()));
+    }
+    exports_1("currentPlateText", currentPlateText);
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (plate_1_1) {
+                plate_1 = plate_1_1;
+            },
+            function (stack_progress_1_1) {
+                stack_progress_1 = stack_progress_1_1;
+            },
+            function (rank_1_1) {
+                rank_1 = rank_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            }
+        ],
+        execute: function () {
+            plateYellow = new cc_1.Color(255, 204, 38);
+            plateInk = new cc_1.Color(22, 18, 14);
+            /**
+             * Yellow-on-black festive licence plate laid over a vehicle sprite's painted blank plate. Lives as a child
+             * of the sprite node, so it follows the sprite's position and scale; `counterScaleY` undoes a squashed parent.
+             */
+            PlateBadge = class PlateBadge {
+                constructor(parent, key, artSize) {
+                    this.key = key;
+                    this.artSize = artSize;
+                    this.node = UIKit_1.uiNode('Plate', parent, 10, 10);
+                    this.graphics = this.node.addComponent(cc_1.Graphics);
+                    const text = UIKit_1.uiNode('PlateText', this.node, 10, 10);
+                    this.label = text.addComponent(cc_1.Label);
+                    this.label.isBold = true;
+                    this.label.color = plateInk;
+                    this.label.overflow = cc_1.Label.Overflow.NONE;
+                    this.label.string = currentPlateText();
+                    this.node.active = false;
+                }
+                /** Re-reads the chosen province. */
+                refresh() { this.label.string = currentPlateText(); }
+                get text() { return this.label.string; }
+                /** Place over a sprite whose content box is `w`×`h` (local units, centred at the sprite's origin). */
+                layout(w, h, counterScaleY = 1) {
+                    const box = plate_1.plateBox(this.key, this.artSize);
+                    const pw = box.w * w;
+                    const ph = box.h * h;
+                    this.node.active = true;
+                    this.node.setPosition((box.cx - .5) * w, (.5 - box.cy) * h);
+                    this.node.setScale(1, 1 / counterScaleY, 1);
+                    this.node.getComponent(cc_1.UITransform).setContentSize(pw, ph);
+                    const g = this.graphics;
+                    g.clear();
+                    const r = Math.min(ph * .2, 8);
+                    g.fillColor = plateInk;
+                    g.roundRect(-pw / 2, -ph / 2, pw, ph, r);
+                    g.fill();
+                    const inset = Math.max(1.2, ph * .07);
+                    g.fillColor = plateYellow;
+                    g.roundRect(-pw / 2 + inset, -ph / 2 + inset, pw - inset * 2, ph - inset * 2, Math.max(1, r - inset));
+                    g.fill();
+                    const size = plate_1.plateFontSize(this.label.string, pw - inset * 2, ph - inset * 2);
+                    this.label.fontSize = size;
+                    this.label.lineHeight = size * 1.1;
+                    this.label.node.getComponent(cc_1.UITransform).setContentSize(pw, ph);
+                    this.label.node.setPosition(0, -size * .04);
+                }
+            };
+            exports_1("PlateBadge", PlateBadge);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/ProvincePicker.ts", ["cc","./provinces.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
     var cc_1, provinces_1, UIKit_1, deep, panel, gold, paleGold, cream, ink, cell, cellGlow, ProvincePicker;
@@ -10916,12 +11187,15 @@ System.register("chunks:///_virtual/ProvincePicker.ts", ["cc","./provinces.ts","
     };
 });
 
-System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./stack-share.ts","./UIKit.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackFinishView.ts", ["./PlateBadge.ts","cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./stack-share.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, stack_share_1, UIKit_1, red, darkRed, gold, pale, ink, night, StackFinishView, BODY_HOLE;
+    var PlateBadge_1, cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, stack_share_1, UIKit_1, red, darkRed, gold, pale, ink, night, StackFinishView, BODY_HOLE;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
+            function (PlateBadge_1_1) {
+                PlateBadge_1 = PlateBadge_1_1;
+            },
             function (cc_1_1) {
                 cc_1 = cc_1_1;
             },
@@ -10953,6 +11227,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                 constructor(parent, choices, stats, onAction, onShare = () => undefined, onRank, 
                 /** Non-sedan ride of this level: its art drives home instead of the sedan. */
                 ride) {
+                    var _a;
                     this.choices = choices;
                     this.stats = stats;
                     this.onAction = onAction;
@@ -10988,6 +11263,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                         this.cargoSprites.push(this.imageNode(`CargoItem${index}`, this.cargo));
                     }
                     this.bodyImage = this.imageNode('CarBody', this.car);
+                    this.plate = new PlateBadge_1.PlateBadge(this.bodyImage.node, (_a = ride === null || ride === void 0 ? void 0 : ride.key) !== null && _a !== void 0 ? _a : 'sedan', ride ? { w: ride.w, h: ride.h } : { w: 1024, h: 640 });
                     if (ride) {
                         // Cargo rides on top of the load area, so it must draw above the vehicle art.
                         this.cargo.setSiblingIndex(this.car.children.length - 1);
@@ -11158,6 +11434,8 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                         const r = this.ride.region;
                         this.hole = { x: (r.x + r.w / 2 - .5) * bodyW, y: (.5 - (r.y + r.h / 2)) * bodyH + 40, w: r.w * bodyW, h: r.h * bodyH + 80 };
                         this.show(this.bodyImage, 0, 0, bodyW, bodyH);
+                        if (this.bodyImage.enabled)
+                            this.plate.layout(bodyW, bodyH);
                         this.trunkImage.enabled = false;
                         this.layoutCargo();
                         this.car.setScale(.98, .98, 1);
@@ -11172,6 +11450,8 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.hole = { x: holeX, y: holeY, w: holeW, h: holeH };
                     this.trunkY = holeY;
                     this.show(this.bodyImage, 0, 0, bodyW, bodyH);
+                    if (this.bodyImage.spriteFrame)
+                        this.plate.layout(bodyW, bodyH);
                     this.show(this.trunkImage, 0, this.trunkY, holeW, holeH);
                     this.layoutCargo();
                     this.car.setScale(.98, .98, 1);
@@ -11224,12 +11504,15 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
     };
 });
 
-System.register("chunks:///_virtual/StackHomecomingView.ts", ["cc","./InteractionGeometry.ts","./rng.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackHomecomingView.ts", ["./PlateBadge.ts","cc","./InteractionGeometry.ts","./rng.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, InteractionGeometry_1, rng_1, OptionalResources_1, UIKit_1, gold, pale, ink, darkRed, STRINGS, HOMECOMING_ARRIVE_MS, StackHomecomingView;
+    var PlateBadge_1, cc_1, InteractionGeometry_1, rng_1, OptionalResources_1, UIKit_1, gold, pale, ink, darkRed, STRINGS, HOMECOMING_ARRIVE_MS, StackHomecomingView;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
+            function (PlateBadge_1_1) {
+                PlateBadge_1 = PlateBadge_1_1;
+            },
             function (cc_1_1) {
                 cc_1 = cc_1_1;
             },
@@ -11275,6 +11558,7 @@ System.register("chunks:///_virtual/StackHomecomingView.ts", ["cc","./Interactio
                     UIKit_1.fill(shade, new cc_1.Color(10, 6, 18, 255), -375, -1000, 750, 2000, 0);
                     this.backdrop = this.image('HomeBackdrop');
                     this.tractor = this.image('HomeTractor');
+                    this.plate = new PlateBadge_1.PlateBadge(this.tractor.node, 'tractor', this.tractorSize);
                     this.sparks = UIKit_1.uiNode('HomeFirecrackers', this.node, 750, 1334).addComponent(cc_1.Graphics);
                     void OptionalResources_1.loadArt('ui/bg_home').then(frame => {
                         if (!frame || !this.node.isValid)
@@ -11353,6 +11637,8 @@ System.register("chunks:///_virtual/StackHomecomingView.ts", ["cc","./Interactio
                     // Tall screens crop the cover-scaled backdrop's sides; keep the parked tractor fully on screen.
                     const x = Math.min(235 * scale, 375 - 14 - w / 2) * ease;
                     this.show(this.tractor, x, startY + (parkY - startY) * ease + Math.sin(now / 90) * (1 - ease) * 4, w, h);
+                    if (this.tractor.spriteFrame)
+                        this.plate.layout(w, h);
                     this.title.active = arrive >= .7;
                     this.subtitle.active = arrive >= .8;
                     this.statsLabel.active = arrive >= .8;
@@ -11823,8 +12109,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-daily-table.ts","./stack-daily.ts","./stack-endless-table.ts","./stack-endless.ts","./stack-generator.ts","./stack-layout.ts","./stack-progress.ts","./stack-rules.ts","./stack-share.ts","./stack-sim.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stack-vehicles.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StackHomecomingView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./home-layout.ts","./input.ts","./items.ts","./level.ts","./plate.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-daily-table.ts","./stack-daily.ts","./stack-endless-table.ts","./stack-endless.ts","./stack-generator.ts","./stack-layout.ts","./stack-progress.ts","./stack-rules.ts","./stack-share.ts","./stack-sim.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stack-vehicles.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./PlateBadge.ts","./ProvincePicker.ts","./StackFinishView.ts","./StackHomecomingView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
