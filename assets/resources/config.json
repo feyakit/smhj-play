@@ -193,6 +193,15 @@
     "81a34585-2029-a9d9-408d-5864e6bff0ec",
     "81a34585-2029-a9d9-408d-5864e6bff0ec@6c48a",
     "81a34585-2029-a9d9-408d-5864e6bff0ec@f9941",
+    "cd885e18-cdbd-3c60-c1b6-9522d56e51d0",
+    "cd885e18-cdbd-3c60-c1b6-9522d56e51d0@6c48a",
+    "cd885e18-cdbd-3c60-c1b6-9522d56e51d0@f9941",
+    "97dd9322-8156-b114-ff51-7fd269dc5a59",
+    "97dd9322-8156-b114-ff51-7fd269dc5a59@6c48a",
+    "97dd9322-8156-b114-ff51-7fd269dc5a59@f9941",
+    "69188c5f-11d8-936c-1f0b-453a4a41aa42",
+    "69188c5f-11d8-936c-1f0b-453a4a41aa42@6c48a",
+    "69188c5f-11d8-936c-1f0b-453a4a41aa42@f9941",
     "5ca949b2-ca8d-e94a-ef3f-abddb164e18c",
     "5ca949b2-ca8d-e94a-ef3f-abddb164e18c@6c48a",
     "5ca949b2-ca8d-e94a-ef3f-abddb164e18c@f9941",
@@ -202,6 +211,21 @@
     "5b92c0c7-2723-0b3c-6578-e33771d247b5",
     "5b92c0c7-2723-0b3c-6578-e33771d247b5@6c48a",
     "5b92c0c7-2723-0b3c-6578-e33771d247b5@f9941",
+    "7dbc16a0-cdd5-304b-8127-214d39ec6329",
+    "7dbc16a0-cdd5-304b-8127-214d39ec6329@6c48a",
+    "7dbc16a0-cdd5-304b-8127-214d39ec6329@f9941",
+    "30a50948-132b-4b68-18a1-4a617b8f4a5a",
+    "30a50948-132b-4b68-18a1-4a617b8f4a5a@6c48a",
+    "30a50948-132b-4b68-18a1-4a617b8f4a5a@f9941",
+    "98dc6d39-d77b-ab77-ddc6-9b4c32cf6bab",
+    "98dc6d39-d77b-ab77-ddc6-9b4c32cf6bab@6c48a",
+    "98dc6d39-d77b-ab77-ddc6-9b4c32cf6bab@f9941",
+    "5a2e77b7-52e1-4d8d-f7ad-7291d653c941",
+    "5a2e77b7-52e1-4d8d-f7ad-7291d653c941@6c48a",
+    "5a2e77b7-52e1-4d8d-f7ad-7291d653c941@f9941",
+    "55b6c6fe-01a3-b747-ea9b-b01eb3423dbb",
+    "55b6c6fe-01a3-b747-ea9b-b01eb3423dbb@6c48a",
+    "55b6c6fe-01a3-b747-ea9b-b01eb3423dbb@f9941",
     "e9c4e35a-30d2-bbaa-2edb-7eb0f81a1bff",
     "ac8bd747-e742-beb0-a01f-098b9d784c4a",
     "03cca9ec-ad70-52f7-d956-492138254271",
@@ -1090,6 +1114,48 @@
       "cc.SpriteFrame",
       1
     ],
+    "cd885e18-cdbd-3c60-c1b6-9522d56e51d0": [
+      "art/vehicles/bus",
+      "cc.ImageAsset"
+    ],
+    "cd885e18-cdbd-3c60-c1b6-9522d56e51d0@6c48a": [
+      "art/vehicles/bus/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "cd885e18-cdbd-3c60-c1b6-9522d56e51d0@f9941": [
+      "art/vehicles/bus/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "97dd9322-8156-b114-ff51-7fd269dc5a59": [
+      "art/vehicles/moto",
+      "cc.ImageAsset"
+    ],
+    "97dd9322-8156-b114-ff51-7fd269dc5a59@6c48a": [
+      "art/vehicles/moto/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "97dd9322-8156-b114-ff51-7fd269dc5a59@f9941": [
+      "art/vehicles/moto/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "69188c5f-11d8-936c-1f0b-453a4a41aa42": [
+      "art/vehicles/pickup",
+      "cc.ImageAsset"
+    ],
+    "69188c5f-11d8-936c-1f0b-453a4a41aa42@6c48a": [
+      "art/vehicles/pickup/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "69188c5f-11d8-936c-1f0b-453a4a41aa42@f9941": [
+      "art/vehicles/pickup/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
     "5ca949b2-ca8d-e94a-ef3f-abddb164e18c": [
       "art/vehicles/sedan_v1_body",
       "cc.ImageAsset"
@@ -1129,6 +1195,76 @@
     ],
     "5b92c0c7-2723-0b3c-6578-e33771d247b5@f9941": [
       "art/vehicles/sedan_v1_trunk/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "7dbc16a0-cdd5-304b-8127-214d39ec6329": [
+      "art/vehicles/suv",
+      "cc.ImageAsset"
+    ],
+    "7dbc16a0-cdd5-304b-8127-214d39ec6329@6c48a": [
+      "art/vehicles/suv/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "7dbc16a0-cdd5-304b-8127-214d39ec6329@f9941": [
+      "art/vehicles/suv/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "30a50948-132b-4b68-18a1-4a617b8f4a5a": [
+      "art/vehicles/tractor",
+      "cc.ImageAsset"
+    ],
+    "30a50948-132b-4b68-18a1-4a617b8f4a5a@6c48a": [
+      "art/vehicles/tractor/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "30a50948-132b-4b68-18a1-4a617b8f4a5a@f9941": [
+      "art/vehicles/tractor/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "98dc6d39-d77b-ab77-ddc6-9b4c32cf6bab": [
+      "art/vehicles/trike",
+      "cc.ImageAsset"
+    ],
+    "98dc6d39-d77b-ab77-ddc6-9b4c32cf6bab@6c48a": [
+      "art/vehicles/trike/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "98dc6d39-d77b-ab77-ddc6-9b4c32cf6bab@f9941": [
+      "art/vehicles/trike/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "5a2e77b7-52e1-4d8d-f7ad-7291d653c941": [
+      "art/vehicles/truck",
+      "cc.ImageAsset"
+    ],
+    "5a2e77b7-52e1-4d8d-f7ad-7291d653c941@6c48a": [
+      "art/vehicles/truck/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "5a2e77b7-52e1-4d8d-f7ad-7291d653c941@f9941": [
+      "art/vehicles/truck/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "55b6c6fe-01a3-b747-ea9b-b01eb3423dbb": [
+      "art/vehicles/van",
+      "cc.ImageAsset"
+    ],
+    "55b6c6fe-01a3-b747-ea9b-b01eb3423dbb@6c48a": [
+      "art/vehicles/van/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "55b6c6fe-01a3-b747-ea9b-b01eb3423dbb@f9941": [
+      "art/vehicles/van/spriteFrame",
       "cc.SpriteFrame",
       1
     ],
