@@ -853,7 +853,7 @@ System.register("chunks:///_virtual/shapes.ts", [], function (exports_1, context
 
 System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, context_1) {
     "use strict";
-    var STAGE1_ITEMS, STAGE2_ITEMS;
+    var STAGE1_ITEMS, STAGE2_ITEMS, MOM_ITEM_KEYS;
     var __moduleName = context_1 && context_1.id;
     function stackItems(stage) {
         return stage === 1 ? STAGE1_ITEMS : STAGE2_ITEMS;
@@ -864,6 +864,17 @@ System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, 
         return (_a = items.find(item => item.key === key)) !== null && _a !== void 0 ? _a : items[0];
     }
     exports_1("stackItemByName", stackItemByName);
+    function pickMomItem(items, random = Math.random) {
+        const preferredKeys = new Set(MOM_ITEM_KEYS);
+        const candidates = items.filter(item => preferredKeys.has(item.key));
+        const pool = candidates.length ? candidates : items;
+        if (!pool.length)
+            return { key: 'mandarin', name: '砂糖橘' };
+        const drawn = random();
+        const value = Number.isFinite(drawn) ? Math.max(0, Math.min(0.999999, drawn)) : 0;
+        return pool[Math.floor(value * pool.length)];
+    }
+    exports_1("pickMomItem", pickMomItem);
     return {
         setters: [],
         execute: function () {
@@ -887,15 +898,19 @@ System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, 
                 { key: 'snacks', name: '零食大礼包' },
                 { key: 'ham', name: '火腿' },
                 { key: 'thermos', name: '保温壶' },
-                { key: 'crab', name: '大闸蟹' },
+                { key: 'firecracker', name: '鞭炮礼盒' },
+            ]);
+            /** The mother event uses instantly legible goods that already appear in the stage. */
+            exports_1("MOM_ITEM_KEYS", MOM_ITEM_KEYS = [
+                'mandarin', 'duck', 'fruitbasket', 'suitcase_l', 'toycar', 'milk', 'oven',
             ]);
         }
     };
 });
 
-System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-catalog.ts","./stack-rules.ts","./stack-solver.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-catalog.ts","./stack-rules.ts","./stack-layout.ts","./stack-solver.ts"], function (exports_1, context_1) {
     "use strict";
-    var rng_1, stack_catalog_1, stack_rules_1, stack_solver_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS, STAGE2_CARD, MAIN_LAYER_COUNTS, MAIN_LAYER_COLUMNS, MAIN_STEP_X, MAIN_STEP_Y, MAIN_BASE_Y, MAIN_LAYER_STEP, SIDE_STACKS;
+    var rng_1, stack_catalog_1, stack_rules_1, stack_layout_1, stack_solver_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS, STAGE2_CARD, GRID, HALF, GRID_X0, GRID_Y0, MAIN_LAYERS, SIDE_STACKS;
     var __moduleName = context_1 && context_1.id;
     function pileCard(id, x, y, w, h, layer, source) {
         return { id, kind: '', name: '', x, y, w, h, layer, source };
@@ -920,37 +935,25 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
         }
         return cards;
     }
-    function centeredRow(count, columns) {
-        const rows = Math.ceil(count / columns);
-        const base = Math.floor(count / rows);
-        const extra = count % rows;
-        return Array.from({ length: rows }, (_, row) => base + (row < extra ? 1 : 0));
-    }
     function layoutStageTwo(random) {
         const cards = [];
         let id = 0;
-        for (let layer = 0; layer < MAIN_LAYER_COUNTS.length; layer++) {
-            const columns = MAIN_LAYER_COLUMNS[layer];
-            const rowCounts = centeredRow(MAIN_LAYER_COUNTS[layer], columns);
-            const halfStepY = layer % 2 === 1 ? MAIN_STEP_Y / 2 : 0;
-            const layerY = MAIN_BASE_Y - layer * MAIN_LAYER_STEP + halfStepY;
-            for (let row = 0; row < rowCounts.length; row++) {
-                const rowCount = rowCounts[row];
-                const rowWidth = (rowCount - 1) * MAIN_STEP_X + STAGE2_CARD;
-                const startX = Math.round((750 - rowWidth) / 2);
-                for (let column = 0; column < rowCount; column++) {
-                    const jitterX = Math.round((random() - .5) * 7);
+        MAIN_LAYERS.forEach((layer, index) => {
+            var _a;
+            const offset = layer.half ? HALF : 0;
+            for (let row = layer.rows[0]; row <= layer.rows[1]; row++) {
+                for (let col = layer.cols[0]; col <= layer.cols[1]; col++) {
+                    if ((_a = layer.skip) === null || _a === void 0 ? void 0 : _a.includes(`${col},${row}`))
+                        continue;
+                    const jitterX = Math.round((random() - .5) * 4);
                     const jitterY = Math.round((random() - .5) * 4);
-                    const x = startX + column * MAIN_STEP_X + jitterX;
-                    const y = Math.round(layerY + row * MAIN_STEP_Y + jitterY);
-                    cards.push(pileCard(++id, x, y, STAGE2_CARD, STAGE2_CARD, layer, 'pile'));
+                    cards.push(pileCard(++id, GRID_X0 + offset + col * GRID + jitterX, GRID_Y0 + offset + row * GRID + jitterY, STAGE2_CARD, STAGE2_CARD, index, 'pile'));
                 }
             }
-        }
-        const sideSize = 96;
+        });
         for (const stack of SIDE_STACKS) {
             for (let index = 0; index < stack.count; index++) {
-                cards.push(pileCard(++id, stack.x, stack.baseY + index * 4, sideSize, sideSize, 20 + index, stack.source));
+                cards.push(pileCard(++id, stack.x + index * stack.step, stack.y, STAGE2_CARD, STAGE2_CARD, 20 + index, stack.source));
             }
         }
         return cards;
@@ -1056,6 +1059,9 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             function (stack_rules_1_1) {
                 stack_rules_1 = stack_rules_1_1;
             },
+            function (stack_layout_1_1) {
+                stack_layout_1 = stack_layout_1_1;
+            },
             function (stack_solver_1_1) {
                 stack_solver_1 = stack_solver_1_1;
             }
@@ -1064,26 +1070,109 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             exports_1("STACK_SEEDS", STACK_SEEDS = ['trunk-stack-stage1-v1', 'trunk-stack-stage2-v1']);
             exports_1("STAGE1_CARDS", STAGE1_CARDS = 18);
             exports_1("STAGE2_CARDS", STAGE2_CARDS = 150);
-            STAGE2_CARD = 112;
-            MAIN_LAYER_COUNTS = [22, 20, 18, 16, 14, 12, 10, 8];
-            MAIN_LAYER_COLUMNS = [6, 6, 5, 5, 4, 3, 3, 3];
-            MAIN_STEP_X = 78;
-            MAIN_STEP_Y = 54;
-            MAIN_BASE_Y = 590;
-            MAIN_LAYER_STEP = 48;
+            STAGE2_CARD = stack_layout_1.STACK_CARD_SIZE;
+            GRID = 112;
+            HALF = GRID / 2;
+            GRID_X0 = Math.round((750 - (5 * GRID + STAGE2_CARD)) / 2);
+            GRID_Y0 = 150;
+            /**
+             * Bottom-to-top layers of the hard mound. Odd layers sit half a card right and down, so every
+             * card is pinned by up to four cards above; upper layers shrink towards the centre and the
+             * base loses its top corners, giving a hill silhouette instead of a wall.
+             */
+            MAIN_LAYERS = [
+                { cols: [0, 5], rows: [0, 6], half: false, skip: ['0,0', '5,0', '0,1', '5,1'] },
+                { cols: [0, 4], rows: [0, 5], half: true, skip: ['0,0', '4,0'] },
+                { cols: [1, 4], rows: [0, 6], half: false },
+                { cols: [1, 3], rows: [0, 5], half: true },
+                { cols: [2, 3], rows: [1, 5], half: false },
+                { cols: [2, 2], rows: [1, 4], half: true },
+            ];
             SIDE_STACKS = [
-                { source: 'side-left', x: 8, baseY: 300, count: 8 },
-                { source: 'side-left', x: 8, baseY: 520, count: 7 },
-                { source: 'side-right', x: 646, baseY: 325, count: 7 },
-                { source: 'side-right', x: 646, baseY: 545, count: 8 },
+                { source: 'side-left', x: 36, y: 1006, count: 12, step: 13 },
+                { source: 'side-right', x: 606, y: 1006, count: 12, step: -13 },
             ];
         }
     };
 });
 
-System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, context_1) {
     "use strict";
-    var rng_1, SLOT_CAPACITY, PACK_SIZE, MOM_INTERVAL_MS, StackGame;
+    var STACK_DESIGN_WIDTH, STACK_HUD_BOTTOM, STACK_MIN_HEIGHT, STACK_CARD_SIZE, STACK_CAR_SCALE_Y, STACK_ACTION_HEIGHT, STACK_BODY_SIZE, STACK_BODY_HOLE, STACK_BODY_SLICE;
+    var __moduleName = context_1 && context_1.id;
+    /** Converts a phone viewport to the 750-wide design coordinate used by StackPage. */
+    function stackPageHeight(screenWidth, screenHeight) {
+        if (!(screenWidth > 0) || !(screenHeight > 0))
+            return STACK_MIN_HEIGHT;
+        return Math.max(STACK_MIN_HEIGHT, screenHeight / screenWidth * STACK_DESIGN_WIDTH);
+    }
+    exports_1("stackPageHeight", stackPageHeight);
+    /** Shared, renderer-independent geometry for the board, car and bottom action row. */
+    function createStackPageLayout(height, safeBottom = 0) {
+        const actionY = height - Math.max(0, safeBottom) - 20 - STACK_ACTION_HEIGHT;
+        const bodyHeight = Math.round(STACK_BODY_SIZE.h * STACK_CAR_SCALE_Y);
+        const carBottom = actionY - 52;
+        const carTop = carBottom - bodyHeight;
+        const trunk = {
+            x: Math.round((STACK_BODY_HOLE.left - STACK_BODY_SIZE.w / 2) + STACK_DESIGN_WIDTH / 2),
+            y: carTop + Math.round(STACK_BODY_HOLE.top * STACK_CAR_SCALE_Y),
+            w: STACK_BODY_HOLE.right - STACK_BODY_HOLE.left,
+            h: Math.round((STACK_BODY_HOLE.bottom - STACK_BODY_HOLE.top) * STACK_CAR_SCALE_Y),
+        };
+        const stackTop = STACK_HUD_BOTTOM;
+        const stackBottom = trunk.y;
+        return {
+            height,
+            safeBottom: Math.max(0, safeBottom),
+            actionY,
+            carBottom,
+            carTop,
+            bodyHeight,
+            trunk,
+            stackTop,
+            stackBottom,
+            stackRatio: Math.max(0, stackBottom - stackTop) / height,
+        };
+    }
+    exports_1("createStackPageLayout", createStackPageLayout);
+    function stackCardBounds(cards) {
+        if (!cards.length)
+            return { left: 0, right: 0, top: 0, bottom: 0 };
+        return {
+            left: Math.min(...cards.map(card => card.x)),
+            right: Math.max(...cards.map(card => card.x + card.w)),
+            top: Math.min(...cards.map(card => card.y)),
+            bottom: Math.max(...cards.map(card => card.y + card.h)),
+        };
+    }
+    exports_1("stackCardBounds", stackCardBounds);
+    function stackCardsAreVisible(cards, layout) {
+        const bounds = stackCardBounds(cards);
+        return bounds.left >= 0
+            && bounds.right <= STACK_DESIGN_WIDTH
+            && bounds.top >= layout.stackTop
+            && bounds.bottom <= layout.stackBottom;
+    }
+    exports_1("stackCardsAreVisible", stackCardsAreVisible);
+    return {
+        setters: [],
+        execute: function () {
+            exports_1("STACK_DESIGN_WIDTH", STACK_DESIGN_WIDTH = 750);
+            exports_1("STACK_HUD_BOTTOM", STACK_HUD_BOTTOM = 140);
+            exports_1("STACK_MIN_HEIGHT", STACK_MIN_HEIGHT = 1334);
+            exports_1("STACK_CARD_SIZE", STACK_CARD_SIZE = 108);
+            exports_1("STACK_CAR_SCALE_Y", STACK_CAR_SCALE_Y = 0.55);
+            exports_1("STACK_ACTION_HEIGHT", STACK_ACTION_HEIGHT = 68);
+            exports_1("STACK_BODY_SIZE", STACK_BODY_SIZE = { w: 1024, h: 640 });
+            exports_1("STACK_BODY_HOLE", STACK_BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 });
+            exports_1("STACK_BODY_SLICE", STACK_BODY_SLICE = { top: 150, bottom: 380 });
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalog.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, stack_catalog_1, SLOT_CAPACITY, PACK_SIZE, MOM_INTERVAL_MS, StackGame;
     var __moduleName = context_1 && context_1.id;
     function rectsOverlap(a, b) {
         return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -1121,6 +1210,9 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts"], function (exp
         setters: [
             function (rng_1_1) {
                 rng_1 = rng_1_1;
+            },
+            function (stack_catalog_1_1) {
+                stack_catalog_1 = stack_catalog_1_1;
             }
         ],
         execute: function () {
@@ -1230,7 +1322,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts"], function (exp
                 triggerMom() {
                     if (this.level.stage !== 2 || this.currentStatus !== 'playing')
                         return [];
-                    const item = this.level.items[Math.floor(this.random() * this.level.items.length)];
+                    const item = stack_catalog_1.pickMomItem(this.level.items, this.random);
                     const added = [];
                     for (let i = 0; i < PACK_SIZE; i++) {
                         const pos = this.level.momPositions[i % this.level.momPositions.length];
@@ -1283,6 +1375,75 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts"], function (exp
                 }
             };
             exports_1("StackGame", StackGame);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (exports_1, context_1) {
+    "use strict";
+    var brand_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS;
+    var __moduleName = context_1 && context_1.id;
+    function safeInteger(value, minimum = 0) {
+        if (!Number.isFinite(value))
+            return minimum;
+        return Math.max(minimum, Math.round(value));
+    }
+    function formatStackShareStats(result) {
+        if (result.victory) {
+            return `用时 ${safeInteger(result.elapsedSec, 1)} 秒 · 打包 ${safeInteger(result.boxes)} 箱`;
+        }
+        return `差 ${safeInteger(result.remaining)} 件就塞满`;
+    }
+    exports_1("formatStackShareStats", formatStackShareStats);
+    function formatStackShareStage(stage) {
+        return `第 ${safeInteger(stage, 1)} 关`;
+    }
+    exports_1("formatStackShareStage", formatStackShareStage);
+    function pickStackShareCaption(random = Math.random) {
+        const drawn = random();
+        const value = Number.isFinite(drawn) ? Math.max(0, Math.min(0.999999, drawn)) : 0;
+        return STACK_SHARE_CAPTIONS[Math.floor(value * STACK_SHARE_CAPTIONS.length)];
+    }
+    exports_1("pickStackShareCaption", pickStackShareCaption);
+    function createStackShareCopy(stage, result, random = Math.random) {
+        return {
+            title: STACK_SHARE_TITLE,
+            stageText: formatStackShareStage(stage),
+            statsText: formatStackShareStats(result),
+            caption: pickStackShareCaption(random),
+        };
+    }
+    exports_1("createStackShareCopy", createStackShareCopy);
+    function stackShareFileName(stage, victory) {
+        return `${brand_1.GAME_TITLE}-第${safeInteger(stage, 1)}关-${victory ? '胜利' : '差一点'}.png`;
+    }
+    exports_1("stackShareFileName", stackShareFileName);
+    return {
+        setters: [
+            function (brand_1_1) {
+                brand_1 = brand_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("STACK_SHARE_WIDTH", STACK_SHARE_WIDTH = 1080);
+            exports_1("STACK_SHARE_HEIGHT", STACK_SHARE_HEIGHT = 1440);
+            exports_1("STACK_SHARE_TITLE", STACK_SHARE_TITLE = `《${brand_1.GAME_TITLE}》`);
+            /** Goods visible in both the generated share card and the finish-screen trunk. */
+            exports_1("STACK_SHARE_ITEM_KEYS", STACK_SHARE_ITEM_KEYS = [
+                'mandarin', 'duck', 'fruitbasket', 'milk', 'suitcase_l', 'toycar', 'oven',
+            ]);
+            /** Normalized cargo layout (x, y, rotation) inside the trunk opening, from top-left. */
+            exports_1("STACK_CARGO_POSITIONS", STACK_CARGO_POSITIONS = [
+                [0.18, 0.34, 0.12], [0.39, 0.29, -0.10], [0.61, 0.34, 0.09], [0.82, 0.28, -0.12],
+                [0.28, 0.72, -0.08], [0.52, 0.78, 0.06], [0.76, 0.72, -0.06],
+            ]);
+            exports_1("STACK_SHARE_CAPTIONS", STACK_SHARE_CAPTIONS = [
+                '年货塞满，平安到家',
+                '今年的后备箱，装的都是爱',
+                '满满一车年味，奔赴团圆',
+                '车尾装不下，家里的牵挂装得下',
+                '一路顺风，回家过年',
+            ]);
         }
     };
 });
@@ -2046,9 +2207,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./StackSound.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./StackSound.ts","./StackShareImage.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, StackSound_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, deep, shadow, blockedShade, dimText, gray, BODY_SIZE, BODY_HOLE, BODY_SLICE, ITEM_CROPS, StackPage;
+    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, StackSound_1, StackShareImage_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, deep, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -2071,6 +2232,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             function (stack_generator_1_1) {
                 stack_generator_1 = stack_generator_1_1;
             },
+            function (stack_layout_1_1) {
+                stack_layout_1 = stack_layout_1_1;
+            },
             function (stack_rules_1_1) {
                 stack_rules_1 = stack_rules_1_1;
             },
@@ -2085,6 +2249,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             },
             function (StackSound_1_1) {
                 StackSound_1 = StackSound_1_1;
+            },
+            function (StackShareImage_1_1) {
+                StackShareImage_1 = StackShareImage_1_1;
             },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
@@ -2102,12 +2269,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             paleGold = new cc_1.Color(255, 219, 145);
             deep = new cc_1.Color(61, 24, 32);
             shadow = new cc_1.Color(27, 14, 18, 95);
-            blockedShade = new cc_1.Color(30, 22, 28, 154);
+            blockedShade = new cc_1.Color(30, 22, 28, 102);
             dimText = new cc_1.Color(91, 74, 62);
             gray = new cc_1.Color(126, 117, 109);
-            BODY_SIZE = { w: 1024, h: 640 };
-            BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 };
-            BODY_SLICE = { top: 150, bottom: 380 };
             ITEM_CROPS = {
                 mandarin: { x: 6, y: 6, w: 244, h: 244 },
                 duck: { x: 6, y: 6, w: 372, h: 244 },
@@ -2122,7 +2286,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 snacks: { x: 6, y: 6, w: 244, h: 372 },
                 ham: { x: 6, y: 6, w: 244, h: 500 },
                 thermos: { x: 6, y: 6, w: 244, h: 372 },
-                crab: { x: 6, y: 6, w: 371, h: 369 },
+                firecracker: { x: 6, y: 6, w: 372, h: 116 },
                 ricecooker: { x: 6, y: 6, w: 244, h: 244 },
             };
             /** Code-built match-three page. All rules live in core/stack; this file only paints and animates. */
@@ -2131,7 +2295,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.onAction = onAction;
                     this.carFrames = {};
                     this.carRect = { x: 30, y: 940, w: 690, h: 420 };
-                    this.carScaleY = .74;
+                    this.carScaleY = stack_layout_1.STACK_CAR_SCALE_Y;
                     this.soundRect = { x: 647, y: 162, w: 94, h: 52 };
                     this.cardViews = new Map();
                     this.itemFrames = new Map();
@@ -2154,8 +2318,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.trunk = { x: 16, y: 1174, w: 718, h: 116 };
                     this.slotY = 1185;
                     this.slotCell = 96;
+                    this.safeBottom = 0;
                     this.actionY = 1527;
-                    this.actionH = 68;
+                    this.actionH = stack_layout_1.STACK_ACTION_HEIGHT;
                     this.level = stack_generator_1.generateStackLevel(stage, stack_generator_1.STACK_SEEDS[stage - 1]).level;
                     this.game = new stack_rules_1.StackGame(this.level, rng_1.createRng(`${this.level.seed}:runtime`), Date.now());
                     this.node = UIKit_1.uiNode('StackPage', parent, 750, 1334);
@@ -2249,6 +2414,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         getSolution: () => [...this.level.solution],
                         getModalButtons: () => this.debugModalButtons(),
                         getActions: () => this.debugActions(),
+                        getFinishButtons: () => this.debugFinishButtons(),
                         getBoard: () => this.game.cards.map(card => ({
                             id: card.id, kind: card.kind, source: card.source, layer: card.layer,
                             x: card.x, y: card.y, w: card.w, h: card.h,
@@ -2281,7 +2447,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     if (size.width !== this.layoutWidth || size.height !== this.layoutHeight) {
                         this.layoutWidth = size.width;
                         this.layoutHeight = size.height;
-                        this.height = Math.max(1334, size.height / size.width * 750);
+                        this.height = stack_layout_1.stackPageHeight(size.width, size.height);
                         const scale = Math.min(size.width / 750, size.height / this.height);
                         this.node.setScale(scale, scale, 1);
                         this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
@@ -2307,19 +2473,17 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 }
                 layout(bottom) {
                     var _a;
+                    this.safeBottom = Math.max(0, bottom);
                     this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
-                    this.actionY = this.height - bottom - 20 - this.actionH;
-                    const bodyH = Math.round(BODY_SIZE.h * this.carScaleY);
-                    const carBottom = this.actionY - 52;
-                    const carTop = carBottom - bodyH;
-                    const holeW = BODY_HOLE.right - BODY_HOLE.left;
-                    this.trunk = {
-                        x: Math.round((BODY_HOLE.left - BODY_SIZE.w / 2) + 375),
-                        y: carTop + Math.round(BODY_HOLE.top * this.carScaleY),
-                        w: holeW,
-                        h: Math.round((BODY_HOLE.bottom - BODY_HOLE.top) * this.carScaleY),
+                    const metrics = stack_layout_1.createStackPageLayout(this.height, bottom);
+                    this.actionY = metrics.actionY;
+                    this.trunk = Object.assign({}, metrics.trunk);
+                    this.carRect = {
+                        x: 375 - stack_layout_1.STACK_BODY_SIZE.w / 2,
+                        y: metrics.carTop,
+                        w: stack_layout_1.STACK_BODY_SIZE.w,
+                        h: metrics.bodyHeight,
                     };
-                    this.carRect = { x: 375 - BODY_SIZE.w / 2, y: carTop, w: BODY_SIZE.w, h: bodyH };
                     this.slotCell = 96;
                     const gap = 3;
                     const slotWidth = stack_rules_1.SLOT_CAPACITY * this.slotCell + (stack_rules_1.SLOT_CAPACITY - 1) * gap;
@@ -2382,9 +2546,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.rect(g, new cc_1.Color(255, 222, 161, 150), 95, 110, 560, 2, 1);
                     this.rect(g, new cc_1.Color(255, 224, 165), 302, 25, 146, 4, 2);
                     // A soft night-market wash makes the pile read as one cargo mountain without boxing it in.
-                    this.rect(g, new cc_1.Color(21, 14, 28, 42), 34, 148, 682, 782, 42);
-                    this.rect(g, new cc_1.Color(255, 194, 102, 24), 74, 792, 602, 190, 44);
-                    this.rect(g, new cc_1.Color(246, 195, 67, 62), 132, 906, 486, 2, 1);
+                    this.rect(g, new cc_1.Color(21, 14, 28, 42), 34, 136, 682, 982, 42);
+                    this.rect(g, new cc_1.Color(255, 194, 102, 24), 74, 912, 602, 206, 44);
+                    this.rect(g, new cc_1.Color(246, 195, 67, 62), 132, 1032, 486, 2, 1);
                     if (!this.carFrames.body) {
                         this.rect(g, new cc_1.Color(34, 22, 29, 210), car.x, car.y, car.w, Math.min(430, car.h), 54);
                         this.rect(g, new cc_1.Color(163, 31, 39), car.x + 28, car.y + 86, car.w - 56, 296, 46);
@@ -2425,16 +2589,16 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.showImage(this.trunkImage, trunk, this.trunk.x + this.trunk.w / 2, this.trunk.y + this.trunk.h / 2, this.trunk.w, this.trunk.h);
                     if (body) {
                         const frame = body.clone();
-                        frame.insetTop = BODY_SLICE.top;
-                        frame.insetBottom = BODY_SLICE.bottom;
+                        frame.insetTop = stack_layout_1.STACK_BODY_SLICE.top;
+                        frame.insetBottom = stack_layout_1.STACK_BODY_SLICE.bottom;
                         frame.insetLeft = 0;
                         frame.insetRight = 0;
                         this.bodyImage.type = cc_1.Sprite.Type.SLICED;
-                        this.showImage(this.bodyImage, frame, this.carRect.x + this.carRect.w / 2, this.carRect.y + this.carRect.h / 2, BODY_SIZE.w, BODY_SIZE.h);
+                        this.showImage(this.bodyImage, frame, this.carRect.x + this.carRect.w / 2, this.carRect.y + this.carRect.h / 2, stack_layout_1.STACK_BODY_SIZE.w, stack_layout_1.STACK_BODY_SIZE.h);
                         this.bodyImage.node.setScale(1, this.carScaleY, 1);
                     }
                     if (lid) {
-                        const lidW = 642, lidH = 132;
+                        const lidW = 642, lidH = 82;
                         this.showImage(this.lidImage, lid, 375, this.carRect.y - 34, lidW, lidH);
                         this.lidImage.node.setScale(1, 1, 1);
                         this.lidImage.node.angle = -3;
@@ -2661,6 +2825,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                                 continue;
                             if (button.action === 'revive')
                                 this.revive();
+                            else if (button.action === 'share')
+                                this.openShare(false);
                             else
                                 this.onAction('replay');
                             return;
@@ -2828,18 +2994,19 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.failLayer = layer;
                     const g = layer.addComponent(cc_1.Graphics);
                     UIKit_1.fill(g, new cc_1.Color(20, 12, 18, 176), -375, -this.height / 2, 750, this.height);
-                    UIKit_1.fill(g, new cc_1.Color(61, 18, 26, 245), -300, -300, 600, 600, 34);
-                    UIKit_1.fill(g, gold, -292, -292, 584, 584, 29);
-                    UIKit_1.fill(g, new cc_1.Color(176, 34, 42), -284, -284, 568, 568, 24);
-                    UIKit_1.fill(g, new cc_1.Color(199, 48, 47, 170), -260, -218, 520, 170, 22);
+                    UIKit_1.fill(g, new cc_1.Color(61, 18, 26, 245), -300, -320, 600, 640, 34);
+                    UIKit_1.fill(g, gold, -292, -312, 584, 624, 29);
+                    UIKit_1.fill(g, new cc_1.Color(176, 34, 42), -284, -304, 568, 608, 24);
+                    UIKit_1.fill(g, new cc_1.Color(199, 48, 47, 170), -260, -238, 520, 170, 22);
                     const title = UIKit_1.label(layer, 'OverflowTitle', '后备箱塞爆了', 46, 0, 236);
                     title.color = gold;
                     const hint = UIKit_1.label(layer, 'OverflowHint', '7 格全满，还差一件同款年货', 22, 0, 190);
                     hint.color = cream;
                     this.drawOverflowCar(layer);
-                    const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -126);
-                    const restart = this.failButton(layer, 'restart', '重来', -218);
-                    this.failButtons.push(revive, restart);
+                    const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -100);
+                    const share = this.failButton(layer, 'share', '生成分享图', -180);
+                    const restart = this.failButton(layer, 'restart', '重来', -260);
+                    this.failButtons.push(revive, share, restart);
                     this.sounds.play('fail');
                     this.refreshFailButtons();
                 }
@@ -2847,7 +3014,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     var _a, _b;
                     (_a = parent.getChildByName('OverflowCar')) === null || _a === void 0 ? void 0 : _a.destroy();
                     const car = UIKit_1.uiNode('OverflowCar', parent, 290, 200);
-                    car.setPosition(0, 30);
+                    car.setPosition(0, 45);
                     const fallbackNode = UIKit_1.uiNode('OverflowFrame', car, 290, 200);
                     const fallback = fallbackNode.addComponent(cc_1.Graphics);
                     UIKit_1.fill(fallback, new cc_1.Color(30, 14, 18, 80), -132, -88, 264, 166, 28);
@@ -2962,7 +3129,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         ? [{ title: '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }]
                         : [{ title: '再来一次', action: 'replay' }, { title: '回第 1 关', action: 'first' }];
                     const elapsedSec = Math.max(1, Math.round((Date.now() - this.startedAt) / 1000));
-                    this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, { elapsedSec, boxes: this.game.clearedGroups }, action => this.mapFinish(action));
+                    this.finishStats = { elapsedSec, boxes: this.game.clearedGroups };
+                    this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, this.finishStats, action => this.mapFinish(action), () => this.openShare(true));
                     this.finishView.layout(this.height);
                     this.finishView.render(this.finish.state);
                 }
@@ -2973,6 +3141,17 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.onAction('first');
                     else
                         this.onAction('replay');
+                }
+                openShare(victory) {
+                    var _a, _b, _c, _d;
+                    const result = victory
+                        ? {
+                            victory: true,
+                            elapsedSec: (_b = (_a = this.finishStats) === null || _a === void 0 ? void 0 : _a.elapsedSec) !== null && _b !== void 0 ? _b : Math.max(1, Math.round((Date.now() - this.startedAt) / 1000)),
+                            boxes: (_d = (_c = this.finishStats) === null || _c === void 0 ? void 0 : _c.boxes) !== null && _d !== void 0 ? _d : this.game.clearedGroups,
+                        }
+                        : { victory: false, remaining: this.game.pileRemaining };
+                    void StackShareImage_1.showStackShareImage({ stage: this.level.stage, result });
                 }
                 onMomAdded(added) {
                     if (!added.length)
@@ -3003,6 +3182,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         screenRight: (card.x + card.w) / 750 * screenWidth,
                         screenTop: card.y / this.height * screenHeight,
                         screenBottom: (card.y + card.h) / this.height * screenHeight,
+                        screenW: card.w / 750 * screenWidth,
+                        screenH: card.h / this.height * screenHeight,
                     }));
                 }
                 debugActions() {
@@ -3019,20 +3200,27 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
                     const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
                     const cards = this.game.cards;
-                    const left = Math.min(...cards.map(card => card.x));
-                    const right = Math.max(...cards.map(card => card.x + card.w));
-                    const top = Math.min(...cards.map(card => card.y));
-                    const bottom = Math.max(...cards.map(card => card.y + card.h));
+                    const bounds = stack_layout_1.stackCardBounds(cards);
+                    const layout = stack_layout_1.createStackPageLayout(this.height, this.safeBottom);
                     return {
                         viewport: { width: screenWidth, height: screenHeight },
+                        cardSize: {
+                            width: this.level.cardW / 750 * screenWidth,
+                            height: this.level.cardH / this.height * screenHeight,
+                        },
                         cardBounds: {
-                            left: left / 750 * screenWidth,
-                            right: right / 750 * screenWidth,
-                            top: top / this.height * screenHeight,
-                            bottom: bottom / this.height * screenHeight,
+                            left: bounds.left / 750 * screenWidth,
+                            right: bounds.right / 750 * screenWidth,
+                            top: bounds.top / this.height * screenHeight,
+                            bottom: bounds.bottom / this.height * screenHeight,
                         },
                         hudBottom: 140 / this.height * screenHeight,
                         trunkTop: this.trunk.y / this.height * screenHeight,
+                        stackRegion: {
+                            top: 140 / this.height * screenHeight,
+                            bottom: this.trunk.y / this.height * screenHeight,
+                            ratio: layout.stackRatio,
+                        },
                         sideCounts: {
                             left: cards.filter(card => card.source === 'side-left').length,
                             right: cards.filter(card => card.source === 'side-right').length,
@@ -3061,6 +3249,17 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         kindCounts,
                         clickable: this.debugClickable(),
                     };
+                }
+                debugFinishButtons() {
+                    if (!this.finishView)
+                        return [];
+                    const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    return this.finishView.buttonPoints().map(button => ({
+                        action: button.action,
+                        screenX: (button.rect.x + button.rect.w / 2) / 750 * screenWidth,
+                        screenY: (button.rect.y + button.rect.h / 2) / this.height * screenHeight,
+                    }));
                 }
                 debugModalButtons() {
                     if (this.modal !== 'fail')
@@ -4402,6 +4601,375 @@ System.register("chunks:///_virtual/SoundEffects.ts", ["cc","./OptionalResources
     };
 });
 
+System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts"], function (exports_1, context_1) {
+    "use strict";
+    var brand_1, stack_layout_1, stack_share_1, OptionalResources_1, FONT, gold, pale;
+    var __moduleName = context_1 && context_1.id;
+    function canUseBrowserCanvas() {
+        return typeof document !== 'undefined' && typeof HTMLCanvasElement !== 'undefined';
+    }
+    function frameDrawable(frame) {
+        var _a, _b, _c;
+        if (!frame)
+            return null;
+        try {
+            const texture = frame.texture;
+            const image = (_a = texture === null || texture === void 0 ? void 0 : texture.getHtmlElementObj) === null || _a === void 0 ? void 0 : _a.call(texture);
+            if (!image)
+                return null;
+            const imageWidth = 'naturalWidth' in image
+                ? Number(image.naturalWidth)
+                : Number(image.width);
+            const imageHeight = 'naturalHeight' in image
+                ? Number(image.naturalHeight)
+                : Number(image.height);
+            const width = Math.max(1, Number((_b = frame.rect) === null || _b === void 0 ? void 0 : _b.width) || imageWidth || 1);
+            const height = Math.max(1, Number((_c = frame.rect) === null || _c === void 0 ? void 0 : _c.height) || imageHeight || 1);
+            return { image, width, height };
+        }
+        catch (_d) {
+            return null;
+        }
+    }
+    function roundedRect(context, x, y, width, height, radius) {
+        const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+        context.beginPath();
+        context.moveTo(x + r, y);
+        context.lineTo(x + width - r, y);
+        context.quadraticCurveTo(x + width, y, x + width, y + r);
+        context.lineTo(x + width, y + height - r);
+        context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+        context.lineTo(x + r, y + height);
+        context.quadraticCurveTo(x, y + height, x, y + height - r);
+        context.lineTo(x, y + r);
+        context.quadraticCurveTo(x, y, x + r, y);
+        context.closePath();
+    }
+    function fillRounded(context, color, x, y, width, height, radius) {
+        context.fillStyle = color;
+        roundedRect(context, x, y, width, height, radius);
+        context.fill();
+    }
+    function fitFont(context, text, maxWidth, size, weight = '900') {
+        let current = size;
+        while (current > 24) {
+            context.font = `${weight} ${current}px ${FONT}`;
+            if (context.measureText(text).width <= maxWidth)
+                break;
+            current -= 2;
+        }
+    }
+    function drawFrame(context, frame, x, y, width, height, angle = 0) {
+        context.save();
+        context.translate(x, y);
+        context.rotate(angle);
+        context.drawImage(frame.image, 0, 0, frame.width, frame.height, -width / 2, -height / 2, width, height);
+        context.restore();
+    }
+    function drawLantern(context, x, y, scale) {
+        context.save();
+        context.translate(x, y);
+        context.scale(scale, scale);
+        context.strokeStyle = '#ffd27a';
+        context.lineWidth = 4;
+        context.beginPath();
+        context.moveTo(0, -95);
+        context.lineTo(0, -67);
+        context.stroke();
+        context.fillStyle = '#8b111a';
+        context.beginPath();
+        context.ellipse(0, 0, 54, 67, 0, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = '#ffbd52';
+        context.lineWidth = 7;
+        context.beginPath();
+        context.ellipse(0, 0, 54, 67, 0, 0, Math.PI * 2);
+        context.stroke();
+        context.fillStyle = '#ffd77f';
+        fillRounded(context, '#ffd77f', -43, -7, 86, 14, 7);
+        fillRounded(context, '#ffd77f', -36, -86, 72, 13, 6);
+        context.fillStyle = '#a81b23';
+        fillRounded(context, '#a81b23', -30, -79, 60, 11, 5);
+        for (let index = -2; index <= 2; index++) {
+            context.strokeStyle = '#f6a83f';
+            context.lineWidth = 5;
+            context.beginPath();
+            context.moveTo(index * 12, 68);
+            context.lineTo(index * 12, 104);
+            context.stroke();
+        }
+        context.restore();
+    }
+    function drawBackground(context) {
+        const gradient = context.createLinearGradient(0, 0, 0, stack_share_1.STACK_SHARE_HEIGHT);
+        gradient.addColorStop(0, '#8f1720');
+        gradient.addColorStop(0.44, '#c92f2d');
+        gradient.addColorStop(1, '#661019');
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, stack_share_1.STACK_SHARE_WIDTH, stack_share_1.STACK_SHARE_HEIGHT);
+        const glow = context.createRadialGradient(540, 330, 50, 540, 330, 620);
+        glow.addColorStop(0, 'rgba(255,216,126,.28)');
+        glow.addColorStop(1, 'rgba(255,216,126,0)');
+        context.fillStyle = glow;
+        context.fillRect(0, 0, stack_share_1.STACK_SHARE_WIDTH, stack_share_1.STACK_SHARE_HEIGHT);
+        context.strokeStyle = 'rgba(255,216,126,.23)';
+        context.lineWidth = 3;
+        for (let index = 0; index < 9; index++) {
+            context.beginPath();
+            context.arc(540, 380, 190 + index * 46, Math.PI * 1.08, Math.PI * 1.92);
+            context.stroke();
+        }
+        for (let row = 0; row < 6; row++) {
+            for (let column = 0; column < 8; column++) {
+                const x = 86 + column * 130 + (row % 2 ? 54 : 0);
+                const y = 455 + row * 152;
+                context.fillStyle = row % 2 ? 'rgba(255,210,122,.12)' : 'rgba(255,244,210,.08)';
+                context.beginPath();
+                context.arc(x, y, 7, 0, Math.PI * 2);
+                context.fill();
+            }
+        }
+        drawLantern(context, 76, 167, .68);
+        drawLantern(context, 1004, 167, .68);
+        drawLantern(context, 174, 105, .38);
+        drawLantern(context, 906, 105, .38);
+        context.strokeStyle = 'rgba(255,210,122,.85)';
+        context.lineWidth = 6;
+        roundedRect(context, 30, 30, 1020, 1380, 46);
+        context.stroke();
+        context.strokeStyle = 'rgba(255,238,187,.35)';
+        context.lineWidth = 2;
+        roundedRect(context, 52, 52, 976, 1336, 34);
+        context.stroke();
+    }
+    function drawTexts(context, scene) {
+        const copy = stack_share_1.createStackShareCopy(scene.stage, scene.result);
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.save();
+        context.shadowColor = 'rgba(73,5,11,.72)';
+        context.shadowBlur = 18;
+        context.shadowOffsetY = 8;
+        fitFont(context, copy.title, 900, 94);
+        context.fillStyle = gold;
+        context.fillText(copy.title, 540, 156);
+        context.restore();
+        fillRounded(context, 'rgba(93,9,16,.42)', 395, 224, 290, 64, 32);
+        context.strokeStyle = 'rgba(255,225,157,.72)';
+        context.lineWidth = 3;
+        roundedRect(context, 397, 226, 286, 60, 30);
+        context.stroke();
+        context.font = `700 34px ${FONT}`;
+        context.fillStyle = pale;
+        context.fillText(copy.stageText, 540, 256);
+        fitFont(context, copy.statsText, 900, 45, '800');
+        context.fillStyle = pale;
+        context.fillText(copy.statsText, 540, 346);
+        return copy;
+    }
+    function drawFallbackCar(context) {
+        context.save();
+        context.shadowColor = 'rgba(35,0,5,.55)';
+        context.shadowBlur = 30;
+        context.shadowOffsetY = 24;
+        fillRounded(context, '#8f141c', 92, 514, 896, 548, 74);
+        context.restore();
+        fillRounded(context, '#b52228', 108, 500, 864, 500, 68);
+        fillRounded(context, '#6f1018', 188, 576, 704, 286, 36);
+        fillRounded(context, '#17141b', 207, 594, 666, 248, 26);
+        fillRounded(context, '#ffb34c', 118, 766, 96, 58, 18);
+        fillRounded(context, '#ffb34c', 866, 766, 96, 58, 18);
+        fillRounded(context, '#f7d178', 370, 932, 340, 48, 22);
+        fillRounded(context, '#2b1115', 420, 990, 240, 38, 18);
+    }
+    function drawCargo(context, frame, items, bodyX, bodyY, bodyWidth, bodyHeight) {
+        const hole = {
+            x: bodyX + stack_layout_1.STACK_BODY_HOLE.left / stack_layout_1.STACK_BODY_SIZE.w * bodyWidth,
+            y: bodyY + stack_layout_1.STACK_BODY_HOLE.top / stack_layout_1.STACK_BODY_SIZE.h * bodyHeight,
+            w: (stack_layout_1.STACK_BODY_HOLE.right - stack_layout_1.STACK_BODY_HOLE.left) / stack_layout_1.STACK_BODY_SIZE.w * bodyWidth,
+            h: (stack_layout_1.STACK_BODY_HOLE.bottom - stack_layout_1.STACK_BODY_HOLE.top) / stack_layout_1.STACK_BODY_SIZE.h * bodyHeight,
+        };
+        context.save();
+        roundedRect(context, hole.x, hole.y, hole.w, hole.h, 28);
+        context.clip();
+        if (frame) {
+            drawFrame(context, frame, hole.x + hole.w / 2, hole.y + hole.h / 2, hole.w + 4, hole.h + 4);
+        }
+        else {
+            context.fillStyle = '#17131a';
+            context.fillRect(hole.x, hole.y, hole.w, hole.h);
+            context.fillStyle = 'rgba(255,207,111,.2)';
+            for (let stripe = 0; stripe < 8; stripe++) {
+                context.fillRect(hole.x + stripe * hole.w / 8, hole.y, 2, hole.h);
+            }
+        }
+        for (let index = 0; index < stack_share_1.STACK_CARGO_POSITIONS.length && index < items.length; index++) {
+            const item = items[index];
+            if (!item)
+                continue;
+            const [px, py, angle] = stack_share_1.STACK_CARGO_POSITIONS[index];
+            const max = Math.min(hole.w * .24, hole.h * .48, 164);
+            const ratio = item.width / item.height;
+            const width = ratio >= 1 ? max : max * ratio;
+            const height = ratio >= 1 ? max / ratio : max;
+            drawFrame(context, item, hole.x + hole.w * px, hole.y + hole.h * py, width, height, angle);
+        }
+        context.restore();
+        context.strokeStyle = 'rgba(255,211,125,.78)';
+        context.lineWidth = 7;
+        roundedRect(context, hole.x - 2, hole.y - 2, hole.w + 4, hole.h + 4, 30);
+        context.stroke();
+    }
+    function drawCaption(context, caption) {
+        context.save();
+        context.shadowColor = 'rgba(71,5,12,.58)';
+        context.shadowBlur = 20;
+        context.shadowOffsetY = 10;
+        fillRounded(context, '#ffd27a', 76, 1206, 928, 150, 44);
+        context.restore();
+        fillRounded(context, '#8f141c', 88, 1218, 904, 126, 34);
+        context.strokeStyle = 'rgba(255,239,190,.78)';
+        context.lineWidth = 3;
+        roundedRect(context, 98, 1228, 884, 106, 27);
+        context.stroke();
+        fitFont(context, caption, 820, 56);
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = pale;
+        context.fillText(caption, 540, 1282);
+        context.font = `700 24px ${FONT}`;
+        context.fillStyle = 'rgba(255,225,162,.82)';
+        context.fillText('把年货装进后备箱 · 把团圆带回家', 540, 1392);
+    }
+    async function renderShareCanvas(scene) {
+        if (!canUseBrowserCanvas())
+            return null;
+        try {
+            const [bodyFrame, trunkFrame, ...itemFrames] = await Promise.all([
+                OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
+                OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
+                ...stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => OptionalResources_1.loadArt(`items/${key}`)),
+            ]);
+            const canvas = document.createElement('canvas');
+            canvas.width = stack_share_1.STACK_SHARE_WIDTH;
+            canvas.height = stack_share_1.STACK_SHARE_HEIGHT;
+            const context = canvas.getContext('2d');
+            if (!context)
+                return null;
+            drawBackground(context);
+            const copy = drawTexts(context, scene);
+            const bodyX = 90, bodyY = 474, bodyWidth = 900, bodyHeight = 562;
+            const body = frameDrawable(bodyFrame);
+            if (body)
+                drawFrame(context, body, bodyX + bodyWidth / 2, bodyY + bodyHeight / 2, bodyWidth, bodyHeight);
+            else
+                drawFallbackCar(context);
+            drawCargo(context, frameDrawable(trunkFrame), itemFrames.map(frameDrawable), bodyX, bodyY, bodyWidth, bodyHeight);
+            drawCaption(context, copy.caption);
+            return canvas.toDataURL('image/png');
+        }
+        catch (_a) {
+            return null;
+        }
+    }
+    function showShareOverlay(dataUrl, fileName) {
+        var _a;
+        if (typeof document === 'undefined' || !document.body)
+            return;
+        (_a = document.getElementById('stack-share-overlay')) === null || _a === void 0 ? void 0 : _a.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'stack-share-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-label', '晒战绩分享图');
+        overlay.style.cssText = [
+            'position:fixed', 'inset:0', 'z-index:2147483000',
+            'display:flex', 'align-items:center', 'justify-content:center',
+            'padding:16px', 'box-sizing:border-box',
+            'background:rgba(25,4,9,.82)', 'backdrop-filter:blur(5px)',
+            'font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif',
+        ].join(';');
+        overlay.addEventListener('click', event => event.stopPropagation());
+        overlay.addEventListener('touchstart', event => event.stopPropagation(), { passive: true });
+        overlay.addEventListener('touchend', event => event.stopPropagation(), { passive: true });
+        const panel = document.createElement('div');
+        panel.style.cssText = [
+            'width:min(92vw,430px)', 'max-height:94vh', 'box-sizing:border-box',
+            'padding:14px 14px 16px', 'border-radius:24px',
+            'background:linear-gradient(160deg,#b4262c,#711019)',
+            'border:3px solid #ffd27a', 'box-shadow:0 18px 60px rgba(0,0,0,.55)',
+            'display:flex', 'flex-direction:column', 'align-items:center', 'gap:12px',
+        ].join(';');
+        const title = document.createElement('div');
+        title.textContent = '长按图片保存 · 晒出你的满满一车';
+        title.style.cssText = 'color:#fff2cf;font-size:15px;font-weight:700;letter-spacing:.04em;text-align:center';
+        const image = document.createElement('img');
+        image.id = 'stack-share-image';
+        image.alt = `${brand_1.GAME_TITLE}战绩分享图`;
+        image.src = dataUrl;
+        image.style.cssText = [
+            'display:block', 'width:min(78vw,352px)', 'max-height:62vh',
+            'height:auto', 'object-fit:contain', 'border-radius:16px',
+            'box-shadow:0 10px 30px rgba(0,0,0,.36)', 'background:#7b1119',
+        ].join(';');
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:10px;width:min(78vw,352px)';
+        const download = document.createElement('a');
+        download.id = 'stack-share-download';
+        download.href = dataUrl;
+        download.download = fileName;
+        download.textContent = '下载图片';
+        download.style.cssText = [
+            'flex:1', 'display:flex', 'align-items:center', 'justify-content:center',
+            'min-height:44px', 'border-radius:14px', 'text-decoration:none',
+            'background:#ffd27a', 'color:#5f1018', 'font-size:16px', 'font-weight:800',
+        ].join(';');
+        const close = document.createElement('button');
+        close.id = 'stack-share-close';
+        close.type = 'button';
+        close.textContent = '关闭';
+        close.style.cssText = [
+            'flex:1', 'min-height:44px', 'border-radius:14px', 'cursor:pointer',
+            'background:#74131b', 'color:#ffe3a5', 'border:2px solid #ffd27a',
+            'font-family:inherit', 'font-size:16px', 'font-weight:800',
+        ].join(';');
+        close.addEventListener('click', () => overlay.remove());
+        actions.append(download, close);
+        panel.append(title, image, actions);
+        overlay.append(panel);
+        document.body.appendChild(overlay);
+    }
+    /** Generates and displays a share card. Returns the data URL, or null outside a browser. */
+    async function showStackShareImage(scene) {
+        const dataUrl = await renderShareCanvas(scene);
+        if (!dataUrl)
+            return null;
+        showShareOverlay(dataUrl, stack_share_1.stackShareFileName(scene.stage, scene.result.victory));
+        return dataUrl;
+    }
+    exports_1("showStackShareImage", showStackShareImage);
+    return {
+        setters: [
+            function (brand_1_1) {
+                brand_1 = brand_1_1;
+            },
+            function (stack_layout_1_1) {
+                stack_layout_1 = stack_layout_1_1;
+            },
+            function (stack_share_1_1) {
+                stack_share_1 = stack_share_1_1;
+            },
+            function (OptionalResources_1_1) {
+                OptionalResources_1 = OptionalResources_1_1;
+            }
+        ],
+        execute: function () {
+            FONT = '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
+            gold = '#ffd27a';
+            pale = '#fff2cf';
+        }
+    };
+});
+
 System.register("chunks:///_virtual/StackSound.ts", [], function (exports_1, context_1) {
     "use strict";
     var STACK_SOUND_STORAGE_KEY, STACK_SOUND_EVENTS, STACK_SOUND_PROFILES, StackSound;
@@ -5145,9 +5713,9 @@ System.register("chunks:///_virtual/JourneyArt.ts", ["cc","./UIKit.ts"], functio
     };
 });
 
-System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./stack-share.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, UIKit_1, red, darkRed, gold, pale, ink, night, StackFinishView, BODY_HOLE;
+    var cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, stack_share_1, UIKit_1, red, darkRed, gold, pale, ink, night, StackFinishView, BODY_HOLE;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -5163,6 +5731,9 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
             function (OptionalResources_1_1) {
                 OptionalResources_1 = OptionalResources_1_1;
             },
+            function (stack_share_1_1) {
+                stack_share_1 = stack_share_1_1;
+            },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
             }
@@ -5176,14 +5747,18 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
             night = new cc_1.Color(12, 15, 34, 150);
             /** Stack-mode celebration: the night backdrop stays visible while the loaded car closes up and drives away. */
             StackFinishView = class StackFinishView {
-                constructor(parent, choices, stats, onAction) {
+                constructor(parent, choices, stats, onAction, onShare = () => undefined) {
                     this.choices = choices;
                     this.stats = stats;
                     this.onAction = onAction;
+                    this.onShare = onShare;
+                    this.cargoSprites = [];
                     this.buttons = [];
                     this.height = 1334;
                     this.ready = false;
-                    this.lidClosedY = -39;
+                    this.squeeze = 0;
+                    this.trunkY = -39;
+                    this.hole = { x: 0, y: -39, w: 506, h: 226 };
                     this.node = UIKit_1.uiNode('StackFinish', parent, 750, 1334);
                     this.backdrop = UIKit_1.uiNode('NightBackdrop', this.node, 750, 1334).addComponent(cc_1.Sprite);
                     this.backdrop.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
@@ -5200,13 +5775,15 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.car = UIKit_1.uiNode('HomewardCar', this.node, 760, 520);
                     this.carFallback = UIKit_1.uiNode('CarFallback', this.car, 760, 520).addComponent(cc_1.Graphics);
                     this.trunkImage = this.imageNode('TrunkWell', this.car);
+                    this.cargo = UIKit_1.uiNode('TrunkCargo', this.car, 720, 450);
+                    for (let index = 0; index < stack_share_1.STACK_SHARE_ITEM_KEYS.length; index++) {
+                        this.cargoSprites.push(this.imageNode(`CargoItem${index}`, this.cargo));
+                    }
                     this.bodyImage = this.imageNode('CarBody', this.car);
-                    this.lidImage = this.imageNode('TrunkLid', this.car);
                     void Promise.all([
                         OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
                         OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
-                        OptionalResources_1.loadArt('vehicles/sedan_v1_lid'),
-                    ]).then(([body, trunk, lid]) => {
+                    ]).then(([body, trunk]) => {
                         if (!this.node.isValid)
                             return;
                         if (trunk) {
@@ -5218,14 +5795,22 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                             this.bodyImage.enabled = true;
                             this.carFallback.enabled = false;
                         }
-                        if (lid) {
-                            this.lidImage.spriteFrame = lid;
-                            this.lidImage.enabled = true;
-                        }
                         this.ready = true;
                         this.layout(this.height);
                         if (this.state)
                             this.render(this.state);
+                    });
+                    void Promise.all(stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => OptionalResources_1.loadArt(`items/${key}`))).then(frames => {
+                        if (!this.node.isValid)
+                            return;
+                        for (let index = 0; index < frames.length && index < this.cargoSprites.length; index++) {
+                            const frame = frames[index];
+                            if (!frame)
+                                continue;
+                            this.cargoSprites[index].spriteFrame = frame;
+                            this.cargoSprites[index].enabled = true;
+                        }
+                        this.layoutCargo();
                     });
                     this.headline = UIKit_1.uiNode('HomeBanner', this.node, 750, 230);
                     const banner = this.headline.addComponent(cc_1.Graphics);
@@ -5244,8 +5829,12 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     UIKit_1.label(this.statsLabel, 'StatsText', this.statsText(), 26, 0, 0).color = pale;
                     this.actions = UIKit_1.uiNode('FinishActions', this.node, 750, 320);
                     this.actionArt = this.actions.addComponent(cc_1.Graphics);
-                    for (let index = 0; index < choices.length; index++) {
-                        const choice = choices[index];
+                    const choicesWithShare = [
+                        ...choices,
+                        { title: '生成分享图', action: 'share' },
+                    ];
+                    for (let index = 0; index < choicesWithShare.length; index++) {
+                        const choice = choicesWithShare[index];
                         const text = UIKit_1.label(this.actions, `FinishButton${index}`, choice.title, 30, 0, 0);
                         text.color = index === 0 ? ink : gold;
                         this.buttons.push({ action: choice.action, rect: { x: 125, y: 0, w: 500, h: 74 }, label: text.node });
@@ -5262,9 +5851,11 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.wash.clear();
                     UIKit_1.fill(this.wash, night, -375, -height / 2, 750, height, 0);
                     this.drawCarFallback();
-                    this.headline.setPosition(0, height / 2 - 207);
-                    this.statsLabel.setPosition(0, height / 2 - 380);
-                    const actionsY = -height / 2 + 450;
+                    // Tall phones leave a gap between the car and the bottom buttons; lower the car and banner into it.
+                    this.squeeze = Math.min(110, Math.max(0, (height - 1334) * .38));
+                    this.headline.setPosition(0, height / 2 - 207 - this.squeeze);
+                    this.statsLabel.setPosition(0, height / 2 - 380 - this.squeeze);
+                    const actionsY = -height / 2 + 300;
                     this.actions.setPosition(0, actionsY);
                     this.actionArt.clear();
                     const baseY = 68;
@@ -5281,7 +5872,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                             this.actionArt.stroke();
                         }
                     }
-                    this.node.getChildByName('SkipHint').setPosition(0, -height / 2 + 118);
+                    this.node.getChildByName('SkipHint').setPosition(0, -height / 2 + 86);
                     this.setupCar();
                     if (this.state)
                         this.render(this.state);
@@ -5291,9 +5882,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     const drive = Math.max(0, Math.min(1, (state.time - 1050) / (FinishTimeline_1.FINISH_DURATION - 1050)));
                     const carScale = .98 - .12 * drive;
                     this.car.setScale(carScale, carScale, 1);
-                    this.car.setPosition(0, -this.height * .035 + this.height * .055 * drive);
-                    this.lidImage.node.setPosition(0, this.lidClosedY);
-                    this.lidImage.node.setScale(1, 1, 1);
+                    this.car.setPosition(0, -this.height * .035 + this.height * .055 * drive - this.squeeze * 1.65);
                     this.headline.active = state.celebration;
                     this.statsLabel.active = state.celebration;
                     this.actions.active = state.buttons;
@@ -5304,11 +5893,17 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     if (!((_a = this.state) === null || _a === void 0 ? void 0 : _a.buttons))
                         return;
                     for (const button of this.buttons) {
-                        if (InteractionGeometry_1.inRect({ x, y }, button.rect)) {
+                        if (!InteractionGeometry_1.inRect({ x, y }, button.rect))
+                            continue;
+                        if (button.action === 'share')
+                            this.onShare();
+                        else
                             this.onAction(button.action);
-                            return;
-                        }
+                        return;
                     }
+                }
+                buttonPoints() {
+                    return this.buttons.map(button => ({ action: button.action, rect: Object.assign({}, button.rect) }));
                 }
                 imageNode(name, parent) {
                     const sprite = UIKit_1.uiNode(name, parent, 1, 1).addComponent(cc_1.Sprite);
@@ -5319,17 +5914,36 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                 }
                 setupCar() {
                     const bodyW = 720, bodyH = 450;
-                    const holeX = Math.round(BODY_HOLE.left / 1024 * bodyW);
-                    const holeY = Math.round(BODY_HOLE.top / 640 * bodyH - bodyH / 2);
+                    const holeX = Math.round((BODY_HOLE.left + BODY_HOLE.right) / 2 / 1024 * bodyW - bodyW / 2);
+                    const holeY = Math.round((BODY_HOLE.top + BODY_HOLE.bottom) / 2 / 640 * bodyH - bodyH / 2);
                     const holeW = Math.round((BODY_HOLE.right - BODY_HOLE.left) / 1024 * bodyW);
                     const holeH = Math.round((BODY_HOLE.bottom - BODY_HOLE.top) / 640 * bodyH);
-                    this.lidClosedY = holeY + holeH / 2;
+                    this.hole = { x: holeX, y: holeY, w: holeW, h: holeH };
+                    this.trunkY = holeY;
                     this.show(this.bodyImage, 0, 0, bodyW, bodyH);
-                    this.show(this.trunkImage, 0, this.lidClosedY, holeW, holeH);
-                    this.show(this.lidImage, 0, this.lidClosedY, holeW + 24, holeH + 20);
-                    this.lidImage.node.setScale(1, 1, 1);
+                    this.show(this.trunkImage, 0, this.trunkY, holeW, holeH);
+                    this.layoutCargo();
                     this.car.setScale(.98, .98, 1);
-                    this.car.setPosition(0, -this.height * .035);
+                    this.car.setPosition(0, -this.height * .035 - this.squeeze * 1.65);
+                }
+                layoutCargo() {
+                    const { x, y, w, h } = this.hole;
+                    const max = Math.min(w * .26, h * .55, 180);
+                    for (let index = 0; index < this.cargoSprites.length && index < stack_share_1.STACK_CARGO_POSITIONS.length; index++) {
+                        const sprite = this.cargoSprites[index];
+                        const frame = sprite.spriteFrame;
+                        if (!frame)
+                            continue;
+                        const [px, py, angle] = stack_share_1.STACK_CARGO_POSITIONS[index];
+                        const ratio = frame.rect.width / Math.max(1, frame.rect.height);
+                        const width = ratio >= 1 ? max : max * ratio;
+                        const height = ratio >= 1 ? max / ratio : max;
+                        sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
+                        // The body art hides the lower part of the hole, so lift the cargo into the visible opening.
+                        sprite.node.setPosition(x + (px - .5) * w, y + (.5 - (py * .8 - .15)) * h);
+                        sprite.node.angle = -angle * 180 / Math.PI;
+                        sprite.enabled = true;
+                    }
                 }
                 drawCarFallback() {
                     const g = this.carFallback;
@@ -5741,8 +6355,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-rules.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
