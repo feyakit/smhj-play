@@ -895,7 +895,7 @@ System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, 
 
 System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-catalog.ts","./stack-rules.ts","./stack-solver.ts"], function (exports_1, context_1) {
     "use strict";
-    var rng_1, stack_catalog_1, stack_rules_1, stack_solver_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS;
+    var rng_1, stack_catalog_1, stack_rules_1, stack_solver_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS, STAGE2_CARD, MAIN_LAYER_COUNTS, MAIN_LAYER_COLUMNS, MAIN_STEP_X, MAIN_STEP_Y, MAIN_BASE_Y, MAIN_LAYER_STEP, SIDE_STACKS;
     var __moduleName = context_1 && context_1.id;
     function pileCard(id, x, y, w, h, layer, source) {
         return { id, kind: '', name: '', x, y, w, h, layer, source };
@@ -920,24 +920,39 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
         }
         return cards;
     }
+    function centeredRow(count, columns) {
+        const rows = Math.ceil(count / columns);
+        const base = Math.floor(count / rows);
+        const extra = count % rows;
+        return Array.from({ length: rows }, (_, row) => base + (row < extra ? 1 : 0));
+    }
     function layoutStageTwo(random) {
         const cards = [];
         let id = 0;
-        const w = 136, h = 136;
-        const counts = [17, 17, 17, 17, 17, 17, 18, 18];
-        for (let layer = 0; layer < counts.length; layer++) {
-            const slots = Array.from({ length: 24 }, (_, index) => index);
-            for (const index of rng_1.shuffle(slots, random).slice(0, counts[layer])) {
-                const col = index % 4, row = Math.floor(index / 4);
-                const x = Math.round(82 + col * 152 + (random() - .5) * 18);
-                const y = Math.round(190 + row * 118 + (random() - .5) * 18);
-                cards.push(pileCard(++id, x, y, w, h, layer, 'pile'));
+        for (let layer = 0; layer < MAIN_LAYER_COUNTS.length; layer++) {
+            const columns = MAIN_LAYER_COLUMNS[layer];
+            const rowCounts = centeredRow(MAIN_LAYER_COUNTS[layer], columns);
+            const halfStepY = layer % 2 === 1 ? MAIN_STEP_Y / 2 : 0;
+            const layerY = MAIN_BASE_Y - layer * MAIN_LAYER_STEP + halfStepY;
+            for (let row = 0; row < rowCounts.length; row++) {
+                const rowCount = rowCounts[row];
+                const rowWidth = (rowCount - 1) * MAIN_STEP_X + STAGE2_CARD;
+                const startX = Math.round((750 - rowWidth) / 2);
+                for (let column = 0; column < rowCount; column++) {
+                    const jitterX = Math.round((random() - .5) * 7);
+                    const jitterY = Math.round((random() - .5) * 4);
+                    const x = startX + column * MAIN_STEP_X + jitterX;
+                    const y = Math.round(layerY + row * MAIN_STEP_Y + jitterY);
+                    cards.push(pileCard(++id, x, y, STAGE2_CARD, STAGE2_CARD, layer, 'pile'));
+                }
             }
         }
-        for (let i = 0; i < 6; i++)
-            cards.push(pileCard(++id, 2, 500, w, h, 20 + i, 'side-left'));
-        for (let i = 0; i < 6; i++)
-            cards.push(pileCard(++id, 612, 500, w, h, 20 + i, 'side-right'));
+        const sideSize = 96;
+        for (const stack of SIDE_STACKS) {
+            for (let index = 0; index < stack.count; index++) {
+                cards.push(pileCard(++id, stack.x, stack.baseY + index * 4, sideSize, sideSize, 20 + index, stack.source));
+            }
+        }
         return cards;
     }
     function reservePositions(cardW, cardH, count) {
@@ -951,14 +966,14 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
         }));
     }
     function momPositions(cardW) {
-        return [0, 1, 2].map(index => ({ x: Math.round(375 - cardW * 1.5 + index * cardW), y: 170 }));
+        return [0, 1, 2].map(index => ({ x: Math.round(375 - cardW * 1.5 + index * cardW), y: 290 }));
     }
     function buildCards(stage, random) {
         if (stage === 1) {
             return { cards: layoutStageOne(), items: stack_catalog_1.stackItems(1), w: 136, h: 136 };
         }
         if (stage === 2) {
-            return { cards: layoutStageTwo(random), items: stack_catalog_1.stackItems(2), w: 136, h: 136 };
+            return { cards: layoutStageTwo(random), items: stack_catalog_1.stackItems(2), w: STAGE2_CARD, h: STAGE2_CARD };
         }
         throw new Error(`unknown stack stage ${stage}`);
     }
@@ -1049,6 +1064,19 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             exports_1("STACK_SEEDS", STACK_SEEDS = ['trunk-stack-stage1-v1', 'trunk-stack-stage2-v1']);
             exports_1("STAGE1_CARDS", STAGE1_CARDS = 18);
             exports_1("STAGE2_CARDS", STAGE2_CARDS = 150);
+            STAGE2_CARD = 112;
+            MAIN_LAYER_COUNTS = [22, 20, 18, 16, 14, 12, 10, 8];
+            MAIN_LAYER_COLUMNS = [6, 6, 5, 5, 4, 3, 3, 3];
+            MAIN_STEP_X = 78;
+            MAIN_STEP_Y = 54;
+            MAIN_BASE_Y = 590;
+            MAIN_LAYER_STEP = 48;
+            SIDE_STACKS = [
+                { source: 'side-left', x: 8, baseY: 300, count: 8 },
+                { source: 'side-left', x: 8, baseY: 520, count: 7 },
+                { source: 'side-right', x: 646, baseY: 325, count: 7 },
+                { source: 'side-right', x: 646, baseY: 545, count: 8 },
+            ];
         }
     };
 });
@@ -1117,8 +1145,11 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts"], function (exp
                 get cards() { return this.cardList; }
                 get slot() { return this.slotList; }
                 get status() { return this.currentStatus; }
+                /** Cards still on the pile, side stacks, reserve shelf, or newly delivered by mom. */
+                get pileRemaining() { return this.cardList.length; }
                 get remaining() { return this.cardList.length + this.slotList.length; }
                 get clearedGroups() { return this.groupsCleared; }
+                get momEventCount() { return this.momEvents; }
                 get props() { return this.propState; }
                 canTap(id) {
                     if (this.currentStatus !== 'playing')
@@ -2015,9 +2046,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./SoundEffects.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./StackSound.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, SoundEffects_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, deep, shadow, blockedShade, dimText, gray, BODY_SIZE, BODY_HOLE, BODY_SLICE, ITEM_CROPS, StackPage;
+    var cc_1, stack_generator_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, StackSound_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, deep, shadow, blockedShade, dimText, gray, BODY_SIZE, BODY_HOLE, BODY_SLICE, ITEM_CROPS, StackPage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -2052,8 +2083,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             function (OptionalResources_1_1) {
                 OptionalResources_1 = OptionalResources_1_1;
             },
-            function (SoundEffects_1_1) {
-                SoundEffects_1 = SoundEffects_1_1;
+            function (StackSound_1_1) {
+                StackSound_1 = StackSound_1_1;
             },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
@@ -2101,6 +2132,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.carFrames = {};
                     this.carRect = { x: 30, y: 940, w: 690, h: 420 };
                     this.carScaleY = .74;
+                    this.soundRect = { x: 647, y: 162, w: 94, h: 52 };
                     this.cardViews = new Map();
                     this.itemFrames = new Map();
                     this.slotViews = [];
@@ -2113,6 +2145,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.onHide = () => { this.busy = false; };
                     this.finishStarted = 0;
                     this.startedAt = Date.now();
+                    this.debugMomPending = false;
                     this.busy = false;
                     this.width = 750;
                     this.height = 1334;
@@ -2126,7 +2159,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.level = stack_generator_1.generateStackLevel(stage, stack_generator_1.STACK_SEEDS[stage - 1]).level;
                     this.game = new stack_rules_1.StackGame(this.level, rng_1.createRng(`${this.level.seed}:runtime`), Date.now());
                     this.node = UIKit_1.uiNode('StackPage', parent, 750, 1334);
-                    this.sounds = new SoundEffects_1.SoundEffects(parent);
+                    this.sounds = new StackSound_1.StackSound();
                     this.bgImage = UIKit_1.uiNode('StackNight', this.node, 750, 1334).addComponent(cc_1.Sprite);
                     this.bgImage.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
                     this.bgImage.trim = false;
@@ -2167,6 +2200,10 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     UIKit_1.label(this.hud, 'ModeTitle', '年货三消', 38, 0, 0).color = gold;
                     const subtitle = UIKit_1.label(this.hud, 'Subtitle', '点没被压住的年货 · 三件装一箱', 19, 0, 0);
                     subtitle.color = cream;
+                    this.soundButton = UIKit_1.uiNode('SoundToggle', this.hud, 94, 52);
+                    this.soundButtonArt = this.soundButton.addComponent(cc_1.Graphics);
+                    this.soundButtonLabel = UIKit_1.label(this.soundButton, 'SoundLabel', '声音 开', 16, 0, 0);
+                    this.drawSoundButton();
                     this.reserveLayer = UIKit_1.uiNode('ReserveZone', this.node, 750, 1334);
                     this.reserveShelf = this.reserveLayer.addComponent(cc_1.Graphics);
                     this.reserveLayer.active = false;
@@ -2211,6 +2248,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         getClickable: () => this.debugClickable(),
                         getSolution: () => [...this.level.solution],
                         getModalButtons: () => this.debugModalButtons(),
+                        getActions: () => this.debugActions(),
+                        getBoard: () => this.game.cards.map(card => ({
+                            id: card.id, kind: card.kind, source: card.source, layer: card.layer,
+                            x: card.x, y: card.y, w: card.w, h: card.h,
+                        })),
+                        getLayout: () => this.debugLayout(),
                     };
                     if (typeof window !== 'undefined') {
                         window.__stack = Object.freeze(this.debugHook);
@@ -2224,7 +2267,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         }
                     });
                     this.tick();
-                    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === 'fail') {
+                    const debug = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('debug');
+                    this.debugMomPending = debug === 'mom';
+                    if (debug === 'fail') {
                         this.prefillFailure();
                         this.refresh();
                         if (this.game.status === 'lost')
@@ -2249,6 +2294,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         return;
                     }
                     if (!this.busy && !this.modal && this.game.status === 'playing') {
+                        if (this.debugMomPending) {
+                            this.debugMomPending = false;
+                            const debugAdded = this.game.triggerMom();
+                            if (debugAdded.length)
+                                this.onMomAdded(debugAdded);
+                        }
                         const added = this.game.tickMom(Date.now());
                         if (added.length)
                             this.onMomAdded(added);
@@ -2281,13 +2332,14 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.slotRects[i].h = this.slotCell;
                     }
                     this.stageLabel.node.setPosition(-242, this.height / 2 - 61);
-                    this.remainingLabel.node.setPosition(226, this.height / 2 - 61);
+                    this.remainingLabel.node.setPosition(198, this.height / 2 - 61);
+                    this.soundButton.setPosition(319, this.height / 2 - 188);
                     this.hud.getChildByName('ModeTitle').setPosition(0, this.height / 2 - 61);
                     this.hud.getChildByName('Subtitle').setPosition(0, this.height / 2 - 105);
                     this.slotTitle.node.setPosition(0, this.height / 2 - (this.slotY - 17));
                     this.reserveTitle.node.setPosition(-235, this.height / 2 - 920);
-                    this.momLayer.getChildByName('MomBubble').setPosition(-58, this.height / 2 - 204);
-                    this.momAvatar.setPosition(285, this.height / 2 - 204);
+                    this.momLayer.getChildByName('MomBubble').setPosition(40, this.height / 2 - 204);
+                    this.momAvatar.setPosition(-250, this.height / 2 - 204);
                     for (let i = 0; i < this.actions.length; i++) {
                         const rect = this.actions[i].rect;
                         rect.x = 44 + i * 222;
@@ -2299,6 +2351,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.layoutBackground();
                     this.drawCarSlots(this.carRect);
                     this.drawActions();
+                    this.drawSoundButton();
                     this.drawFailButtons();
                     this.refresh();
                     (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.layout(this.height);
@@ -2412,6 +2465,19 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     text.color = cream;
                     return { key, title, rect: { x: 0, y: 0, w: 0, h: 0 }, label: text };
                 }
+                drawSoundButton() {
+                    const g = this.soundButtonArt;
+                    g.clear();
+                    const on = this.sounds.enabled;
+                    UIKit_1.fill(g, on ? gold : new cc_1.Color(96, 87, 89), -47, -26, 94, 52, 16);
+                    UIKit_1.fill(g, on ? new cc_1.Color(139, 31, 38) : new cc_1.Color(67, 61, 64), -43, -22, 86, 44, 13);
+                    g.strokeColor = on ? new cc_1.Color(255, 226, 164) : new cc_1.Color(155, 146, 146);
+                    g.lineWidth = 1.5;
+                    g.roundRect(-45, -24, 90, 48, 15);
+                    g.stroke();
+                    this.soundButtonLabel.string = on ? '声音 开' : '声音 关';
+                    this.soundButtonLabel.color = on ? paleGold : new cc_1.Color(205, 198, 194);
+                }
                 drawActions() {
                     const g = this.buttonsArt;
                     g.clear();
@@ -2451,7 +2517,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 }
                 updateHud() {
                     this.stageLabel.string = `第 ${this.level.stage} 关`;
-                    this.remainingLabel.string = `剩余 ${this.game.remaining} 件`;
+                    this.remainingLabel.string = `剩余 ${this.game.pileRemaining} 件`;
                 }
                 syncPile() {
                     const active = new Map(this.game.cards.map(card => [card.id, card]));
@@ -2583,6 +2649,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 }
                 touch(event) {
                     var _a;
+                    this.sounds.unlock();
                     const p = this.point(event);
                     if (this.finish) {
                         (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.press(p.x, p.y);
@@ -2600,6 +2667,11 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         }
                         return;
                     }
+                    if (contains(this.soundRect, p.x, p.y)) {
+                        this.sounds.toggle();
+                        this.drawSoundButton();
+                        return;
+                    }
                     if (this.busy || this.game.status !== 'playing')
                         return;
                     for (const action of this.actions) {
@@ -2612,7 +2684,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     if (!hit)
                         return;
                     if (!this.game.canTap(hit.id)) {
-                        this.sounds.play('invalid');
+                        this.sounds.play('tap');
                         return;
                     }
                     this.tapCard(hit.id);
@@ -2628,11 +2700,13 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 tapCard(id) {
                     const result = this.game.tap(id, Date.now());
                     if (!result.ok || !result.card) {
-                        this.sounds.play('invalid');
+                        this.sounds.play('tap');
                         return;
                     }
                     this.busy = true;
-                    this.sounds.play('pickup');
+                    this.sounds.play('tap');
+                    setTimeout(() => { if (this.node.isValid)
+                        this.sounds.play('fly'); }, 35);
                     const flyer = this.makeCardView(result.card, result.card.w, this.fxLayer);
                     flyer.node.setPosition(this.cardCenter(result.card));
                     const targetIndex = Math.min(result.insertIndex, stack_rules_1.SLOT_CAPACITY - 1);
@@ -2718,17 +2792,18 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.beginFinish();
                 }
                 useAction(key) {
+                    this.sounds.play('tap');
                     if (key === 'moveOut') {
                         const moved = this.game.useMoveOut();
                         if (moved.length)
-                            this.sounds.play('drop');
+                            this.sounds.play('fly');
                     }
                     else if (key === 'undo') {
                         if (this.game.useUndo())
-                            this.sounds.play('undo');
+                            this.sounds.play('fly');
                     }
                     else if (this.game.useShuffle()) {
-                        this.sounds.play('drop');
+                        this.sounds.play('fly');
                     }
                     this.refresh();
                 }
@@ -2765,7 +2840,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -126);
                     const restart = this.failButton(layer, 'restart', '重来', -218);
                     this.failButtons.push(revive, restart);
-                    this.sounds.play('invalid');
+                    this.sounds.play('fail');
                     this.refreshFailButtons();
                 }
                 drawOverflowCar(parent) {
@@ -2862,17 +2937,20 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     (_a = this.failLayer) === null || _a === void 0 ? void 0 : _a.destroy();
                     this.failLayer = undefined;
                     this.failButtons.length = 0;
-                    this.sounds.play('drop');
+                    this.sounds.play('tap');
                     this.refresh();
                 }
                 beginFinish() {
                     if (this.finish)
                         return;
                     this.busy = true;
-                    this.sounds.play('cheer');
+                    this.sounds.play('win');
                     this.finishStarted = Date.now();
                     this.finish = new FinishTimeline_1.FinishPlayback(cue => {
-                        this.sounds.play(cue.sound);
+                        if (cue.sound === 'trunk_slam')
+                            this.sounds.play('pack');
+                        else if (cue.sound === 'horn')
+                            this.sounds.play('tap');
                         if (cue.vibration && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
                             try {
                                 navigator.vibrate(cue.vibration);
@@ -2919,21 +2997,68 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         id: card.id,
                         kind: card.kind,
                         name: card.name,
-                        screenX: (card.x + card.w / 2) / size.width * screenWidth,
+                        screenX: (card.x + card.w / 2) / 750 * screenWidth,
                         screenY: (card.y + card.h / 2) / this.height * screenHeight,
+                        screenLeft: card.x / 750 * screenWidth,
+                        screenRight: (card.x + card.w) / 750 * screenWidth,
+                        screenTop: card.y / this.height * screenHeight,
+                        screenBottom: (card.y + card.h) / this.height * screenHeight,
                     }));
                 }
+                debugActions() {
+                    const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    return this.actions.map(action => ({
+                        key: action.key,
+                        used: this.game.props[action.key],
+                        screenX: (action.rect.x + action.rect.w / 2) / 750 * screenWidth,
+                        screenY: (action.rect.y + action.rect.h / 2) / this.height * screenHeight,
+                    }));
+                }
+                debugLayout() {
+                    const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    const cards = this.game.cards;
+                    const left = Math.min(...cards.map(card => card.x));
+                    const right = Math.max(...cards.map(card => card.x + card.w));
+                    const top = Math.min(...cards.map(card => card.y));
+                    const bottom = Math.max(...cards.map(card => card.y + card.h));
+                    return {
+                        viewport: { width: screenWidth, height: screenHeight },
+                        cardBounds: {
+                            left: left / 750 * screenWidth,
+                            right: right / 750 * screenWidth,
+                            top: top / this.height * screenHeight,
+                            bottom: bottom / this.height * screenHeight,
+                        },
+                        hudBottom: 140 / this.height * screenHeight,
+                        trunkTop: this.trunk.y / this.height * screenHeight,
+                        sideCounts: {
+                            left: cards.filter(card => card.source === 'side-left').length,
+                            right: cards.filter(card => card.source === 'side-right').length,
+                        },
+                    };
+                }
                 debugState() {
-                    var _a;
+                    var _a, _b;
+                    const kindCounts = {};
+                    for (const card of this.game.cards)
+                        kindCounts[card.kind] = ((_a = kindCounts[card.kind]) !== null && _a !== void 0 ? _a : 0) + 1;
                     return {
                         stage: this.level.stage,
                         status: this.game.status,
-                        remaining: this.game.remaining,
-                        modal: (_a = this.modal) !== null && _a !== void 0 ? _a : null,
+                        remaining: this.game.pileRemaining,
+                        pileRemaining: this.game.pileRemaining,
+                        totalRemaining: this.game.remaining,
+                        modal: (_b = this.modal) !== null && _b !== void 0 ? _b : null,
                         busy: this.busy,
                         finishing: !!this.finish,
+                        momEvents: this.game.momEventCount,
+                        momVisible: this.momLayer.active,
+                        soundEnabled: this.sounds.enabled,
                         slot: this.game.slot.map(card => ({ id: card.id, kind: card.kind, name: card.name })),
                         props: this.game.props,
+                        kindCounts,
                         clickable: this.debugClickable(),
                     };
                 }
@@ -4277,6 +4402,180 @@ System.register("chunks:///_virtual/SoundEffects.ts", ["cc","./OptionalResources
     };
 });
 
+System.register("chunks:///_virtual/StackSound.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var STACK_SOUND_STORAGE_KEY, STACK_SOUND_EVENTS, STACK_SOUND_PROFILES, StackSound;
+    var __moduleName = context_1 && context_1.id;
+    function readStackSoundEnabled(storage = browserStorage()) {
+        try {
+            return (storage === null || storage === void 0 ? void 0 : storage.getItem(STACK_SOUND_STORAGE_KEY)) !== '0';
+        }
+        catch (_a) {
+            return true;
+        }
+    }
+    exports_1("readStackSoundEnabled", readStackSoundEnabled);
+    function writeStackSoundEnabled(enabled, storage = browserStorage()) {
+        try {
+            storage === null || storage === void 0 ? void 0 : storage.setItem(STACK_SOUND_STORAGE_KEY, enabled ? '1' : '0');
+        }
+        catch ( /* Private mode: keep in-memory state. */_a) { /* Private mode: keep in-memory state. */ }
+    }
+    exports_1("writeStackSoundEnabled", writeStackSoundEnabled);
+    function browserStorage() {
+        try {
+            return typeof localStorage === 'undefined' ? undefined : localStorage;
+        }
+        catch (_a) {
+            return undefined;
+        }
+    }
+    function contextConstructor() {
+        var _a;
+        const scope = globalThis;
+        return (_a = scope.AudioContext) !== null && _a !== void 0 ? _a : scope.webkitAudioContext;
+    }
+    return {
+        setters: [],
+        execute: function () {
+            exports_1("STACK_SOUND_STORAGE_KEY", STACK_SOUND_STORAGE_KEY = 'stack-sound-enabled');
+            exports_1("STACK_SOUND_EVENTS", STACK_SOUND_EVENTS = ['tap', 'fly', 'pack', 'fail', 'win', 'mom']);
+            exports_1("STACK_SOUND_PROFILES", STACK_SOUND_PROFILES = {
+                tap: { label: '短哒', layers: 1 },
+                fly: { label: '轻嗖', layers: 2 },
+                pack: { label: '封箱咔哒与叮', layers: 2 },
+                fail: { label: '下行低音', layers: 2 },
+                win: { label: '上行喜庆音', layers: 4 },
+                mom: { label: '妈妈提示音', layers: 2 },
+            });
+            /** Synthesizes short cues after the first real touch unlocks the browser AudioContext. */
+            StackSound = class StackSound {
+                constructor(storage = browserStorage()) {
+                    this.storage = storage;
+                    this.soundEnabled = readStackSoundEnabled(storage);
+                }
+                get enabled() { return this.soundEnabled; }
+                toggle() {
+                    this.soundEnabled = !this.soundEnabled;
+                    writeStackSoundEnabled(this.soundEnabled, this.storage);
+                    if (this.soundEnabled) {
+                        this.unlock();
+                        this.play('tap');
+                    }
+                    return this.soundEnabled;
+                }
+                unlock() {
+                    const Ctor = contextConstructor();
+                    if (!Ctor)
+                        return;
+                    try {
+                        if (!this.context) {
+                            this.context = new Ctor();
+                            this.master = this.context.createGain();
+                            this.master.gain.value = .42;
+                            this.master.connect(this.context.destination);
+                        }
+                        if (this.context.state === 'suspended')
+                            void this.context.resume().catch(() => undefined);
+                    }
+                    catch (_a) {
+                        this.context = undefined;
+                        this.master = undefined;
+                    }
+                }
+                play(event) {
+                    if (!this.soundEnabled)
+                        return;
+                    const context = this.context;
+                    if (!context || !this.master)
+                        return;
+                    try {
+                        if (context.state === 'suspended')
+                            void context.resume().catch(() => undefined);
+                        if (context.state === 'closed')
+                            return;
+                        this.synthesize(context, event);
+                    }
+                    catch ( /* Device/browser failure: audio is optional. */_a) { /* Device/browser failure: audio is optional. */ }
+                }
+                synthesize(context, event) {
+                    const now = context.currentTime + .012;
+                    switch (event) {
+                        case 'tap':
+                            this.tone(context, 'square', 560, 240, now, .052, .13);
+                            this.noise(context, now, .022, .045, 1500, 700);
+                            break;
+                        case 'fly':
+                            this.noise(context, now, .14, .09, 480, 1900);
+                            this.tone(context, 'sine', 290, 560, now, .11, .035);
+                            break;
+                        case 'pack':
+                            this.noise(context, now, .026, .13, 2400, 500);
+                            this.tone(context, 'triangle', 145, 68, now, .085, .18);
+                            this.tone(context, 'sine', 880, 880, now + .065, .18, .095);
+                            this.tone(context, 'sine', 1318.5, 1318.5, now + .075, .22, .06);
+                            break;
+                        case 'fail':
+                            this.tone(context, 'sawtooth', 245, 82, now, .52, .115);
+                            this.tone(context, 'triangle', 164, 62, now + .06, .62, .075);
+                            break;
+                        case 'win': {
+                            const notes = [523.25, 659.25, 783.99, 1046.5];
+                            for (let index = 0; index < notes.length; index++) {
+                                this.tone(context, 'sine', notes[index], notes[index], now + index * .075, .23, .09);
+                                this.tone(context, 'triangle', notes[index] * .5, notes[index] * .5, now + index * .075, .2, .025);
+                            }
+                            break;
+                        }
+                        case 'mom':
+                            this.tone(context, 'triangle', 659.25, 659.25, now, .16, .11);
+                            this.tone(context, 'sine', 880, 880, now + .13, .22, .09);
+                            break;
+                    }
+                }
+                tone(context, type, startFrequency, endFrequency, start, duration, peak) {
+                    const oscillator = context.createOscillator();
+                    const gain = context.createGain();
+                    oscillator.type = type;
+                    oscillator.frequency.setValueAtTime(Math.max(1, startFrequency), start);
+                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), start + duration);
+                    gain.gain.setValueAtTime(.0001, start);
+                    gain.gain.linearRampToValueAtTime(peak, start + .012);
+                    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+                    oscillator.connect(gain);
+                    gain.connect(this.master);
+                    oscillator.start(start);
+                    oscillator.stop(start + duration + .02);
+                }
+                noise(context, start, duration, peak, startFrequency, endFrequency) {
+                    const frameCount = Math.max(1, Math.ceil(context.sampleRate * duration));
+                    const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let index = 0; index < data.length; index++)
+                        data[index] = Math.random() * 2 - 1;
+                    const source = context.createBufferSource();
+                    const filter = context.createBiquadFilter();
+                    const gain = context.createGain();
+                    source.buffer = buffer;
+                    filter.type = 'bandpass';
+                    filter.Q.value = .85;
+                    filter.frequency.setValueAtTime(startFrequency, start);
+                    filter.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), start + duration);
+                    gain.gain.setValueAtTime(.0001, start);
+                    gain.gain.linearRampToValueAtTime(peak, start + .008);
+                    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+                    source.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.master);
+                    source.start(start);
+                    source.stop(start + duration + .02);
+                }
+            };
+            exports_1("StackSound", StackSound);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/FinishView.ts", ["cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
     "use strict";
     var cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, UIKit_1, JourneyArt_1, red, bright, gold, pale, dark, tire, lightGlow, confettiColors, FinishView;
@@ -4884,6 +5183,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.buttons = [];
                     this.height = 1334;
                     this.ready = false;
+                    this.lidClosedY = -39;
                     this.node = UIKit_1.uiNode('StackFinish', parent, 750, 1334);
                     this.backdrop = UIKit_1.uiNode('NightBackdrop', this.node, 750, 1334).addComponent(cc_1.Sprite);
                     this.backdrop.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
@@ -4962,15 +5262,16 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.wash.clear();
                     UIKit_1.fill(this.wash, night, -375, -height / 2, 750, height, 0);
                     this.drawCarFallback();
-                    this.headline.setPosition(0, height / 2 - 238);
-                    this.statsLabel.setPosition(0, height / 2 - 374);
-                    this.actions.setPosition(0, -height / 2 + 205);
+                    this.headline.setPosition(0, height / 2 - 207);
+                    this.statsLabel.setPosition(0, height / 2 - 380);
+                    const actionsY = -height / 2 + 450;
+                    this.actions.setPosition(0, actionsY);
                     this.actionArt.clear();
                     const baseY = 68;
                     for (let index = 0; index < this.buttons.length; index++) {
                         const button = this.buttons[index];
-                        button.rect.y = height - 310 + index * 92;
                         const localY = baseY - index * 92;
+                        button.rect.y = height / 2 - (actionsY + localY) - 37;
                         button.label.setPosition(0, localY);
                         UIKit_1.fill(this.actionArt, index === 0 ? gold : darkRed, -250, localY - 37, 500, 74, 22);
                         if (index !== 0) {
@@ -4980,7 +5281,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                             this.actionArt.stroke();
                         }
                     }
-                    this.node.getChildByName('SkipHint').setPosition(0, -height / 2 + 100);
+                    this.node.getChildByName('SkipHint').setPosition(0, -height / 2 + 118);
                     this.setupCar();
                     if (this.state)
                         this.render(this.state);
@@ -4988,11 +5289,11 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                 render(state) {
                     this.state = state;
                     const drive = Math.max(0, Math.min(1, (state.time - 1050) / (FinishTimeline_1.FINISH_DURATION - 1050)));
-                    const carScale = .96 - .52 * drive;
+                    const carScale = .98 - .12 * drive;
                     this.car.setScale(carScale, carScale, 1);
-                    this.car.setPosition(0, -this.height * .18 + this.height * .135 * drive);
-                    this.lidImage.node.setPosition(0, -39 + (1 - state.lidProgress) * 180);
-                    this.lidImage.node.setScale(1, .56 + state.lidProgress * .44, 1);
+                    this.car.setPosition(0, -this.height * .035 + this.height * .055 * drive);
+                    this.lidImage.node.setPosition(0, this.lidClosedY);
+                    this.lidImage.node.setScale(1, 1, 1);
                     this.headline.active = state.celebration;
                     this.statsLabel.active = state.celebration;
                     this.actions.active = state.buttons;
@@ -5017,18 +5318,18 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     return sprite;
                 }
                 setupCar() {
-                    var _a, _b, _c, _d;
                     const bodyW = 720, bodyH = 450;
                     const holeX = Math.round(BODY_HOLE.left / 1024 * bodyW);
                     const holeY = Math.round(BODY_HOLE.top / 640 * bodyH - bodyH / 2);
                     const holeW = Math.round((BODY_HOLE.right - BODY_HOLE.left) / 1024 * bodyW);
                     const holeH = Math.round((BODY_HOLE.bottom - BODY_HOLE.top) / 640 * bodyH);
+                    this.lidClosedY = holeY + holeH / 2;
                     this.show(this.bodyImage, 0, 0, bodyW, bodyH);
-                    this.show(this.trunkImage, 0, holeY + holeH / 2, holeW, holeH);
-                    this.show(this.lidImage, 0, holeY + holeH / 2 + (1 - ((_b = (_a = this.state) === null || _a === void 0 ? void 0 : _a.lidProgress) !== null && _b !== void 0 ? _b : 0)) * 180, holeW, holeH);
-                    this.lidImage.node.setScale(1, .56 + ((_d = (_c = this.state) === null || _c === void 0 ? void 0 : _c.lidProgress) !== null && _d !== void 0 ? _d : 0) * .44, 1);
+                    this.show(this.trunkImage, 0, this.lidClosedY, holeW, holeH);
+                    this.show(this.lidImage, 0, this.lidClosedY, holeW + 24, holeH + 20);
+                    this.lidImage.node.setScale(1, 1, 1);
                     this.car.setScale(.98, .98, 1);
-                    this.car.setPosition(0, -this.height * .18);
+                    this.car.setPosition(0, -this.height * .035);
                 }
                 drawCarFallback() {
                     const g = this.carFallback;
@@ -5440,8 +5741,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-rules.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-rules.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
