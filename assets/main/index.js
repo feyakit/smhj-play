@@ -1,4 +1,4 @@
-System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./brand.ts","./date.ts","./stage1.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./brand.ts","./date.ts","./stage1.ts","./StagePage.ts","./StackPage.ts","./WebPlatform.ts","./Api.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
     "use strict";
     var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
         var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -6,7 +6,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
         else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
         return c > 3 && r && Object.defineProperty(target, key, r), r;
     };
-    var cc_1, env_1, brand_1, date_1, stage1_1, StagePage_1, WebPlatform_1, Api_1, UIKit_1, JourneyArt_1, ccclass, Bootstrap;
+    var cc_1, env_1, brand_1, date_1, stage1_1, StagePage_1, StackPage_1, WebPlatform_1, Api_1, UIKit_1, JourneyArt_1, ccclass, Bootstrap;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -27,6 +27,9 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
             },
             function (StagePage_1_1) {
                 StagePage_1 = StagePage_1_1;
+            },
+            function (StackPage_1_1) {
+                StackPage_1 = StackPage_1_1;
             },
             function (WebPlatform_1_1) {
                 WebPlatform_1 = WebPlatform_1_1;
@@ -50,16 +53,19 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     this.api = new Api_1.Api(this.platform);
                 }
                 start() {
-                    if (this.platform.isMomMode())
+                    if (this.platform.isStackMode())
+                        this.startStack(this.platform.stackStage());
+                    else if (this.platform.isMomMode())
                         void this.startMomMode();
                     else if (this.platform.hasLevelOverride())
                         void this.challenge();
                     else
                         this.show(stage1_1.stage1(date_1.shanghaiDate()));
                 }
-                update() { var _a; (_a = this.stage) === null || _a === void 0 ? void 0 : _a.tick(); }
+                update() { var _a, _b; (_a = this.stage) === null || _a === void 0 ? void 0 : _a.tick(); (_b = this.stack) === null || _b === void 0 ? void 0 : _b.tick(); }
                 show(level) {
                     this.node.destroyAllChildren();
+                    this.stack = undefined;
                     this.stage = new StagePage_1.StagePage(this.node, level, () => this.platform.now(), action => {
                         if (action === 'next')
                             void this.challenge();
@@ -69,6 +75,18 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                             this.show(stage1_1.stage1(date_1.shanghaiDate()));
                         else
                             this.show(level);
+                    });
+                }
+                startStack(stage) {
+                    this.node.destroyAllChildren();
+                    this.stage = undefined;
+                    this.stack = new StackPage_1.StackPage(this.node, stage, (action) => {
+                        if (action === 'next')
+                            this.startStack(2);
+                        else if (action === 'first')
+                            this.startStack(1);
+                        else
+                            this.startStack(stage);
                     });
                 }
                 async startMomMode() {
@@ -96,6 +114,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                 }
                 message(text, onTap) {
                     this.stage = undefined;
+                    this.stack = undefined;
                     this.node.destroyAllChildren();
                     const size = cc_1.view.getVisibleSize();
                     const width = 750;
@@ -832,6 +851,568 @@ System.register("chunks:///_virtual/shapes.ts", [], function (exports_1, context
     };
 });
 
+System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var STAGE1_ITEMS, STAGE2_ITEMS;
+    var __moduleName = context_1 && context_1.id;
+    function stackItems(stage) {
+        return stage === 1 ? STAGE1_ITEMS : STAGE2_ITEMS;
+    }
+    exports_1("stackItems", stackItems);
+    function stackItemByName(items, key) {
+        var _a;
+        return (_a = items.find(item => item.key === key)) !== null && _a !== void 0 ? _a : items[0];
+    }
+    exports_1("stackItemByName", stackItemByName);
+    return {
+        setters: [],
+        execute: function () {
+            /** A deliberately distinct subset keeps the dense second pile readable at phone size. */
+            exports_1("STAGE1_ITEMS", STAGE1_ITEMS = [
+                { key: 'mandarin', name: '砂糖橘' },
+                { key: 'duck', name: '烤鸭' },
+                { key: 'fruitbasket', name: '果篮' },
+            ]);
+            exports_1("STAGE2_ITEMS", STAGE2_ITEMS = [
+                { key: 'mandarin', name: '砂糖橘' },
+                { key: 'duck', name: '烤鸭' },
+                { key: 'fruitbasket', name: '果篮' },
+                { key: 'fish', name: '鱼' },
+                { key: 'kumquat', name: '金桔树' },
+                { key: 'milk', name: '牛奶箱' },
+                { key: 'oven', name: '烤箱' },
+                { key: 'suitcase_l', name: '大行李箱' },
+                { key: 'woven', name: '编织袋' },
+                { key: 'toycar', name: '玩具车' },
+                { key: 'snacks', name: '零食大礼包' },
+                { key: 'ham', name: '火腿' },
+                { key: 'thermos', name: '保温壶' },
+                { key: 'crab', name: '大闸蟹' },
+            ]);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-catalog.ts","./stack-rules.ts","./stack-solver.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, stack_catalog_1, stack_rules_1, stack_solver_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS;
+    var __moduleName = context_1 && context_1.id;
+    function pileCard(id, x, y, w, h, layer, source) {
+        return { id, kind: '', name: '', x, y, w, h, layer, source };
+    }
+    function layoutStageOne() {
+        const cards = [];
+        let id = 0;
+        const w = 136, h = 136;
+        const rows = [
+            { y: 240, layer: 0, xs: [205, 365] },
+            { y: 315, layer: 1, xs: [140, 305, 470] },
+            { y: 395, layer: 0, xs: [125, 300, 475] },
+            { y: 470, layer: 1, xs: [205, 382] },
+            { y: 550, layer: 0, xs: [195, 375] },
+            { y: 625, layer: 1, xs: [115, 465] },
+            { y: 705, layer: 0, xs: [120, 465] },
+            { y: 780, layer: 1, xs: [185, 395] },
+        ];
+        for (const row of rows) {
+            for (const x of row.xs)
+                cards.push(pileCard(++id, x, row.y, w, h, row.layer, 'pile'));
+        }
+        return cards;
+    }
+    function layoutStageTwo(random) {
+        const cards = [];
+        let id = 0;
+        const w = 136, h = 136;
+        const counts = [17, 17, 17, 17, 17, 17, 18, 18];
+        for (let layer = 0; layer < counts.length; layer++) {
+            const slots = Array.from({ length: 24 }, (_, index) => index);
+            for (const index of rng_1.shuffle(slots, random).slice(0, counts[layer])) {
+                const col = index % 4, row = Math.floor(index / 4);
+                const x = Math.round(82 + col * 152 + (random() - .5) * 18);
+                const y = Math.round(190 + row * 118 + (random() - .5) * 18);
+                cards.push(pileCard(++id, x, y, w, h, layer, 'pile'));
+            }
+        }
+        for (let i = 0; i < 6; i++)
+            cards.push(pileCard(++id, 2, 500, w, h, 20 + i, 'side-left'));
+        for (let i = 0; i < 6; i++)
+            cards.push(pileCard(++id, 612, 500, w, h, 20 + i, 'side-right'));
+        return cards;
+    }
+    function reservePositions(cardW, cardH, count) {
+        const gap = 8, columns = 6;
+        const reserveW = Math.round(cardW * .72);
+        const total = columns * reserveW + (columns - 1) * gap;
+        const start = Math.round((750 - total) / 2);
+        return Array.from({ length: count }, (_, index) => ({
+            x: start + (index % columns) * (reserveW + gap),
+            y: 936 + Math.floor(index / columns) * (Math.round(cardH * .72) + 8),
+        }));
+    }
+    function momPositions(cardW) {
+        return [0, 1, 2].map(index => ({ x: Math.round(375 - cardW * 1.5 + index * cardW), y: 170 }));
+    }
+    function buildCards(stage, random) {
+        if (stage === 1) {
+            return { cards: layoutStageOne(), items: stack_catalog_1.stackItems(1), w: 136, h: 136 };
+        }
+        if (stage === 2) {
+            return { cards: layoutStageTwo(random), items: stack_catalog_1.stackItems(2), w: 136, h: 136 };
+        }
+        throw new Error(`unknown stack stage ${stage}`);
+    }
+    /**
+     * Assigns kinds to a generated legal click order. Each round removes three currently reachable
+     * cards, so replaying the recorded ids always clears a triple without filling the seven slots.
+     */
+    function assignTriples(cards, items, random) {
+        let active = [...cards];
+        const solution = [];
+        const firstCycle = rng_1.shuffle(items, random);
+        const totalGroups = cards.length / 3;
+        for (let group = 0; group < totalGroups; group++) {
+            const picks = [];
+            for (let slot = 0; slot < 3; slot++) {
+                const available = stack_rules_1.freeCards(active);
+                if (available.length === 0)
+                    return undefined;
+                const pick = available[Math.floor(random() * available.length)];
+                picks.push(pick);
+                active = active.filter(card => card.id !== pick.id);
+            }
+            const item = group < firstCycle.length
+                ? firstCycle[group]
+                : items[Math.floor(random() * items.length)];
+            for (const pick of picks) {
+                pick.kind = item.key;
+                pick.name = item.name;
+                solution.push(pick.id);
+            }
+        }
+        return active.length === 0 ? { cards, solution } : undefined;
+    }
+    function attemptLevel(stage, baseSeed, attempt) {
+        const seed = attempt === 0 ? baseSeed : `${baseSeed}#retry-${attempt}`;
+        const random = rng_1.createRng(seed);
+        const built = buildCards(stage, random);
+        const assigned = assignTriples(built.cards, built.items, random);
+        if (!assigned)
+            throw new Error('layout could not be assigned');
+        const level = {
+            stage,
+            seed,
+            cardW: built.w,
+            cardH: built.h,
+            items: built.items,
+            cards: assigned.cards,
+            reservePositions: reservePositions(built.w, built.h, 12),
+            momPositions: momPositions(built.w),
+            solution: assigned.solution,
+        };
+        return { level, solvable: stack_solver_1.solveStackLevel(level, { maxNodes: 120000 }).solvable };
+    }
+    function generateStackLevel(stage, baseSeed, maxAttempts = 8) {
+        if (stage !== 1 && stage !== 2)
+            throw new Error(`unknown stack stage ${stage}`);
+        if (!Number.isInteger(maxAttempts) || maxAttempts < 1)
+            throw new Error('invalid stack generator attempts');
+        const seedBase = baseSeed !== null && baseSeed !== void 0 ? baseSeed : STACK_SEEDS[stage - 1];
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const built = attemptLevel(stage, seedBase, attempt);
+            if (built.solvable)
+                return { level: built.level, attempts: attempt + 1 };
+        }
+        throw new Error(`no solvable stack seed after ${maxAttempts} attempts`);
+    }
+    exports_1("generateStackLevel", generateStackLevel);
+    function stackItemFor(level, key) {
+        return stack_catalog_1.stackItemByName(level.items, key);
+    }
+    exports_1("stackItemFor", stackItemFor);
+    return {
+        setters: [
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            },
+            function (stack_catalog_1_1) {
+                stack_catalog_1 = stack_catalog_1_1;
+            },
+            function (stack_rules_1_1) {
+                stack_rules_1 = stack_rules_1_1;
+            },
+            function (stack_solver_1_1) {
+                stack_solver_1 = stack_solver_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("STACK_SEEDS", STACK_SEEDS = ['trunk-stack-stage1-v1', 'trunk-stack-stage2-v1']);
+            exports_1("STAGE1_CARDS", STAGE1_CARDS = 18);
+            exports_1("STAGE2_CARDS", STAGE2_CARDS = 150);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, SLOT_CAPACITY, PACK_SIZE, MOM_INTERVAL_MS, StackGame;
+    var __moduleName = context_1 && context_1.id;
+    function rectsOverlap(a, b) {
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+    exports_1("rectsOverlap", rectsOverlap);
+    function isBlocked(card, cards) {
+        return cards.some(other => other.id !== card.id && other.layer > card.layer && rectsOverlap(card, other));
+    }
+    exports_1("isBlocked", isBlocked);
+    function freeCards(cards) {
+        return cards.filter(card => !isBlocked(card, cards));
+    }
+    exports_1("freeCards", freeCards);
+    function topCardAt(cards, x, y) {
+        return [...cards]
+            .filter(card => x >= card.x && x <= card.x + card.w && y >= card.y && y <= card.y + card.h)
+            .sort((a, b) => b.layer - a.layer)[0];
+    }
+    exports_1("topCardAt", topCardAt);
+    function slotInsertIndex(slot, kind) {
+        let index = slot.length;
+        for (let i = slot.length - 1; i >= 0; i--) {
+            if (slot[i].kind === kind) {
+                index = i + 1;
+                break;
+            }
+        }
+        return index;
+    }
+    exports_1("slotInsertIndex", slotInsertIndex);
+    function cloneCards(cards) {
+        return cards.map(card => (Object.assign({}, card)));
+    }
+    return {
+        setters: [
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("SLOT_CAPACITY", SLOT_CAPACITY = 7);
+            exports_1("PACK_SIZE", PACK_SIZE = 3);
+            exports_1("MOM_INTERVAL_MS", MOM_INTERVAL_MS = 25000);
+            /** Pure match-three state machine. Rendering owns card nodes, never this class. */
+            StackGame = class StackGame {
+                constructor(level, random = Math.random, now = 0) {
+                    this.level = level;
+                    this.random = random;
+                    this.slotList = [];
+                    this.currentStatus = 'playing';
+                    this.propState = { moveOut: false, undo: false, shuffle: false };
+                    this.groupsCleared = 0;
+                    this.lastMomGroup = 0;
+                    this.momEvents = 0;
+                    this.cardList = cloneCards(level.cards);
+                    this.maxCardId = Math.max(0, ...this.cardList.map(card => card.id));
+                    this.nextMomAt = now + MOM_INTERVAL_MS;
+                }
+                get cards() { return this.cardList; }
+                get slot() { return this.slotList; }
+                get status() { return this.currentStatus; }
+                get remaining() { return this.cardList.length + this.slotList.length; }
+                get clearedGroups() { return this.groupsCleared; }
+                get props() { return this.propState; }
+                canTap(id) {
+                    if (this.currentStatus !== 'playing')
+                        return false;
+                    const card = this.cardList.find(candidate => candidate.id === id);
+                    return !!card && !isBlocked(card, this.cardList);
+                }
+                tap(id, now = 0) {
+                    const card = this.cardList.find(candidate => candidate.id === id);
+                    if (this.currentStatus !== 'playing')
+                        return this.result(false, 'finished', undefined, [], [], 0);
+                    if (!card)
+                        return this.result(false, 'missing', undefined, [], [], 0);
+                    if (isBlocked(card, this.cardList))
+                        return this.result(false, 'blocked', card, [], [], 0);
+                    this.history = {
+                        cards: cloneCards(this.cardList),
+                        slot: cloneCards(this.slotList),
+                        status: this.currentStatus,
+                        groups: this.groupsCleared,
+                    };
+                    this.cardList = this.cardList.filter(candidate => candidate.id !== id);
+                    const insertAt = slotInsertIndex(this.slotList, card.kind);
+                    this.slotList.splice(insertAt, 0, card);
+                    const beforePack = cloneCards(this.slotList);
+                    const matching = this.slotList.filter(candidate => candidate.kind === card.kind);
+                    let packed = [];
+                    if (matching.length >= PACK_SIZE) {
+                        packed = matching.slice(0, PACK_SIZE);
+                        const packedIds = new Set(packed.map(candidate => candidate.id));
+                        this.slotList = this.slotList.filter(candidate => !packedIds.has(candidate.id));
+                        this.groupsCleared++;
+                    }
+                    else if (this.slotList.length >= SLOT_CAPACITY) {
+                        this.currentStatus = 'lost';
+                    }
+                    if (this.cardList.length === 0 && this.slotList.length === 0)
+                        this.currentStatus = 'won';
+                    this.maybeMomByGroups(now);
+                    return this.result(true, undefined, card, packed, beforePack, insertAt);
+                }
+                useUndo() {
+                    if (this.propState.undo || !this.history || this.currentStatus !== 'playing')
+                        return false;
+                    const snapshot = this.history;
+                    this.cardList = cloneCards(snapshot.cards);
+                    this.slotList = cloneCards(snapshot.slot);
+                    this.currentStatus = snapshot.status;
+                    this.groupsCleared = snapshot.groups;
+                    this.history = undefined;
+                    this.propState = Object.assign(Object.assign({}, this.propState), { undo: true });
+                    return true;
+                }
+                useMoveOut() {
+                    if (this.propState.moveOut || this.currentStatus !== 'playing' || this.slotList.length < PACK_SIZE)
+                        return [];
+                    this.propState = Object.assign(Object.assign({}, this.propState), { moveOut: true });
+                    return this.moveOutCards();
+                }
+                revive() {
+                    if (this.currentStatus !== 'lost' || this.slotList.length < PACK_SIZE)
+                        return [];
+                    const moved = this.moveOutCards();
+                    this.currentStatus = 'playing';
+                    this.history = undefined;
+                    return moved;
+                }
+                useShuffle() {
+                    if (this.propState.shuffle || this.currentStatus !== 'playing' || this.cardList.length === 0)
+                        return false;
+                    const kinds = this.cardList.map(card => ({ kind: card.kind, name: card.name }));
+                    const mixed = rng_1.shuffle(kinds, this.random);
+                    this.cardList = this.cardList.map((card, index) => (Object.assign(Object.assign({}, card), mixed[index])));
+                    this.propState = Object.assign(Object.assign({}, this.propState), { shuffle: true });
+                    this.history = undefined;
+                    return true;
+                }
+                triggerMom() {
+                    if (this.level.stage !== 2 || this.currentStatus !== 'playing')
+                        return [];
+                    const item = this.level.items[Math.floor(this.random() * this.level.items.length)];
+                    const added = [];
+                    for (let i = 0; i < PACK_SIZE; i++) {
+                        const pos = this.level.momPositions[i % this.level.momPositions.length];
+                        this.maxCardId++;
+                        added.push({
+                            id: this.maxCardId,
+                            kind: item.key,
+                            name: item.name,
+                            x: pos.x,
+                            y: pos.y,
+                            w: this.level.cardW,
+                            h: this.level.cardH,
+                            layer: 2000 + this.momEvents * PACK_SIZE + i,
+                            source: 'mom',
+                        });
+                    }
+                    this.momEvents++;
+                    this.cardList.push(...added);
+                    this.history = undefined;
+                    return added;
+                }
+                tickMom(now) {
+                    if (this.level.stage !== 2 || this.currentStatus !== 'playing' || now < this.nextMomAt)
+                        return [];
+                    this.nextMomAt = now + MOM_INTERVAL_MS;
+                    return this.triggerMom();
+                }
+                maybeMomByGroups(now) {
+                    if (this.level.stage === 2 && this.groupsCleared - this.lastMomGroup >= 10) {
+                        this.lastMomGroup = this.groupsCleared;
+                        this.triggerMom();
+                        this.nextMomAt = now + MOM_INTERVAL_MS;
+                    }
+                }
+                moveOutCards() {
+                    const moved = this.slotList.splice(0, PACK_SIZE);
+                    const offset = this.cardList.filter(card => card.source === 'reserve').length;
+                    const reserveSize = Math.round(this.level.cardW * .72);
+                    const restored = moved.map((card, index) => {
+                        const pos = this.level.reservePositions[(offset + index) % this.level.reservePositions.length];
+                        return Object.assign(Object.assign({}, card), { x: pos.x, y: pos.y, w: reserveSize, h: reserveSize, layer: 1000 + offset + index, source: 'reserve' });
+                    });
+                    this.cardList.push(...restored);
+                    this.history = undefined;
+                    this.propState = Object.assign({}, this.propState);
+                    return restored;
+                }
+                result(ok, reason, card, packed, slotBeforePack, insertIndex) {
+                    return { ok, reason, card, packed, slotBeforePack, insertIndex, status: this.currentStatus };
+                }
+            };
+            exports_1("StackGame", StackGame);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts"], function (exports_1, context_1) {
+    "use strict";
+    var stack_rules_1;
+    var __moduleName = context_1 && context_1.id;
+    function insertAndClear(slot, kind) {
+        const index = slotInsertIndexKinds(slot, kind);
+        slot.splice(index, 0, kind);
+        let packed = false;
+        if (slot.filter(value => value === kind).length >= stack_rules_1.PACK_SIZE) {
+            let removed = 0;
+            for (let i = slot.length - 1; i >= 0 && removed < stack_rules_1.PACK_SIZE; i--) {
+                if (slot[i] === kind) {
+                    slot.splice(i, 1);
+                    removed++;
+                }
+            }
+            packed = true;
+        }
+        return packed;
+    }
+    function slotInsertIndexKinds(slot, kind) {
+        let index = slot.length;
+        for (let i = slot.length - 1; i >= 0; i--) {
+            if (slot[i] === kind) {
+                index = i + 1;
+                break;
+            }
+        }
+        return index;
+    }
+    function simulateStackPicks(level, picks, maxClicks = picks.length) {
+        const cards = level.cards.map(card => (Object.assign({}, card)));
+        const active = new Map(cards.map(card => [card.id, card]));
+        const slot = [];
+        for (let index = 0; index < picks.length && index < maxClicks; index++) {
+            const card = active.get(picks[index]);
+            if (!card)
+                return { valid: false, used: index };
+            const current = [...active.values()];
+            if (stack_rules_1.isBlocked(card, current))
+                return { valid: false, used: index };
+            active.delete(card.id);
+            insertAndClear(slot, card.kind);
+            if (slot.length >= stack_rules_1.SLOT_CAPACITY)
+                return { valid: false, used: index + 1 };
+        }
+        return { valid: active.size === 0 && slot.length === 0, used: Math.min(picks.length, maxClicks) };
+    }
+    exports_1("simulateStackPicks", simulateStackPicks);
+    function solveStackLevel(level, options = {}) {
+        var _a;
+        const maxNodes = (_a = options.maxNodes) !== null && _a !== void 0 ? _a : 120000;
+        if (level.solution.length > 0) {
+            const certificate = simulateStackPicks(level, level.solution);
+            if (certificate.valid) {
+                return { solvable: true, picks: [...level.solution], nodes: level.solution.length, limited: false, method: 'certificate' };
+            }
+        }
+        if (!Number.isInteger(maxNodes) || maxNodes < 1)
+            throw new Error('invalid stack solver node limit');
+        const active = level.cards.map(() => true);
+        const seen = new Set();
+        let nodes = 0;
+        let limited = false;
+        const start = { active, slot: [], picks: [] };
+        const search = (state) => {
+            var _a;
+            if (nodes >= maxNodes) {
+                limited = true;
+                return undefined;
+            }
+            nodes++;
+            if (!state.active.some(Boolean))
+                return state.slot.length === 0 ? [...state.picks] : undefined;
+            const key = `${state.active.map(value => value ? '1' : '0').join('')}|${state.slot.join(',')}`;
+            if (seen.has(key))
+                return undefined;
+            seen.add(key);
+            const cards = level.cards.filter((_, index) => state.active[index]);
+            const reachable = stack_rules_1.freeCards(cards);
+            const byKind = new Map();
+            for (const card of reachable)
+                byKind.set(card.kind, [...((_a = byKind.get(card.kind)) !== null && _a !== void 0 ? _a : []), card]);
+            const compound = [...byKind.entries()]
+                .filter(([kind, cardsOfKind]) => cardsOfKind.length >= stack_rules_1.PACK_SIZE && !state.slot.includes(kind) && state.slot.length <= stack_rules_1.SLOT_CAPACITY - stack_rules_1.PACK_SIZE)
+                .sort((a, b) => b[1].length - a[1].length);
+            for (const [, cardsOfKind] of compound) {
+                const picks = cardsOfKind.slice(0, stack_rules_1.PACK_SIZE).map(card => card.id);
+                const nextActive = [...state.active];
+                for (const card of cardsOfKind.slice(0, stack_rules_1.PACK_SIZE)) {
+                    const index = level.cards.findIndex(candidate => candidate.id === card.id);
+                    nextActive[index] = false;
+                }
+                const nextSlot = [...state.slot];
+                for (let i = 0; i < stack_rules_1.PACK_SIZE; i++)
+                    insertAndClear(nextSlot, cardsOfKind[0].kind);
+                const answer = search({ active: nextActive, slot: nextSlot, picks: [...state.picks, ...picks] });
+                if (answer)
+                    return answer;
+                if (limited)
+                    return undefined;
+            }
+            const singles = [...reachable].sort((a, b) => {
+                var _a, _b, _c, _d;
+                const aPair = state.slot.filter(kind => kind === a.kind).length;
+                const bPair = state.slot.filter(kind => kind === b.kind).length;
+                return bPair - aPair || ((_b = (_a = byKind.get(b.kind)) === null || _a === void 0 ? void 0 : _a.length) !== null && _b !== void 0 ? _b : 0) - ((_d = (_c = byKind.get(a.kind)) === null || _c === void 0 ? void 0 : _c.length) !== null && _d !== void 0 ? _d : 0);
+            });
+            for (const card of singles) {
+                if (state.slot.length >= stack_rules_1.SLOT_CAPACITY && state.slot.filter(kind => kind === card.kind).length < 2)
+                    continue;
+                const nextActive = [...state.active];
+                const index = level.cards.findIndex(candidate => candidate.id === card.id);
+                nextActive[index] = false;
+                const nextSlot = [...state.slot];
+                insertAndClear(nextSlot, card.kind);
+                if (nextSlot.length >= stack_rules_1.SLOT_CAPACITY)
+                    continue;
+                const answer = search({ active: nextActive, slot: nextSlot, picks: [...state.picks, card.id] });
+                if (answer)
+                    return answer;
+                if (limited)
+                    return undefined;
+            }
+            return undefined;
+        };
+        const picks = search(start);
+        return {
+            solvable: !!picks,
+            picks: picks !== null && picks !== void 0 ? picks : [],
+            nodes,
+            limited,
+            method: picks ? 'search' : 'none',
+        };
+    }
+    exports_1("solveStackLevel", solveStackLevel);
+    return {
+        setters: [
+            function (stack_rules_1_1) {
+                stack_rules_1 = stack_rules_1_1;
+            }
+        ],
+        execute: function () {
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-types.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var __moduleName = context_1 && context_1.id;
+    return {
+        setters: [],
+        execute: function () {
+        }
+    };
+});
+
 System.register("chunks:///_virtual/stage1.ts", [], function (exports_1, context_1) {
     "use strict";
     var __moduleName = context_1 && context_1.id;
@@ -1430,6 +2011,945 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
                 }
             };
             exports_1("StageSession", StageSession);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./SoundEffects.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, stack_generator_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, SoundEffects_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, deep, shadow, blockedShade, dimText, gray, BODY_SIZE, BODY_HOLE, BODY_SLICE, ITEM_CROPS, StackPage;
+    var __moduleName = context_1 && context_1.id;
+    function contains(rect, x, y) {
+        return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+    function cropItemFrame(key, frame) {
+        const crop = ITEM_CROPS[key];
+        if (!crop)
+            return frame;
+        const result = frame.clone();
+        result.rect = new cc_1.Rect(crop.x, crop.y, crop.w, crop.h);
+        result.originalSize = new cc_1.Size(crop.w, crop.h);
+        result.offset = new cc_1.Vec2(0, 0);
+        return result;
+    }
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (stack_generator_1_1) {
+                stack_generator_1 = stack_generator_1_1;
+            },
+            function (stack_rules_1_1) {
+                stack_rules_1 = stack_rules_1_1;
+            },
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            },
+            function (FinishTimeline_1_1) {
+                FinishTimeline_1 = FinishTimeline_1_1;
+            },
+            function (OptionalResources_1_1) {
+                OptionalResources_1 = OptionalResources_1_1;
+            },
+            function (SoundEffects_1_1) {
+                SoundEffects_1 = SoundEffects_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            },
+            function (StackFinishView_1_1) {
+                StackFinishView_1 = StackFinishView_1_1;
+            }
+        ],
+        execute: function () {
+            ink = new cc_1.Color(74, 44, 26);
+            red = new cc_1.Color(184, 27, 43);
+            brightRed = new cc_1.Color(218, 52, 43);
+            cream = new cc_1.Color(255, 246, 229);
+            gold = new cc_1.Color(246, 195, 67);
+            paleGold = new cc_1.Color(255, 219, 145);
+            deep = new cc_1.Color(61, 24, 32);
+            shadow = new cc_1.Color(27, 14, 18, 95);
+            blockedShade = new cc_1.Color(30, 22, 28, 154);
+            dimText = new cc_1.Color(91, 74, 62);
+            gray = new cc_1.Color(126, 117, 109);
+            BODY_SIZE = { w: 1024, h: 640 };
+            BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 };
+            BODY_SLICE = { top: 150, bottom: 380 };
+            ITEM_CROPS = {
+                mandarin: { x: 6, y: 6, w: 244, h: 244 },
+                duck: { x: 6, y: 6, w: 372, h: 244 },
+                fruitbasket: { x: 6, y: 6, w: 372, h: 244 },
+                fish: { x: 6, y: 6, w: 372, h: 244 },
+                kumquat: { x: 6, y: 6, w: 370, h: 372 },
+                milk: { x: 6, y: 6, w: 244, h: 244 },
+                oven: { x: 6, y: 20, w: 244, h: 345 },
+                suitcase_l: { x: 6, y: 6, w: 244, h: 372 },
+                woven: { x: 6, y: 6, w: 244, h: 372 },
+                toycar: { x: 6, y: 6, w: 244, h: 244 },
+                snacks: { x: 6, y: 6, w: 244, h: 372 },
+                ham: { x: 6, y: 6, w: 244, h: 500 },
+                thermos: { x: 6, y: 6, w: 244, h: 372 },
+                crab: { x: 6, y: 6, w: 371, h: 369 },
+                ricecooker: { x: 6, y: 6, w: 244, h: 244 },
+            };
+            /** Code-built match-three page. All rules live in core/stack; this file only paints and animates. */
+            StackPage = class StackPage {
+                constructor(parent, stage, onAction) {
+                    this.onAction = onAction;
+                    this.carFrames = {};
+                    this.carRect = { x: 30, y: 940, w: 690, h: 420 };
+                    this.carScaleY = .74;
+                    this.cardViews = new Map();
+                    this.itemFrames = new Map();
+                    this.slotViews = [];
+                    this.slotRects = Array.from({ length: stack_rules_1.SLOT_CAPACITY }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
+                    this.actions = [];
+                    this.failButtons = [];
+                    this.touchWorld = new cc_1.Vec3();
+                    this.touchLocal = new cc_1.Vec3();
+                    this.touchPoint = { x: 0, y: 0 };
+                    this.onHide = () => { this.busy = false; };
+                    this.finishStarted = 0;
+                    this.startedAt = Date.now();
+                    this.busy = false;
+                    this.width = 750;
+                    this.height = 1334;
+                    this.layoutWidth = -1;
+                    this.layoutHeight = -1;
+                    this.trunk = { x: 16, y: 1174, w: 718, h: 116 };
+                    this.slotY = 1185;
+                    this.slotCell = 96;
+                    this.actionY = 1527;
+                    this.actionH = 68;
+                    this.level = stack_generator_1.generateStackLevel(stage, stack_generator_1.STACK_SEEDS[stage - 1]).level;
+                    this.game = new stack_rules_1.StackGame(this.level, rng_1.createRng(`${this.level.seed}:runtime`), Date.now());
+                    this.node = UIKit_1.uiNode('StackPage', parent, 750, 1334);
+                    this.sounds = new SoundEffects_1.SoundEffects(parent);
+                    this.bgImage = UIKit_1.uiNode('StackNight', this.node, 750, 1334).addComponent(cc_1.Sprite);
+                    this.bgImage.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    this.bgImage.trim = false;
+                    this.bgImage.enabled = false;
+                    void OptionalResources_1.loadArt('ui/bg_night').then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        this.bgImage.spriteFrame = frame;
+                        this.bgImage.enabled = true;
+                        this.layoutBackground();
+                    });
+                    this.background = UIKit_1.uiNode('StackChrome', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    this.carLayer = UIKit_1.uiNode('SedanRear', this.node, 750, 1334);
+                    this.trunkImage = this.makeImageNode('TrunkWell', this.carLayer);
+                    this.bodyImage = this.makeImageNode('CarBody', this.carLayer);
+                    this.lidImage = this.makeImageNode('TrunkLid', this.carLayer);
+                    this.carDetail = UIKit_1.uiNode('TrunkDetails', this.carLayer, 750, 1334).addComponent(cc_1.Graphics);
+                    void Promise.all([
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_lid'),
+                    ]).then(([body, trunk, lid]) => {
+                        var _a;
+                        if (!this.node.isValid)
+                            return;
+                        this.carFrames.body = body;
+                        this.carFrames.trunk = trunk;
+                        this.carFrames.lid = lid;
+                        this.drawCarSlots(this.carRect);
+                        if ((_a = this.failLayer) === null || _a === void 0 ? void 0 : _a.isValid)
+                            this.drawOverflowCar(this.failLayer);
+                    });
+                    this.hud = UIKit_1.uiNode('StackHud', this.node, 750, 1334);
+                    this.stageLabel = UIKit_1.label(this.hud, 'Stage', '第 1 关', 29, 0, 0);
+                    this.stageLabel.color = paleGold;
+                    this.remainingLabel = UIKit_1.label(this.hud, 'Remaining', '剩余 18 件', 24, 0, 0);
+                    this.remainingLabel.color = paleGold;
+                    UIKit_1.label(this.hud, 'ModeTitle', '年货三消', 38, 0, 0).color = gold;
+                    const subtitle = UIKit_1.label(this.hud, 'Subtitle', '点没被压住的年货 · 三件装一箱', 19, 0, 0);
+                    subtitle.color = cream;
+                    this.reserveLayer = UIKit_1.uiNode('ReserveZone', this.node, 750, 1334);
+                    this.reserveShelf = this.reserveLayer.addComponent(cc_1.Graphics);
+                    this.reserveLayer.active = false;
+                    this.pileLayer = UIKit_1.uiNode('CargoPile', this.node, 750, 1334);
+                    this.slotLayer = UIKit_1.uiNode('TrunkSlots', this.node, 750, 1334);
+                    this.fxLayer = UIKit_1.uiNode('Effects', this.node, 750, 1334);
+                    this.slotTitle = UIKit_1.label(this.node, 'SlotTitle', '轿车后备箱 · 7 格', 17, 0, 0);
+                    this.slotTitle.color = paleGold;
+                    this.reserveTitle = UIKit_1.label(this.reserveLayer, 'ReserveTitle', '临时暂存区', 16, 0, 0);
+                    this.reserveTitle.color = new cc_1.Color(255, 224, 175, 190);
+                    this.buttonsLayer = UIKit_1.uiNode('StackActions', this.node, 750, 1334);
+                    this.buttonsArt = this.buttonsLayer.addComponent(cc_1.Graphics);
+                    this.actions.push(this.makeAction('moveOut', '移出'), this.makeAction('undo', '撤回'), this.makeAction('shuffle', '洗牌'));
+                    this.momLayer = UIKit_1.uiNode('MomToast', this.node, 750, 1334);
+                    this.momLayer.active = false;
+                    const bubble = UIKit_1.uiNode('MomBubble', this.momLayer, 430, 96);
+                    const bubbleArt = bubble.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(bubbleArt, cream, -215, -48, 430, 96, 24);
+                    UIKit_1.fill(bubbleArt, paleGold, -207, -40, 414, 80, 18);
+                    this.momBubble = UIKit_1.label(bubble, 'MomText', '妈妈又塞了一件！', 27, 0, 0);
+                    this.momBubble.color = red;
+                    this.momAvatar = UIKit_1.uiNode('MomAvatar', this.momLayer, 122, 122);
+                    const momFallback = this.momAvatar.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(momFallback, red, -55, -55, 110, 110, 55);
+                    UIKit_1.label(this.momAvatar, 'MomFallback', '妈', 46, 0, 0).color = cream;
+                    const momSprite = UIKit_1.uiNode('MomImage', this.momAvatar, 116, 116).addComponent(cc_1.Sprite);
+                    momSprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    momSprite.trim = false;
+                    momSprite.enabled = false;
+                    void OptionalResources_1.loadArt('ui/mom').then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        momSprite.spriteFrame = frame;
+                        momSprite.enabled = true;
+                        momFallback.enabled = false;
+                        this.momAvatar.getChildByName('MomFallback').active = false;
+                    });
+                    this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
+                    cc_1.game.on(cc_1.Game.EVENT_HIDE, this.onHide);
+                    this.debugHook = {
+                        getState: () => this.debugState(),
+                        getClickable: () => this.debugClickable(),
+                        getSolution: () => [...this.level.solution],
+                        getModalButtons: () => this.debugModalButtons(),
+                    };
+                    if (typeof window !== 'undefined') {
+                        window.__stack = Object.freeze(this.debugHook);
+                    }
+                    this.node.once(cc_1.Node.EventType.NODE_DESTROYED, () => {
+                        cc_1.game.off(cc_1.Game.EVENT_HIDE, this.onHide);
+                        if (this.momHideTimer)
+                            clearTimeout(this.momHideTimer);
+                        if (typeof window !== 'undefined' && window.__stack === this.debugHook) {
+                            delete window.__stack;
+                        }
+                    });
+                    this.tick();
+                    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === 'fail') {
+                        this.prefillFailure();
+                        this.refresh();
+                        if (this.game.status === 'lost')
+                            this.openFail();
+                    }
+                }
+                tick() {
+                    const size = cc_1.view.getVisibleSize();
+                    if (size.width !== this.layoutWidth || size.height !== this.layoutHeight) {
+                        this.layoutWidth = size.width;
+                        this.layoutHeight = size.height;
+                        this.height = Math.max(1334, size.height / size.width * 750);
+                        const scale = Math.min(size.width / 750, size.height / this.height);
+                        this.node.setScale(scale, scale, 1);
+                        this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
+                        const safe = cc_1.sys.getSafeAreaRect(false);
+                        const bottom = Math.max(0, safe.y / size.height * this.height);
+                        this.layout(bottom);
+                    }
+                    if (this.finish) {
+                        this.finishView.render(this.finish.advance(Date.now() - this.finishStarted));
+                        return;
+                    }
+                    if (!this.busy && !this.modal && this.game.status === 'playing') {
+                        const added = this.game.tickMom(Date.now());
+                        if (added.length)
+                            this.onMomAdded(added);
+                    }
+                }
+                layout(bottom) {
+                    var _a;
+                    this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
+                    this.actionY = this.height - bottom - 20 - this.actionH;
+                    const bodyH = Math.round(BODY_SIZE.h * this.carScaleY);
+                    const carBottom = this.actionY - 52;
+                    const carTop = carBottom - bodyH;
+                    const holeW = BODY_HOLE.right - BODY_HOLE.left;
+                    this.trunk = {
+                        x: Math.round((BODY_HOLE.left - BODY_SIZE.w / 2) + 375),
+                        y: carTop + Math.round(BODY_HOLE.top * this.carScaleY),
+                        w: holeW,
+                        h: Math.round((BODY_HOLE.bottom - BODY_HOLE.top) * this.carScaleY),
+                    };
+                    this.carRect = { x: 375 - BODY_SIZE.w / 2, y: carTop, w: BODY_SIZE.w, h: bodyH };
+                    this.slotCell = 96;
+                    const gap = 3;
+                    const slotWidth = stack_rules_1.SLOT_CAPACITY * this.slotCell + (stack_rules_1.SLOT_CAPACITY - 1) * gap;
+                    const slotX = Math.round((750 - slotWidth) / 2);
+                    this.slotY = this.trunk.y + Math.round((this.trunk.h - this.slotCell) / 2);
+                    for (let i = 0; i < stack_rules_1.SLOT_CAPACITY; i++) {
+                        this.slotRects[i].x = slotX + i * (this.slotCell + gap);
+                        this.slotRects[i].y = this.slotY;
+                        this.slotRects[i].w = this.slotCell;
+                        this.slotRects[i].h = this.slotCell;
+                    }
+                    this.stageLabel.node.setPosition(-242, this.height / 2 - 61);
+                    this.remainingLabel.node.setPosition(226, this.height / 2 - 61);
+                    this.hud.getChildByName('ModeTitle').setPosition(0, this.height / 2 - 61);
+                    this.hud.getChildByName('Subtitle').setPosition(0, this.height / 2 - 105);
+                    this.slotTitle.node.setPosition(0, this.height / 2 - (this.slotY - 17));
+                    this.reserveTitle.node.setPosition(-235, this.height / 2 - 920);
+                    this.momLayer.getChildByName('MomBubble').setPosition(-58, this.height / 2 - 204);
+                    this.momAvatar.setPosition(285, this.height / 2 - 204);
+                    for (let i = 0; i < this.actions.length; i++) {
+                        const rect = this.actions[i].rect;
+                        rect.x = 44 + i * 222;
+                        rect.y = this.actionY;
+                        rect.w = 210;
+                        rect.h = this.actionH;
+                        this.actions[i].label.node.setPosition(rect.x + rect.w / 2 - 375, this.height / 2 - (rect.y + rect.h / 2));
+                    }
+                    this.layoutBackground();
+                    this.drawCarSlots(this.carRect);
+                    this.drawActions();
+                    this.drawFailButtons();
+                    this.refresh();
+                    (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.layout(this.height);
+                }
+                layoutBackground() {
+                    const scale = Math.max(1, this.height / 1334);
+                    this.bgImage.node.getComponent(cc_1.UITransform).setContentSize(750 * scale, 1334 * scale);
+                    this.bgImage.node.setPosition(0, 0);
+                }
+                rect(g, color, x, y, w, h, r = 0) {
+                    UIKit_1.fill(g, color, x - 375, this.height / 2 - y - h, w, h, r);
+                }
+                stroke(g, color, lineWidth, x, y, w, h, r = 0) {
+                    g.strokeColor = color;
+                    g.lineWidth = lineWidth;
+                    g.roundRect(x - 375, this.height / 2 - y - h, w, h, r);
+                    g.stroke();
+                }
+                drawCarSlots(car) {
+                    const g = this.background;
+                    g.clear();
+                    this.rect(g, new cc_1.Color(17, 10, 20, 45), 0, 0, 750, this.height);
+                    // Festival header.
+                    this.rect(g, new cc_1.Color(45, 19, 29, 232), 32, 14, 686, 118, 26);
+                    this.rect(g, gold, 38, 20, 674, 106, 22);
+                    this.rect(g, new cc_1.Color(144, 31, 39), 46, 28, 658, 90, 18);
+                    this.rect(g, new cc_1.Color(205, 51, 45), 55, 36, 640, 72, 13);
+                    this.rect(g, new cc_1.Color(255, 222, 161, 150), 95, 110, 560, 2, 1);
+                    this.rect(g, new cc_1.Color(255, 224, 165), 302, 25, 146, 4, 2);
+                    // A soft night-market wash makes the pile read as one cargo mountain without boxing it in.
+                    this.rect(g, new cc_1.Color(21, 14, 28, 42), 34, 148, 682, 782, 42);
+                    this.rect(g, new cc_1.Color(255, 194, 102, 24), 74, 792, 602, 190, 44);
+                    this.rect(g, new cc_1.Color(246, 195, 67, 62), 132, 906, 486, 2, 1);
+                    if (!this.carFrames.body) {
+                        this.rect(g, new cc_1.Color(34, 22, 29, 210), car.x, car.y, car.w, Math.min(430, car.h), 54);
+                        this.rect(g, new cc_1.Color(163, 31, 39), car.x + 28, car.y + 86, car.w - 56, 296, 46);
+                        this.rect(g, new cc_1.Color(25, 21, 31), car.x + 158, car.y + 104, car.w - 316, 224, 34);
+                    }
+                    this.drawCarImages();
+                    this.carDetail.clear();
+                    this.drawTrunkDetails();
+                    const slotWidth = (this.slotRects[stack_rules_1.SLOT_CAPACITY - 1].x + this.slotRects[stack_rules_1.SLOT_CAPACITY - 1].w) - this.slotRects[0].x;
+                    const shelfX = this.slotRects[0].x - 13;
+                    const shelfY = this.slotY - 10;
+                    this.rect(this.carDetail, new cc_1.Color(9, 8, 12, 220), shelfX, shelfY, slotWidth + 26, this.slotCell + 20, 16);
+                    this.stroke(this.carDetail, new cc_1.Color(255, 211, 122, 168), 2, shelfX + 2, shelfY + 2, slotWidth + 22, this.slotCell + 16, 14);
+                    for (const slot of this.slotRects) {
+                        this.rect(this.carDetail, new cc_1.Color(39, 31, 32), slot.x, slot.y, slot.w, slot.h, 12);
+                        this.rect(this.carDetail, new cc_1.Color(20, 19, 22), slot.x + 5, slot.y + 5, slot.w - 10, slot.h - 10, 9);
+                        this.stroke(this.carDetail, new cc_1.Color(255, 222, 151, 172), 2, slot.x + 2, slot.y + 2, slot.w - 4, slot.h - 4, 10);
+                        this.rect(this.carDetail, new cc_1.Color(246, 195, 67, 105), slot.x + slot.w * .31, slot.y + slot.h - 11, slot.w * .38, 3, 2);
+                    }
+                    this.rect(this.carDetail, new cc_1.Color(255, 196, 81, 118), this.slotRects[0].x + 24, this.slotY + this.slotCell + 9, slotWidth - 48, 2, 1);
+                }
+                makeImageNode(name, parent) {
+                    const sprite = UIKit_1.uiNode(name, parent, 1, 1).addComponent(cc_1.Sprite);
+                    sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    sprite.trim = false;
+                    sprite.enabled = false;
+                    return sprite;
+                }
+                showImage(sprite, frame, cx, cy, w, h) {
+                    sprite.spriteFrame = frame;
+                    sprite.enabled = true;
+                    sprite.node.getComponent(cc_1.UITransform).setContentSize(w, h);
+                    sprite.node.setPosition(cx - 375, this.height / 2 - cy);
+                }
+                drawCarImages() {
+                    const { body, trunk, lid } = this.carFrames;
+                    if (trunk)
+                        this.showImage(this.trunkImage, trunk, this.trunk.x + this.trunk.w / 2, this.trunk.y + this.trunk.h / 2, this.trunk.w, this.trunk.h);
+                    if (body) {
+                        const frame = body.clone();
+                        frame.insetTop = BODY_SLICE.top;
+                        frame.insetBottom = BODY_SLICE.bottom;
+                        frame.insetLeft = 0;
+                        frame.insetRight = 0;
+                        this.bodyImage.type = cc_1.Sprite.Type.SLICED;
+                        this.showImage(this.bodyImage, frame, this.carRect.x + this.carRect.w / 2, this.carRect.y + this.carRect.h / 2, BODY_SIZE.w, BODY_SIZE.h);
+                        this.bodyImage.node.setScale(1, this.carScaleY, 1);
+                    }
+                    if (lid) {
+                        const lidW = 642, lidH = 132;
+                        this.showImage(this.lidImage, lid, 375, this.carRect.y - 34, lidW, lidH);
+                        this.lidImage.node.setScale(1, 1, 1);
+                        this.lidImage.node.angle = -3;
+                    }
+                }
+                drawTrunkDetails() {
+                    this.rect(this.carDetail, new cc_1.Color(14, 11, 14, 82), this.trunk.x - 4, this.trunk.y - 3, this.trunk.w + 8, this.trunk.h + 6, 18);
+                    this.stroke(this.carDetail, new cc_1.Color(255, 206, 120, 120), 2, this.trunk.x - 2, this.trunk.y - 1, this.trunk.w + 4, this.trunk.h + 2, 15);
+                    this.rect(this.carDetail, new cc_1.Color(8, 6, 9, 112), this.trunk.x + 8, this.trunk.y + 6, this.trunk.w - 16, 20, 9);
+                    const lidBottom = this.carRect.y + 38;
+                    this.carDetail.strokeColor = new cc_1.Color(30, 17, 20, 220);
+                    this.carDetail.lineWidth = 7;
+                    this.carDetail.moveTo(97 - 375, this.height / 2 - (this.carRect.y + 12));
+                    this.carDetail.lineTo(157 - 375, this.height / 2 - lidBottom);
+                    this.carDetail.moveTo(653 - 375, this.height / 2 - (this.carRect.y + 12));
+                    this.carDetail.lineTo(593 - 375, this.height / 2 - lidBottom);
+                    this.carDetail.stroke();
+                    this.carDetail.strokeColor = new cc_1.Color(255, 197, 101, 105);
+                    this.carDetail.lineWidth = 2;
+                    this.carDetail.moveTo(98 - 375, this.height / 2 - (this.carRect.y + 12));
+                    this.carDetail.lineTo(157 - 375, this.height / 2 - lidBottom);
+                    this.carDetail.moveTo(652 - 375, this.height / 2 - (this.carRect.y + 12));
+                    this.carDetail.lineTo(593 - 375, this.height / 2 - lidBottom);
+                    this.carDetail.stroke();
+                }
+                makeAction(key, title) {
+                    const text = UIKit_1.label(this.buttonsLayer, `Action-${key}`, title, 25, 0, 0);
+                    text.color = cream;
+                    return { key, title, rect: { x: 0, y: 0, w: 0, h: 0 }, label: text };
+                }
+                drawActions() {
+                    const g = this.buttonsArt;
+                    g.clear();
+                    for (const action of this.actions) {
+                        const used = this.game.props[action.key];
+                        this.rect(g, used ? new cc_1.Color(69, 61, 63, 220) : new cc_1.Color(86, 28, 37, 238), action.rect.x, action.rect.y, action.rect.w, action.rect.h, 20);
+                        this.stroke(g, used ? gray : gold, 2, action.rect.x + 2, action.rect.y + 2, action.rect.w - 4, action.rect.h - 4, 18);
+                        this.rect(g, used ? new cc_1.Color(109, 99, 101) : new cc_1.Color(255, 213, 132, 90), action.rect.x + 17, action.rect.y + action.rect.h - 15, action.rect.w - 34, 3, 2);
+                        action.label.string = used ? `${action.title} · 已用` : `${action.title} · 1 次`;
+                        action.label.color = used ? new cc_1.Color(185, 177, 169) : paleGold;
+                    }
+                }
+                refresh() {
+                    this.updateHud();
+                    this.updateReserve();
+                    this.syncPile();
+                    this.renderSlot(this.game.slot);
+                    this.drawActions();
+                }
+                updateReserve() {
+                    const reserve = this.game.cards.filter(card => card.source === 'reserve');
+                    this.reserveLayer.active = reserve.length > 0;
+                    if (!reserve.length)
+                        return;
+                    const minX = Math.min(...reserve.map(card => card.x));
+                    const minY = Math.min(...reserve.map(card => card.y));
+                    const maxX = Math.max(...reserve.map(card => card.x + card.w));
+                    const maxY = Math.max(...reserve.map(card => card.y + card.h));
+                    const shelfX = Math.max(20, minX - 12);
+                    const shelfY = minY - 10;
+                    const shelfW = Math.min(710, maxX - minX + 24);
+                    const shelfH = maxY - minY + 20;
+                    this.reserveShelf.clear();
+                    this.rect(this.reserveShelf, new cc_1.Color(35, 22, 31, 214), shelfX, shelfY, shelfW, shelfH, 18);
+                    this.stroke(this.reserveShelf, new cc_1.Color(246, 195, 67, 132), 2, shelfX + 2, shelfY + 2, shelfW - 4, shelfH - 4, 16);
+                    this.reserveTitle.node.setPosition(shelfX + 70 - 375, this.height / 2 - (shelfY - 5));
+                }
+                updateHud() {
+                    this.stageLabel.string = `第 ${this.level.stage} 关`;
+                    this.remainingLabel.string = `剩余 ${this.game.remaining} 件`;
+                }
+                syncPile() {
+                    const active = new Map(this.game.cards.map(card => [card.id, card]));
+                    for (const [id, view] of this.cardViews) {
+                        if (!active.has(id))
+                            view.node.active = false;
+                    }
+                    const sorted = [...this.game.cards].sort((a, b) => a.layer - b.layer || a.id - b.id);
+                    for (let index = 0; index < sorted.length; index++) {
+                        const card = sorted[index];
+                        let view = this.cardViews.get(card.id);
+                        if (!view) {
+                            view = this.makeCardView(card, card.w, this.pileLayer);
+                            this.cardViews.set(card.id, view);
+                            view.born = true;
+                        }
+                        if (view.kind !== card.kind || view.size !== card.w)
+                            this.configureCard(view, card, card.w);
+                        view.node.active = true;
+                        view.node.setSiblingIndex(index);
+                        const center = this.cardCenter(card);
+                        if (view.born) {
+                            view.node.setPosition(center.x, center.y + (card.source === 'mom' ? 120 : 0), 0);
+                            if (card.source === 'mom')
+                                cc_1.tween(view.node).to(0.28, { position: center }, { easing: 'bounceOut' }).start();
+                            view.born = false;
+                        }
+                        else if (!this.busy || card.source !== 'mom') {
+                            view.node.setPosition(center);
+                        }
+                        this.drawDim(view, stack_rules_1.isBlocked(card, this.game.cards));
+                    }
+                }
+                renderSlot(cards) {
+                    for (const view of this.slotViews)
+                        if (view.node.isValid)
+                            view.node.destroy();
+                    this.slotViews = [];
+                    for (let index = 0; index < cards.length && index < stack_rules_1.SLOT_CAPACITY; index++) {
+                        const card = cards[index];
+                        const rect = this.slotRects[index];
+                        const size = Math.max(42, rect.w - 6);
+                        const view = this.makeCardView(card, size, this.slotLayer);
+                        view.node.setPosition(rect.x + rect.w / 2 - 375, this.height / 2 - (rect.y + rect.h / 2));
+                        this.slotViews.push(view);
+                    }
+                }
+                makeCardView(card, size, parent) {
+                    const node = UIKit_1.uiNode(`Card-${card.id}`, parent, size, size);
+                    const art = node.addComponent(cc_1.Graphics);
+                    const sprite = UIKit_1.uiNode('ItemArt', node, size, size).addComponent(cc_1.Sprite);
+                    sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    sprite.trim = false;
+                    sprite.enabled = false;
+                    const fallback = UIKit_1.label(node, 'Fallback', card.name, 17, 0, 0);
+                    fallback.color = ink;
+                    fallback.overflow = cc_1.Label.Overflow.SHRINK;
+                    fallback.node.getComponent(cc_1.UITransform).setContentSize(size * .86, size * .7);
+                    const dim = UIKit_1.uiNode('PressedShade', node, size, size).addComponent(cc_1.Graphics);
+                    const view = { node, art, sprite, fallback, dim, size, kind: '', cardId: card.id, born: false };
+                    this.configureCard(view, card, size);
+                    return view;
+                }
+                configureCard(view, card, size) {
+                    view.size = size;
+                    view.kind = card.kind;
+                    view.cardId = card.id;
+                    view.node.getComponent(cc_1.UITransform).setContentSize(size, size);
+                    view.node.name = `Card-${card.id}-${card.kind}`;
+                    const g = view.art;
+                    g.clear();
+                    const radius = Math.max(9, size * .14);
+                    UIKit_1.fill(g, shadow, -size / 2 + 3, -size / 2 - 5, size, size, radius);
+                    UIKit_1.fill(g, cream, -size / 2, -size / 2, size, size, radius);
+                    UIKit_1.fill(g, new cc_1.Color(255, 235, 195), -size / 2 + 5, -size / 2 + 5, size - 10, size - 10, radius - 3);
+                    g.strokeColor = red;
+                    g.lineWidth = Math.max(2, size * .036);
+                    g.roundRect(-size / 2 + 1, -size / 2 + 1, size - 2, size - 2, radius);
+                    g.stroke();
+                    g.strokeColor = new cc_1.Color(246, 195, 67, 210);
+                    g.lineWidth = 1.3;
+                    g.roundRect(-size / 2 + 5, -size / 2 + 5, size - 10, size - 10, radius - 3);
+                    g.stroke();
+                    view.fallback.string = card.name;
+                    view.fallback.fontSize = Math.max(12, Math.min(18, size * .2));
+                    view.fallback.lineHeight = view.fallback.fontSize + 3;
+                    view.fallback.node.active = true;
+                    view.sprite.enabled = false;
+                    const cached = this.itemFrames.get(card.kind);
+                    if (cached)
+                        this.showItemFrame(view, cached);
+                    else if (!this.itemFrames.has(card.kind)) {
+                        this.itemFrames.set(card.kind, undefined);
+                        void OptionalResources_1.loadArt(`items/${card.kind}`).then(frame => {
+                            if (!frame || !view.node.isValid)
+                                return;
+                            const cropped = cropItemFrame(card.kind, frame);
+                            this.itemFrames.set(card.kind, cropped);
+                            for (const candidate of this.cardViews.values())
+                                if (candidate.kind === card.kind)
+                                    this.showItemFrame(candidate, cropped);
+                            for (const candidate of this.slotViews)
+                                if (candidate.kind === card.kind)
+                                    this.showItemFrame(candidate, cropped);
+                        });
+                    }
+                }
+                showItemFrame(view, frame) {
+                    if (!view.node.isValid)
+                        return;
+                    const max = view.size * .84;
+                    const ratio = frame.width / frame.height;
+                    const w = ratio >= 1 ? max : max * ratio;
+                    const h = ratio >= 1 ? max / ratio : max;
+                    view.sprite.node.getComponent(cc_1.UITransform).setContentSize(w, h);
+                    view.sprite.spriteFrame = frame;
+                    view.sprite.enabled = true;
+                    view.fallback.node.active = false;
+                }
+                drawDim(view, blocked) {
+                    const g = view.dim;
+                    g.clear();
+                    if (!blocked)
+                        return;
+                    UIKit_1.fill(g, blockedShade, -view.size / 2 + 2, -view.size / 2 + 2, view.size - 4, view.size - 4, Math.max(8, view.size * .13));
+                }
+                cardCenter(card) {
+                    return new cc_1.Vec3(card.x + card.w / 2 - 375, this.height / 2 - (card.y + card.h / 2), 0);
+                }
+                touch(event) {
+                    var _a;
+                    const p = this.point(event);
+                    if (this.finish) {
+                        (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.press(p.x, p.y);
+                        return;
+                    }
+                    if (this.modal === 'fail') {
+                        for (const button of this.failButtons) {
+                            if (!contains(button.rect, p.x, p.y))
+                                continue;
+                            if (button.action === 'revive')
+                                this.revive();
+                            else
+                                this.onAction('replay');
+                            return;
+                        }
+                        return;
+                    }
+                    if (this.busy || this.game.status !== 'playing')
+                        return;
+                    for (const action of this.actions) {
+                        if (!contains(action.rect, p.x, p.y))
+                            continue;
+                        this.useAction(action.key);
+                        return;
+                    }
+                    const hit = stack_rules_1.topCardAt(this.game.cards, p.x, p.y);
+                    if (!hit)
+                        return;
+                    if (!this.game.canTap(hit.id)) {
+                        this.sounds.play('invalid');
+                        return;
+                    }
+                    this.tapCard(hit.id);
+                }
+                point(event) {
+                    const p = event.getUILocation();
+                    this.touchWorld.set(p.x, p.y, 0);
+                    const local = this.node.getComponent(cc_1.UITransform).convertToNodeSpaceAR(this.touchWorld, this.touchLocal);
+                    this.touchPoint.x = local.x + 375;
+                    this.touchPoint.y = this.height / 2 - local.y;
+                    return this.touchPoint;
+                }
+                tapCard(id) {
+                    const result = this.game.tap(id, Date.now());
+                    if (!result.ok || !result.card) {
+                        this.sounds.play('invalid');
+                        return;
+                    }
+                    this.busy = true;
+                    this.sounds.play('pickup');
+                    const flyer = this.makeCardView(result.card, result.card.w, this.fxLayer);
+                    flyer.node.setPosition(this.cardCenter(result.card));
+                    const targetIndex = Math.min(result.insertIndex, stack_rules_1.SLOT_CAPACITY - 1);
+                    const slot = this.slotRects[targetIndex];
+                    const target = new cc_1.Vec3(slot.x + slot.w / 2 - 375, this.height / 2 - (slot.y + slot.h / 2), 0);
+                    const scale = Math.max(.35, (slot.w - 6) / result.card.w);
+                    this.syncPile();
+                    this.updateHud();
+                    cc_1.tween(flyer.node).to(.2, { position: target, scale: new cc_1.Vec3(scale, scale, 1) }, { easing: 'quadOut' }).call(() => {
+                        if (flyer.node.isValid)
+                            flyer.node.destroy();
+                        if (result.packed.length === stack_rules_1.PACK_SIZE)
+                            this.playPack(result);
+                        else
+                            this.finishTap(result);
+                    }).start();
+                }
+                playPack(result) {
+                    this.renderSlot(result.slotBeforePack);
+                    this.sounds.play('pack');
+                    const packed = new Set(result.packed.map(card => card.id));
+                    const views = this.slotViews.filter(view => packed.has(view.cardId));
+                    const first = views[0];
+                    if (!first) {
+                        this.finishTap(result);
+                        return;
+                    }
+                    const center = first.node.position.clone();
+                    const start = views.map(view => view.node.position.clone());
+                    setTimeout(() => {
+                        if (!this.node.isValid)
+                            return;
+                        for (let i = 0; i < views.length; i++) {
+                            const view = views[i];
+                            cc_1.tween(view.node).to(.24, { position: center, scale: new cc_1.Vec3(.58, .58, 1), angle: i === 0 ? -8 : i === 2 ? 8 : 0 }, { easing: 'quadIn' }).start();
+                        }
+                        setTimeout(() => {
+                            if (!this.node.isValid)
+                                return;
+                            for (let i = 0; i < views.length; i++)
+                                views[i].node.setPosition(start[i]);
+                            this.showPackedBox(center, () => this.finishTap(result));
+                        }, 250);
+                    }, 80);
+                }
+                showPackedBox(at, onDone) {
+                    for (const view of this.slotViews)
+                        view.node.active = false;
+                    const box = UIKit_1.uiNode('PackedBox', this.fxLayer, 132, 104);
+                    box.setPosition(at.x, at.y, 20);
+                    const g = box.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(g, new cc_1.Color(33, 18, 17, 80), -62, -48, 128, 92, 10);
+                    UIKit_1.fill(g, new cc_1.Color(222, 177, 104), -60, -45, 120, 88, 8);
+                    UIKit_1.fill(g, new cc_1.Color(247, 213, 153), -55, -40, 110, 78, 6);
+                    UIKit_1.fill(g, new cc_1.Color(184, 40, 40), -55, -8, 110, 20, 3);
+                    g.strokeColor = new cc_1.Color(114, 56, 33);
+                    g.lineWidth = 2;
+                    g.roundRect(-60, -45, 120, 88, 8);
+                    g.stroke();
+                    UIKit_1.fill(g, gold, -8, -16, 16, 38, 4);
+                    const seal = UIKit_1.label(box, 'Fu', '福', 42, 0, 7);
+                    seal.color = cream;
+                    box.setScale(.42, .42, 1);
+                    cc_1.tween(box).to(.18, { scale: new cc_1.Vec3(1.06, 1.06, 1) }, { easing: 'backOut' }).to(.08, { scale: new cc_1.Vec3(1, 1, 1) }).start();
+                    setTimeout(() => {
+                        if (!box.isValid) {
+                            onDone();
+                            return;
+                        }
+                        cc_1.tween(box).to(.34, { position: new cc_1.Vec3(at.x, at.y + 118, 20), scale: new cc_1.Vec3(.36, .36, 1) }, { easing: 'quadIn' }).call(() => {
+                            if (box.isValid)
+                                box.destroy();
+                            onDone();
+                        }).start();
+                    }, 360);
+                }
+                finishTap(result) {
+                    this.busy = false;
+                    this.refresh();
+                    if (result.status === 'lost')
+                        this.openFail();
+                    else if (result.status === 'won')
+                        this.beginFinish();
+                }
+                useAction(key) {
+                    if (key === 'moveOut') {
+                        const moved = this.game.useMoveOut();
+                        if (moved.length)
+                            this.sounds.play('drop');
+                    }
+                    else if (key === 'undo') {
+                        if (this.game.useUndo())
+                            this.sounds.play('undo');
+                    }
+                    else if (this.game.useShuffle()) {
+                        this.sounds.play('drop');
+                    }
+                    this.refresh();
+                }
+                prefillFailure() {
+                    var _a;
+                    let guard = 0;
+                    while (this.game.status === 'playing' && this.game.slot.length < stack_rules_1.SLOT_CAPACITY && guard++ < 100) {
+                        const free = this.game.cards.filter(card => this.game.canTap(card.id));
+                        const target = (_a = free.find(card => this.game.slot.filter(item => item.kind === card.kind).length === 0)) !== null && _a !== void 0 ? _a : free.find(card => this.game.slot.filter(item => item.kind === card.kind).length === 1);
+                        if (!target)
+                            break;
+                        this.game.tap(target.id, Date.now());
+                    }
+                }
+                openFail() {
+                    var _a;
+                    this.modal = 'fail';
+                    (_a = this.failLayer) === null || _a === void 0 ? void 0 : _a.destroy();
+                    this.failLayer = undefined;
+                    this.failButtons.length = 0;
+                    const layer = UIKit_1.uiNode('TrunkOverflow', this.node, 750, this.height);
+                    this.failLayer = layer;
+                    const g = layer.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(g, new cc_1.Color(20, 12, 18, 176), -375, -this.height / 2, 750, this.height);
+                    UIKit_1.fill(g, new cc_1.Color(61, 18, 26, 245), -300, -300, 600, 600, 34);
+                    UIKit_1.fill(g, gold, -292, -292, 584, 584, 29);
+                    UIKit_1.fill(g, new cc_1.Color(176, 34, 42), -284, -284, 568, 568, 24);
+                    UIKit_1.fill(g, new cc_1.Color(199, 48, 47, 170), -260, -218, 520, 170, 22);
+                    const title = UIKit_1.label(layer, 'OverflowTitle', '后备箱塞爆了', 46, 0, 236);
+                    title.color = gold;
+                    const hint = UIKit_1.label(layer, 'OverflowHint', '7 格全满，还差一件同款年货', 22, 0, 190);
+                    hint.color = cream;
+                    this.drawOverflowCar(layer);
+                    const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -126);
+                    const restart = this.failButton(layer, 'restart', '重来', -218);
+                    this.failButtons.push(revive, restart);
+                    this.sounds.play('invalid');
+                    this.refreshFailButtons();
+                }
+                drawOverflowCar(parent) {
+                    var _a, _b;
+                    (_a = parent.getChildByName('OverflowCar')) === null || _a === void 0 ? void 0 : _a.destroy();
+                    const car = UIKit_1.uiNode('OverflowCar', parent, 290, 200);
+                    car.setPosition(0, 30);
+                    const fallbackNode = UIKit_1.uiNode('OverflowFrame', car, 290, 200);
+                    const fallback = fallbackNode.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(fallback, new cc_1.Color(30, 14, 18, 80), -132, -88, 264, 166, 28);
+                    UIKit_1.fill(fallback, new cc_1.Color(132, 30, 34), -129, -84, 258, 158, 26);
+                    UIKit_1.fill(fallback, new cc_1.Color(22, 18, 23), -91, -49, 182, 87, 16);
+                    const body = this.makeImageNode('OverflowBody', car);
+                    if (this.carFrames.body) {
+                        body.spriteFrame = this.carFrames.body;
+                        body.enabled = true;
+                        body.node.getComponent(cc_1.UITransform).setContentSize(252, 158);
+                        body.node.setPosition(0, -8);
+                    }
+                    const lid = this.makeImageNode('OverflowLid', car);
+                    if (this.carFrames.lid) {
+                        lid.spriteFrame = this.carFrames.lid;
+                        lid.enabled = true;
+                        lid.node.getComponent(cc_1.UITransform).setContentSize(238, 76);
+                        lid.node.setPosition(0, 54);
+                        lid.node.angle = -7;
+                    }
+                    const items = this.level.items.slice(0, 3);
+                    for (let index = 0; index < items.length; index++) {
+                        const item = items[index];
+                        const node = UIKit_1.uiNode(`OverflowItem-${index}`, car, 42, 42);
+                        node.setPosition((index - 1) * 54, (_b = [58, 78, 52][index]) !== null && _b !== void 0 ? _b : 58);
+                        node.angle = (index - 1) * 10;
+                        const art = node.addComponent(cc_1.Graphics);
+                        UIKit_1.fill(art, cream, -21, -21, 42, 42, 9);
+                        art.strokeColor = gold;
+                        art.lineWidth = 2;
+                        art.roundRect(-20, -20, 40, 40, 8);
+                        art.stroke();
+                        const sprite = this.makeImageNode('Art', node);
+                        sprite.node.getComponent(cc_1.UITransform).setContentSize(34, 34);
+                        sprite.node.setPosition(0, 0);
+                        const frame = this.itemFrames.get(item.key);
+                        if (frame) {
+                            sprite.spriteFrame = frame;
+                            sprite.enabled = true;
+                        }
+                        else {
+                            void OptionalResources_1.loadArt(`items/${item.key}`).then(loaded => {
+                                if (!loaded || !node.isValid)
+                                    return;
+                                const cropped = cropItemFrame(item.key, loaded);
+                                this.itemFrames.set(item.key, cropped);
+                                sprite.spriteFrame = cropped;
+                                sprite.enabled = true;
+                                for (const candidate of this.cardViews.values())
+                                    if (candidate.kind === item.key)
+                                        this.showItemFrame(candidate, cropped);
+                            });
+                        }
+                    }
+                }
+                failButton(parent, action, title, localY) {
+                    const rect = { x: 150, y: this.height / 2 - localY - 35, w: 450, h: 70 };
+                    const text = UIKit_1.label(parent, `Fail-${action}`, title, 29, 0, localY);
+                    text.color = action === 'revive' ? ink : paleGold;
+                    return { action, title, rect, label: text };
+                }
+                refreshFailButtons() {
+                    var _a;
+                    if (!((_a = this.failLayer) === null || _a === void 0 ? void 0 : _a.isValid))
+                        return;
+                    const g = this.failLayer.getComponent(cc_1.Graphics);
+                    for (const button of this.failButtons) {
+                        UIKit_1.fill(g, button.action === 'revive' ? gold : deep, button.rect.x - 375, this.height / 2 - button.rect.y - button.rect.h, button.rect.w, button.rect.h, 20);
+                        if (button.action !== 'revive') {
+                            g.strokeColor = gold;
+                            g.lineWidth = 2;
+                            g.roundRect(button.rect.x - 375 + 2, this.height / 2 - button.rect.y - button.rect.h + 2, button.rect.w - 4, button.rect.h - 4, 18);
+                            g.stroke();
+                        }
+                    }
+                }
+                drawFailButtons() {
+                    if (this.failLayer)
+                        this.refreshFailButtons();
+                }
+                revive() {
+                    var _a;
+                    const moved = this.game.revive();
+                    if (!moved.length)
+                        return;
+                    this.modal = undefined;
+                    (_a = this.failLayer) === null || _a === void 0 ? void 0 : _a.destroy();
+                    this.failLayer = undefined;
+                    this.failButtons.length = 0;
+                    this.sounds.play('drop');
+                    this.refresh();
+                }
+                beginFinish() {
+                    if (this.finish)
+                        return;
+                    this.busy = true;
+                    this.sounds.play('cheer');
+                    this.finishStarted = Date.now();
+                    this.finish = new FinishTimeline_1.FinishPlayback(cue => {
+                        this.sounds.play(cue.sound);
+                        if (cue.vibration && typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+                            try {
+                                navigator.vibrate(cue.vibration);
+                            }
+                            catch ( /* Optional vibration: silent. */_a) { /* Optional vibration: silent. */ }
+                        }
+                    });
+                    const choices = this.level.stage === 1
+                        ? [{ title: '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }]
+                        : [{ title: '再来一次', action: 'replay' }, { title: '回第 1 关', action: 'first' }];
+                    const elapsedSec = Math.max(1, Math.round((Date.now() - this.startedAt) / 1000));
+                    this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, { elapsedSec, boxes: this.game.clearedGroups }, action => this.mapFinish(action));
+                    this.finishView.layout(this.height);
+                    this.finishView.render(this.finish.state);
+                }
+                mapFinish(action) {
+                    if (action === 'next')
+                        this.onAction('next');
+                    else if (action === 'first')
+                        this.onAction('first');
+                    else
+                        this.onAction('replay');
+                }
+                onMomAdded(added) {
+                    if (!added.length)
+                        return;
+                    this.sounds.play('mom');
+                    this.refresh();
+                    this.momLayer.active = true;
+                    this.momBubble.string = '妈妈又塞了一件！';
+                    if (this.momHideTimer)
+                        clearTimeout(this.momHideTimer);
+                    this.momHideTimer = setTimeout(() => { if (this.node.isValid)
+                        this.momLayer.active = false; }, 2300);
+                }
+                debugClickable() {
+                    const size = cc_1.view.getVisibleSize();
+                    const screenWidth = typeof window === 'undefined' ? size.width : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? size.height : window.innerHeight;
+                    return this.game.cards
+                        .filter(card => this.game.canTap(card.id))
+                        .sort((a, b) => b.layer - a.layer)
+                        .map(card => ({
+                        id: card.id,
+                        kind: card.kind,
+                        name: card.name,
+                        screenX: (card.x + card.w / 2) / size.width * screenWidth,
+                        screenY: (card.y + card.h / 2) / this.height * screenHeight,
+                    }));
+                }
+                debugState() {
+                    var _a;
+                    return {
+                        stage: this.level.stage,
+                        status: this.game.status,
+                        remaining: this.game.remaining,
+                        modal: (_a = this.modal) !== null && _a !== void 0 ? _a : null,
+                        busy: this.busy,
+                        finishing: !!this.finish,
+                        slot: this.game.slot.map(card => ({ id: card.id, kind: card.kind, name: card.name })),
+                        props: this.game.props,
+                        clickable: this.debugClickable(),
+                    };
+                }
+                debugModalButtons() {
+                    if (this.modal !== 'fail')
+                        return [];
+                    const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    return this.failButtons.map(button => ({
+                        action: button.action,
+                        screenX: (button.rect.x + button.rect.w / 2) / 750 * screenWidth,
+                        screenY: (button.rect.y + button.rect.h / 2) / this.height * screenHeight,
+                    }));
+                }
+            };
+            exports_1("StackPage", StackPage);
         }
     };
 });
@@ -2587,6 +4107,10 @@ System.register("chunks:///_virtual/WebPlatform.ts", [], function (exports_1, co
             WebPlatform = class WebPlatform {
                 now() { return Date.now(); }
                 isMomMode() { return new URLSearchParams(window.location.search).get('mode') === 'mom'; }
+                isStackMode() { return new URLSearchParams(window.location.search).get('mode') === 'stack'; }
+                stackStage() {
+                    return new URLSearchParams(window.location.search).get('stage') === '2' ? 2 : 1;
+                }
                 hasLevelOverride() { return new URLSearchParams(window.location.search).has('level'); }
                 levelFilename() {
                     var _a;
@@ -2702,7 +4226,7 @@ System.register("chunks:///_virtual/OptionalResources.ts", ["cc"], function (exp
             // Resource paths omit extensions. Cocos imports PNG frames as <name>/spriteFrame.
             // Missing entries are checked before load so absent optional assets do not log errors.
             images = new Map();
-            exports_1("AUDIO_NAMES", AUDIO_NAMES = ['pickup', 'drop', 'invalid', 'rotate', 'undo', 'tick', 'trunk_slam', 'horn', 'cheer', 'mom']);
+            exports_1("AUDIO_NAMES", AUDIO_NAMES = ['pickup', 'drop', 'invalid', 'rotate', 'undo', 'tick', 'trunk_slam', 'horn', 'cheer', 'mom', 'pack']);
             audio = new Map();
         }
     };
@@ -2785,8 +4309,9 @@ System.register("chunks:///_virtual/FinishView.ts", ["cc","./FinishTimeline.ts",
             confettiColors = [gold, bright, pale, new cc_1.Color(255, 136, 107)];
             /** Allocates its nodes once on clear; render mutates existing states and nodes only. */
             FinishView = class FinishView {
-                constructor(parent, stage, onAction) {
+                constructor(parent, stage, onAction, choices = FinishTimeline_1.finishButtons(stage)) {
                     this.onAction = onAction;
+                    this.choices = choices;
                     this.pool = FinishTimeline_1.createConfettiPool();
                     this.particles = [];
                     this.buttonRects = [];
@@ -2795,7 +4320,6 @@ System.register("chunks:///_virtual/FinishView.ts", ["cc","./FinishTimeline.ts",
                     this.lidHeight = 0;
                     this.lightsOn = false;
                     this.node = UIKit_1.uiNode('Finish', parent, 750, 1334);
-                    this.choices = FinishTimeline_1.finishButtons(stage);
                     this.backdrop = UIKit_1.uiNode('HomewardNight', this.node, 750, 1334);
                     this.backdrop.addComponent(cc_1.Graphics);
                     this.car = UIKit_1.uiNode('LoadedCar', this.node, 700, 600);
@@ -2853,7 +4377,7 @@ System.register("chunks:///_virtual/FinishView.ts", ["cc","./FinishTimeline.ts",
                     UIKit_1.label(this.node, 'SkipHint', '轻点屏幕 · 立即出发', 23, 0, -600).color = gold;
                     this.node.once(cc_1.Node.EventType.NODE_DESTROYED, () => FinishTimeline_1.updateConfetti(this.pool, 2500, 750, this.height));
                 }
-                layout(height, board) {
+                layout(height, board, headlineLift = 0) {
                     this.height = height;
                     this.node.getComponent(cc_1.UITransform).setContentSize(750, height);
                     this.carY = height / 2 - board.y - board.h / 2;
@@ -2888,7 +4412,7 @@ System.register("chunks:///_virtual/FinishView.ts", ["cc","./FinishTimeline.ts",
                     UIKit_1.fill(bg, gold, 349, -height / 2 + 32, 3, height - 304);
                     for (let i = 0; i < 5; i++)
                         UIKit_1.fill(bg, new cc_1.Color(224, 91, 62), -7, -height / 2 + 80 + i * 95, 14, 44, 4);
-                    this.headline.setPosition(0, -110);
+                    this.headline.setPosition(0, -110 + headlineLift);
                     this.actions.setPosition(0, -height / 2 + 330);
                     this.buttonRects.length = 0;
                     for (let i = 0; i < this.choices.length; i++)
@@ -3322,6 +4846,218 @@ System.register("chunks:///_virtual/JourneyArt.ts", ["cc","./UIKit.ts"], functio
     };
 });
 
+System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, UIKit_1, red, darkRed, gold, pale, ink, night, StackFinishView, BODY_HOLE;
+    var __moduleName = context_1 && context_1.id;
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (FinishTimeline_1_1) {
+                FinishTimeline_1 = FinishTimeline_1_1;
+            },
+            function (InteractionGeometry_1_1) {
+                InteractionGeometry_1 = InteractionGeometry_1_1;
+            },
+            function (OptionalResources_1_1) {
+                OptionalResources_1 = OptionalResources_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            }
+        ],
+        execute: function () {
+            red = new cc_1.Color(188, 34, 43);
+            darkRed = new cc_1.Color(83, 22, 29);
+            gold = new cc_1.Color(255, 207, 111);
+            pale = new cc_1.Color(255, 242, 208);
+            ink = new cc_1.Color(63, 29, 24);
+            night = new cc_1.Color(12, 15, 34, 150);
+            /** Stack-mode celebration: the night backdrop stays visible while the loaded car closes up and drives away. */
+            StackFinishView = class StackFinishView {
+                constructor(parent, choices, stats, onAction) {
+                    this.choices = choices;
+                    this.stats = stats;
+                    this.onAction = onAction;
+                    this.buttons = [];
+                    this.height = 1334;
+                    this.ready = false;
+                    this.node = UIKit_1.uiNode('StackFinish', parent, 750, 1334);
+                    this.backdrop = UIKit_1.uiNode('NightBackdrop', this.node, 750, 1334).addComponent(cc_1.Sprite);
+                    this.backdrop.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    this.backdrop.trim = false;
+                    this.backdrop.enabled = false;
+                    void OptionalResources_1.loadArt('ui/bg_night').then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        this.backdrop.spriteFrame = frame;
+                        this.backdrop.enabled = true;
+                        this.layout(this.height);
+                    });
+                    this.wash = UIKit_1.uiNode('NightWash', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    this.car = UIKit_1.uiNode('HomewardCar', this.node, 760, 520);
+                    this.carFallback = UIKit_1.uiNode('CarFallback', this.car, 760, 520).addComponent(cc_1.Graphics);
+                    this.trunkImage = this.imageNode('TrunkWell', this.car);
+                    this.bodyImage = this.imageNode('CarBody', this.car);
+                    this.lidImage = this.imageNode('TrunkLid', this.car);
+                    void Promise.all([
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_lid'),
+                    ]).then(([body, trunk, lid]) => {
+                        if (!this.node.isValid)
+                            return;
+                        if (trunk) {
+                            this.trunkImage.spriteFrame = trunk;
+                            this.trunkImage.enabled = true;
+                        }
+                        if (body) {
+                            this.bodyImage.spriteFrame = body;
+                            this.bodyImage.enabled = true;
+                            this.carFallback.enabled = false;
+                        }
+                        if (lid) {
+                            this.lidImage.spriteFrame = lid;
+                            this.lidImage.enabled = true;
+                        }
+                        this.ready = true;
+                        this.layout(this.height);
+                        if (this.state)
+                            this.render(this.state);
+                    });
+                    this.headline = UIKit_1.uiNode('HomeBanner', this.node, 750, 230);
+                    const banner = this.headline.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(banner, new cc_1.Color(90, 23, 29, 232), -330, -63, 660, 126, 28);
+                    UIKit_1.fill(banner, gold, -322, -55, 644, 110, 23);
+                    UIKit_1.fill(banner, red, -315, -48, 630, 96, 19);
+                    UIKit_1.label(this.headline, 'FinishTitle', '塞满了！回家！', 58, 0, 6).color = pale;
+                    this.statsLabel = UIKit_1.uiNode('FinishStats', this.node, 700, 92);
+                    const statsBg = this.statsLabel.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(statsBg, new cc_1.Color(112, 25, 32, 245), -290, -35, 580, 70, 24);
+                    statsBg.strokeColor = new cc_1.Color(255, 207, 111, 190);
+                    statsBg.lineWidth = 2;
+                    statsBg.roundRect(-288, -33, 576, 66, 22);
+                    statsBg.stroke();
+                    UIKit_1.fill(statsBg, new cc_1.Color(255, 219, 145, 46), -280, -27, 560, 54, 18);
+                    UIKit_1.label(this.statsLabel, 'StatsText', this.statsText(), 26, 0, 0).color = pale;
+                    this.actions = UIKit_1.uiNode('FinishActions', this.node, 750, 320);
+                    this.actionArt = this.actions.addComponent(cc_1.Graphics);
+                    for (let index = 0; index < choices.length; index++) {
+                        const choice = choices[index];
+                        const text = UIKit_1.label(this.actions, `FinishButton${index}`, choice.title, 30, 0, 0);
+                        text.color = index === 0 ? ink : gold;
+                        this.buttons.push({ action: choice.action, rect: { x: 125, y: 0, w: 500, h: 74 }, label: text.node });
+                    }
+                    UIKit_1.label(this.node, 'SkipHint', '轻点屏幕 · 立即出发', 22, 0, 0).color = gold;
+                    this.layout(this.height);
+                }
+                layout(height) {
+                    this.height = height;
+                    this.node.getComponent(cc_1.UITransform).setContentSize(750, height);
+                    const scale = Math.max(1, height / 1334);
+                    this.backdrop.node.getComponent(cc_1.UITransform).setContentSize(750 * scale, 1334 * scale);
+                    this.backdrop.node.setPosition(0, 0);
+                    this.wash.clear();
+                    UIKit_1.fill(this.wash, night, -375, -height / 2, 750, height, 0);
+                    this.drawCarFallback();
+                    this.headline.setPosition(0, height / 2 - 238);
+                    this.statsLabel.setPosition(0, height / 2 - 374);
+                    this.actions.setPosition(0, -height / 2 + 205);
+                    this.actionArt.clear();
+                    const baseY = 68;
+                    for (let index = 0; index < this.buttons.length; index++) {
+                        const button = this.buttons[index];
+                        button.rect.y = height - 310 + index * 92;
+                        const localY = baseY - index * 92;
+                        button.label.setPosition(0, localY);
+                        UIKit_1.fill(this.actionArt, index === 0 ? gold : darkRed, -250, localY - 37, 500, 74, 22);
+                        if (index !== 0) {
+                            this.actionArt.strokeColor = gold;
+                            this.actionArt.lineWidth = 2;
+                            this.actionArt.roundRect(-248, localY - 35, 496, 70, 20);
+                            this.actionArt.stroke();
+                        }
+                    }
+                    this.node.getChildByName('SkipHint').setPosition(0, -height / 2 + 100);
+                    this.setupCar();
+                    if (this.state)
+                        this.render(this.state);
+                }
+                render(state) {
+                    this.state = state;
+                    const drive = Math.max(0, Math.min(1, (state.time - 1050) / (FinishTimeline_1.FINISH_DURATION - 1050)));
+                    const carScale = .96 - .52 * drive;
+                    this.car.setScale(carScale, carScale, 1);
+                    this.car.setPosition(0, -this.height * .18 + this.height * .135 * drive);
+                    this.lidImage.node.setPosition(0, -39 + (1 - state.lidProgress) * 180);
+                    this.lidImage.node.setScale(1, .56 + state.lidProgress * .44, 1);
+                    this.headline.active = state.celebration;
+                    this.statsLabel.active = state.celebration;
+                    this.actions.active = state.buttons;
+                    this.node.getChildByName('SkipHint').active = !state.buttons;
+                }
+                press(x, y) {
+                    var _a;
+                    if (!((_a = this.state) === null || _a === void 0 ? void 0 : _a.buttons))
+                        return;
+                    for (const button of this.buttons) {
+                        if (InteractionGeometry_1.inRect({ x, y }, button.rect)) {
+                            this.onAction(button.action);
+                            return;
+                        }
+                    }
+                }
+                imageNode(name, parent) {
+                    const sprite = UIKit_1.uiNode(name, parent, 1, 1).addComponent(cc_1.Sprite);
+                    sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    sprite.trim = false;
+                    sprite.enabled = false;
+                    return sprite;
+                }
+                setupCar() {
+                    var _a, _b, _c, _d;
+                    const bodyW = 720, bodyH = 450;
+                    const holeX = Math.round(BODY_HOLE.left / 1024 * bodyW);
+                    const holeY = Math.round(BODY_HOLE.top / 640 * bodyH - bodyH / 2);
+                    const holeW = Math.round((BODY_HOLE.right - BODY_HOLE.left) / 1024 * bodyW);
+                    const holeH = Math.round((BODY_HOLE.bottom - BODY_HOLE.top) / 640 * bodyH);
+                    this.show(this.bodyImage, 0, 0, bodyW, bodyH);
+                    this.show(this.trunkImage, 0, holeY + holeH / 2, holeW, holeH);
+                    this.show(this.lidImage, 0, holeY + holeH / 2 + (1 - ((_b = (_a = this.state) === null || _a === void 0 ? void 0 : _a.lidProgress) !== null && _b !== void 0 ? _b : 0)) * 180, holeW, holeH);
+                    this.lidImage.node.setScale(1, .56 + ((_d = (_c = this.state) === null || _c === void 0 ? void 0 : _c.lidProgress) !== null && _d !== void 0 ? _d : 0) * .44, 1);
+                    this.car.setScale(.98, .98, 1);
+                    this.car.setPosition(0, -this.height * .18);
+                }
+                drawCarFallback() {
+                    const g = this.carFallback;
+                    g.clear();
+                    UIKit_1.fill(g, new cc_1.Color(20, 13, 24, 95), -345, -235, 690, 480, 54);
+                    UIKit_1.fill(g, red, -350, -225, 700, 450, 64);
+                    UIKit_1.fill(g, darkRed, -248, -134, 496, 244, 42);
+                    UIKit_1.fill(g, new cc_1.Color(25, 21, 33), -232, -121, 464, 214, 34);
+                    UIKit_1.fill(g, new cc_1.Color(255, 176, 68), -324, -83, 72, 38, 12);
+                    UIKit_1.fill(g, new cc_1.Color(255, 176, 68), 252, -83, 72, 38, 12);
+                }
+                show(sprite, x, y, width, height) {
+                    sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
+                    sprite.node.setPosition(x, y);
+                    sprite.enabled = !!sprite.spriteFrame;
+                }
+                statsText() {
+                    const minutes = Math.floor(this.stats.elapsedSec / 60);
+                    const seconds = this.stats.elapsedSec % 60;
+                    const time = minutes > 0 ? `${minutes} 分 ${String(seconds).padStart(2, '0')} 秒` : `${seconds} 秒`;
+                    return `用时 ${time}  ·  打包 ${this.stats.boxes} 箱`;
+                }
+            };
+            exports_1("StackFinishView", StackFinishView);
+            BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 };
+        }
+    };
+});
+
 System.register("chunks:///_virtual/StageArt.ts", ["cc","./items.ts"], function (exports_1, context_1) {
     "use strict";
     var cc_1, items_1, looks, fallback, shorts;
@@ -3704,8 +5440,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-rules.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
