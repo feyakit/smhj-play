@@ -213,6 +213,865 @@ System.register("chunks:///_virtual/brand.ts", [], function (exports_1, context_
     };
 });
 
+System.register("chunks:///_virtual/stack-music.ts", ["./synth.ts"], function (exports_1, context_1) {
+    "use strict";
+    var synth_1, BGM_BPM, BGM_BEATS_PER_BAR, BGM_BARS, BGM_BEAT_SECONDS, BGM_BAR_SECONDS, BGM_LOOP_SECONDS, BGM_SCALE, BGM_FORM, BGM_MELODY, BASS_ROOTS;
+    var __moduleName = context_1 && context_1.id;
+    function noteFrequency(note) {
+        return synth_1.midiToFrequency(synth_1.noteToMidi(note));
+    }
+    function addSuonaNote(buffer, sampleRate, start, duration, note, slide, random) {
+        const frequency = noteFrequency(note);
+        const attack = Math.min(0.035, duration * 0.28);
+        const release = Math.min(0.11, Math.max(0.035, duration * 0.32));
+        const vibratoRate = 5.3 + random() * 1.2;
+        const vibratoCents = 6 + random() * 4;
+        const scoop = slide ? frequency * Math.pow(2, -2 / 12) : frequency;
+        const glide = slide ? Math.min(0.075, duration * 0.35) : undefined;
+        const startAt = start + 0.012;
+        synth_1.addTone(buffer, sampleRate, {
+            start: startAt, duration, gain: 0.16, frequency: scoop, endFrequency: frequency, glideSeconds: glide,
+            wave: 'sawtooth', attack, release, vibratoRate, vibratoCents, vibratoDelay: 0.09, loop: true,
+            filter: { kind: 'bandpass', frequency: 1480, q: 0.92, mix: 0.78 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: startAt, duration, gain: 0.052, frequency: scoop * 1.004, endFrequency: frequency * 1.004,
+            glideSeconds: glide, wave: 'square', attack, release, vibratoRate: vibratoRate * 1.013,
+            vibratoCents, vibratoDelay: 0.09, phaseOffset: 0.17, loop: true,
+            filter: { kind: 'bandpass', frequency: 1820, q: 1.1, mix: 0.64 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: startAt, duration, gain: 0.032, frequency: scoop, endFrequency: frequency, glideSeconds: glide,
+            wave: 'sawtooth', attack, release, vibratoRate, vibratoCents, vibratoDelay: 0.09, loop: true,
+        });
+    }
+    function addGong(buffer, sampleRate, start, gain) {
+        const base = 105;
+        const ratios = [1, 1.47, 2.09, 2.72, 3.91, 5.17];
+        const levels = [1, 0.62, 0.43, 0.29, 0.19, 0.11];
+        const decays = [2.9, 2.4, 1.9, 1.45, 0.95, 0.62];
+        for (let index = 0; index < ratios.length; index++) {
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 3.6, gain: gain * levels[index], frequency: base * ratios[index],
+                wave: 'sine', attack: 0.005, decay: decays[index], release: 0.18, loop: true,
+            });
+        }
+        synth_1.addNoise(buffer, sampleRate, {
+            start, duration: 0.2, gain: gain * 0.55, seed: synth_1.seedFromString(`gong-${start.toFixed(3)}`),
+            attack: 0.002, decay: 0.045, loop: true,
+            filter: { kind: 'bandpass', frequency: 3100, q: 0.7, mix: 0.9 },
+        });
+    }
+    function addDrum(buffer, sampleRate, start, gain) {
+        synth_1.addTone(buffer, sampleRate, {
+            start, duration: 0.5, gain, frequency: 132, endFrequency: 52, glideSeconds: 0.22,
+            wave: 'sine', attack: 0.002, decay: 0.17, release: 0.04, loop: true,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start, duration: 0.13, gain: gain * 0.62, seed: synth_1.seedFromString(`drum-${start.toFixed(3)}`),
+            attack: 0.001, decay: 0.035, release: 0.02, loop: true,
+            filter: { kind: 'lowpass', frequency: 420, q: 0.8, mix: 1 },
+        });
+    }
+    function addCymbal(buffer, sampleRate, start, gain) {
+        synth_1.addNoise(buffer, sampleRate, {
+            start, duration: 0.42, gain, seed: synth_1.seedFromString(`cymbal-${start.toFixed(3)}`),
+            attack: 0.001, decay: 0.11, release: 0.05, loop: true,
+            filter: { kind: 'highpass', frequency: 5200, q: 0.75, mix: 1 },
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start, duration: 0.3, gain: gain * 0.55, seed: synth_1.seedFromString(`cymbal-top-${start.toFixed(3)}`),
+            attack: 0.001, decay: 0.08, release: 0.04, loop: true,
+            filter: { kind: 'bandpass', frequency: 7600, q: 1.4, mix: 0.9 },
+        });
+    }
+    function addWoodblock(buffer, sampleRate, start, high, gain) {
+        const frequency = high ? 1460 : 980;
+        synth_1.addTone(buffer, sampleRate, {
+            start, duration: 0.09, gain, frequency, wave: 'sine', attack: 0.001, decay: 0.018, release: 0.015, loop: true,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start, duration: 0.06, gain: gain * 0.45, frequency: frequency * 1.61, wave: 'triangle',
+            attack: 0.001, decay: 0.012, release: 0.01, loop: true,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start, duration: 0.025, gain: gain * 0.5, seed: synth_1.seedFromString(`block-${start.toFixed(3)}`),
+            attack: 0.001, decay: 0.006, release: 0.005, loop: true,
+            filter: { kind: 'bandpass', frequency: 3200, q: 1.2, mix: 1 },
+        });
+    }
+    function addBass(buffer, sampleRate, start, note) {
+        const frequency = noteFrequency(note);
+        synth_1.addTone(buffer, sampleRate, {
+            start, duration: 0.52, gain: 0.058, frequency, wave: 'triangle', attack: 0.004, decay: 0.19, release: 0.035, loop: true,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start, duration: 0.58, gain: 0.026, frequency: frequency / 2, wave: 'sine', attack: 0.006, decay: 0.24, release: 0.04, loop: true,
+        });
+    }
+    /** Render the complete, seamless mono BGM loop at the requested sample rate. */
+    function renderBgm(sampleRate) {
+        if (!Number.isFinite(sampleRate) || sampleRate < 1000)
+            throw new RangeError('sampleRate must be at least 1000 Hz');
+        const length = Math.max(1, Math.round(BGM_LOOP_SECONDS * sampleRate));
+        const buffer = new Float32Array(length);
+        const random = synth_1.createNoise(synth_1.seedFromString('stack-bgm-v1'));
+        for (let bar = 0; bar < BGM_BARS; bar++) {
+            const barStart = bar * BGM_BAR_SECONDS;
+            const root = BASS_ROOTS[bar];
+            addBass(buffer, sampleRate, barStart, root);
+            if (bar % 2 === 0) {
+                synth_1.addTone(buffer, sampleRate, {
+                    start: barStart, duration: BGM_BAR_SECONDS * 2, gain: 0.014, frequency: noteFrequency(root),
+                    wave: 'sine', attack: 0.36, release: 0.4, loop: true,
+                });
+                synth_1.addTone(buffer, sampleRate, {
+                    start: barStart, duration: BGM_BAR_SECONDS * 2, gain: 0.009, frequency: noteFrequency(root) * 1.5,
+                    wave: 'triangle', attack: 0.42, release: 0.45, loop: true,
+                });
+            }
+            addDrum(buffer, sampleRate, barStart, 0.135);
+            addDrum(buffer, sampleRate, barStart + BGM_BEAT_SECONDS * 2, 0.088);
+            if (bar % 4 === 3)
+                addDrum(buffer, sampleRate, barStart + BGM_BEAT_SECONDS * 3.5, 0.064);
+            if (bar % 2 === 0)
+                addCymbal(buffer, sampleRate, barStart + BGM_BEAT_SECONDS * 3, 0.042);
+            else
+                addCymbal(buffer, sampleRate, barStart + BGM_BEAT_SECONDS * 2.5, 0.034);
+            for (let beat = 0; beat < BGM_BEATS_PER_BAR; beat++) {
+                addWoodblock(buffer, sampleRate, barStart + beat * BGM_BEAT_SECONDS, beat % 2 === 1, beat % 2 === 0 ? 0.031 : 0.021);
+            }
+            if (bar % 2 === 1)
+                addWoodblock(buffer, sampleRate, barStart + BGM_BEAT_SECONDS * 3.5, true, 0.017);
+            if (bar % 4 === 0 || bar === BGM_BARS - 1)
+                addGong(buffer, sampleRate, barStart, 0.075);
+        }
+        for (const note of BGM_MELODY) {
+            const start = (note.bar - 1) * BGM_BAR_SECONDS + note.beat * BGM_BEAT_SECONDS;
+            const duration = note.beats * BGM_BEAT_SECONDS * 0.94;
+            addSuonaNote(buffer, sampleRate, start, duration, note.note, note.slide === true, random);
+        }
+        synth_1.addEcho(buffer, sampleRate, 0.115, 0.16, true);
+        synth_1.addEcho(buffer, sampleRate, 0.193, 0.085, true);
+        synth_1.matchLoopSeam(buffer);
+        synth_1.normalizePeak(buffer, 0.32);
+        synth_1.fadeEdges(buffer, sampleRate, 0.002, 0.002);
+        return buffer;
+    }
+    exports_1("renderBgm", renderBgm);
+    return {
+        setters: [
+            function (synth_1_1) {
+                synth_1 = synth_1_1;
+            }
+        ],
+        execute: function () {
+            /**
+             * Original 16-bar festive folk loop in D gong pentatonic (宫商角徵羽 = D E F# A B).
+             * 104 BPM, 4/4, so one loop is 36.92 seconds. The melody below was composed for this
+             * project; it is not quoted from, or a variation of, any existing tune.
+             *
+             * Form:
+             *   bars 1-2  引子    gong/drum call, rising suona pickup
+             *   bars 3-6  A 段    main theme, phrase answers on the second half of each pair
+             *   bars 7-10 A' 段   higher answer with a longer, stepwise release
+             *   bars 11-14 B 段   contrast section, repeated-note percussion and a rising climax
+             *   bars 15-16 尾声   descending cadence on D, final gong wraps into the loop head
+             */
+            exports_1("BGM_BPM", BGM_BPM = 104);
+            exports_1("BGM_BEATS_PER_BAR", BGM_BEATS_PER_BAR = 4);
+            exports_1("BGM_BARS", BGM_BARS = 16);
+            exports_1("BGM_BEAT_SECONDS", BGM_BEAT_SECONDS = 60 / BGM_BPM);
+            exports_1("BGM_BAR_SECONDS", BGM_BAR_SECONDS = BGM_BEATS_PER_BAR * BGM_BEAT_SECONDS);
+            exports_1("BGM_LOOP_SECONDS", BGM_LOOP_SECONDS = BGM_BARS * BGM_BAR_SECONDS);
+            exports_1("BGM_SCALE", BGM_SCALE = 'D 宫五声：D E F# A B（宫商角徵羽）');
+            exports_1("BGM_FORM", BGM_FORM = [
+                { bars: '1-2', name: '引子', text: '锣鼓开场，唢呐从徵音上行到羽音，落回宫音' },
+                { bars: '3-6', name: 'A 段', text: '主句从高音宫起，第二句逐级下行落徵' },
+                { bars: '7-10', name: "A' 段", text: '提高五度再唱一次，句尾拉长并回宫' },
+                { bars: '11-14', name: 'B 段', text: '节奏加密，梆子与鼓点推动，旋律冲到高音羽' },
+                { bars: '15-16', name: '尾声', text: '羽—徵—角—宫收束，锣声余音卷入循环开头' },
+            ]);
+            /** Every melody note, written out for review. */
+            exports_1("BGM_MELODY", BGM_MELODY = [
+                { bar: 1, beat: 0, beats: 0.5, note: 'A4' },
+                { bar: 1, beat: 0.5, beats: 0.5, note: 'B4' },
+                { bar: 1, beat: 1, beats: 0.5, note: 'A4' },
+                { bar: 1, beat: 1.5, beats: 0.5, note: 'F#4' },
+                { bar: 1, beat: 2, beats: 1, note: 'E4' },
+                { bar: 1, beat: 3, beats: 1, note: 'D4' },
+                { bar: 2, beat: 0, beats: 0.5, note: 'D4' },
+                { bar: 2, beat: 0.5, beats: 0.5, note: 'E4' },
+                { bar: 2, beat: 1, beats: 1, note: 'F#4' },
+                { bar: 2, beat: 2, beats: 1, note: 'A4' },
+                { bar: 2, beat: 3, beats: 1, note: 'B4' },
+                { bar: 3, beat: 0, beats: 0.5, note: 'D5', slide: true },
+                { bar: 3, beat: 0.5, beats: 0.5, note: 'E5' },
+                { bar: 3, beat: 1, beats: 1, note: 'F#5' },
+                { bar: 3, beat: 2, beats: 0.5, note: 'E5' },
+                { bar: 3, beat: 2.5, beats: 0.5, note: 'D5' },
+                { bar: 3, beat: 3, beats: 1, note: 'B4' },
+                { bar: 4, beat: 0, beats: 0.5, note: 'A4' },
+                { bar: 4, beat: 0.5, beats: 0.5, note: 'B4' },
+                { bar: 4, beat: 1, beats: 1, note: 'D5' },
+                { bar: 4, beat: 2, beats: 0.5, note: 'B4' },
+                { bar: 4, beat: 2.5, beats: 0.5, note: 'A4' },
+                { bar: 4, beat: 3, beats: 1, note: 'F#4' },
+                { bar: 5, beat: 0, beats: 0.5, note: 'D5' },
+                { bar: 5, beat: 0.5, beats: 0.5, note: 'F#5' },
+                { bar: 5, beat: 1, beats: 1, note: 'A5' },
+                { bar: 5, beat: 2, beats: 0.5, note: 'F#5' },
+                { bar: 5, beat: 2.5, beats: 0.5, note: 'E5' },
+                { bar: 5, beat: 3, beats: 1, note: 'D5' },
+                { bar: 6, beat: 0, beats: 1, note: 'E5' },
+                { bar: 6, beat: 1, beats: 0.5, note: 'D5' },
+                { bar: 6, beat: 1.5, beats: 0.5, note: 'B4' },
+                { bar: 6, beat: 2, beats: 1, note: 'A4' },
+                { bar: 6, beat: 3, beats: 1, note: 'D4' },
+                { bar: 7, beat: 0, beats: 0.5, note: 'F#5', slide: true },
+                { bar: 7, beat: 0.5, beats: 0.5, note: 'A5' },
+                { bar: 7, beat: 1, beats: 1, note: 'B5' },
+                { bar: 7, beat: 2, beats: 0.5, note: 'A5' },
+                { bar: 7, beat: 2.5, beats: 0.5, note: 'F#5' },
+                { bar: 7, beat: 3, beats: 1, note: 'E5' },
+                { bar: 8, beat: 0, beats: 0.5, note: 'D5' },
+                { bar: 8, beat: 0.5, beats: 0.5, note: 'E5' },
+                { bar: 8, beat: 1, beats: 1, note: 'F#5' },
+                { bar: 8, beat: 2, beats: 0.5, note: 'A5' },
+                { bar: 8, beat: 2.5, beats: 0.5, note: 'F#5' },
+                { bar: 8, beat: 3, beats: 1, note: 'E5' },
+                { bar: 9, beat: 0, beats: 0.75, note: 'D5' },
+                { bar: 9, beat: 0.75, beats: 0.25, note: 'E5' },
+                { bar: 9, beat: 1, beats: 0.5, note: 'F#5' },
+                { bar: 9, beat: 1.5, beats: 0.5, note: 'E5' },
+                { bar: 9, beat: 2, beats: 0.5, note: 'D5' },
+                { bar: 9, beat: 2.5, beats: 0.5, note: 'B4' },
+                { bar: 9, beat: 3, beats: 1, note: 'A4' },
+                { bar: 10, beat: 0, beats: 0.5, note: 'B4' },
+                { bar: 10, beat: 0.5, beats: 0.5, note: 'A4' },
+                { bar: 10, beat: 1, beats: 1, note: 'F#4' },
+                { bar: 10, beat: 2, beats: 0.5, note: 'E4' },
+                { bar: 10, beat: 2.5, beats: 0.5, note: 'D4' },
+                { bar: 10, beat: 3, beats: 1, note: 'D4' },
+                { bar: 11, beat: 0, beats: 0.5, note: 'A4', slide: true },
+                { bar: 11, beat: 0.5, beats: 0.5, note: 'B4' },
+                { bar: 11, beat: 1, beats: 1, note: 'D5' },
+                { bar: 11, beat: 2, beats: 1, note: 'E5' },
+                { bar: 11, beat: 3, beats: 1, note: 'D5' },
+                { bar: 12, beat: 0, beats: 0.5, note: 'B4' },
+                { bar: 12, beat: 0.5, beats: 0.5, note: 'D5' },
+                { bar: 12, beat: 1, beats: 1, note: 'E5' },
+                { bar: 12, beat: 2, beats: 1, note: 'F#5' },
+                { bar: 12, beat: 3, beats: 1, note: 'E5' },
+                { bar: 13, beat: 0, beats: 1, note: 'A5' },
+                { bar: 13, beat: 1, beats: 0.5, note: 'F#5' },
+                { bar: 13, beat: 1.5, beats: 0.5, note: 'E5' },
+                { bar: 13, beat: 2, beats: 1, note: 'D5' },
+                { bar: 13, beat: 3, beats: 1, note: 'B4' },
+                { bar: 14, beat: 0, beats: 0.5, note: 'A4' },
+                { bar: 14, beat: 0.5, beats: 0.5, note: 'B4' },
+                { bar: 14, beat: 1, beats: 0.5, note: 'D5' },
+                { bar: 14, beat: 1.5, beats: 0.5, note: 'E5' },
+                { bar: 14, beat: 2, beats: 1, note: 'F#5' },
+                { bar: 14, beat: 3, beats: 1, note: 'A5' },
+                { bar: 15, beat: 0, beats: 0.5, note: 'B5', slide: true },
+                { bar: 15, beat: 0.5, beats: 0.5, note: 'A5' },
+                { bar: 15, beat: 1, beats: 1, note: 'F#5' },
+                { bar: 15, beat: 2, beats: 1, note: 'E5' },
+                { bar: 15, beat: 3, beats: 1, note: 'D5' },
+                { bar: 16, beat: 0, beats: 0.5, note: 'E5' },
+                { bar: 16, beat: 0.5, beats: 0.5, note: 'D5' },
+                { bar: 16, beat: 1, beats: 1, note: 'B4' },
+                { bar: 16, beat: 2, beats: 2, note: 'D5' },
+            ]);
+            BASS_ROOTS = ['D2', 'A2', 'D2', 'A2', 'D2', 'A2', 'D3', 'A2', 'D3', 'A2', 'B2', 'A2', 'D3', 'A2', 'D3', 'D2'];
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-sfx.ts", ["./synth.ts"], function (exports_1, context_1) {
+    "use strict";
+    var synth_1, STACK_SFX_EVENTS, SFX_DURATIONS, SFX_PEAKS;
+    var __moduleName = context_1 && context_1.id;
+    function comboFrequency(level) {
+        const safeLevel = synth_1.clamp(Math.round(level || 1), 1, 8);
+        return 523.251 * Math.pow(2, ((safeLevel - 1) * 2) / 12);
+    }
+    exports_1("comboFrequency", comboFrequency);
+    function addTap(buffer, sampleRate) {
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.004, duration: 0.075, gain: 0.3, frequency: 980, endFrequency: 660,
+            wave: 'triangle', attack: 0.001, decay: 0.031, release: 0.012,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.004, duration: 0.055, gain: 0.12, frequency: 1580, endFrequency: 1060,
+            wave: 'sine', attack: 0.001, decay: 0.018, release: 0.01,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.004, duration: 0.025, gain: 0.13, seed: synth_1.seedFromString('sfx-tap-wood'),
+            attack: 0.001, decay: 0.007, release: 0.004,
+            filter: { kind: 'bandpass', frequency: 3000, q: 1.2, mix: 1 },
+        });
+    }
+    function addFly(buffer, sampleRate) {
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.01, duration: 0.18, gain: 0.2, seed: synth_1.seedFromString('sfx-fly-air'),
+            attack: 0.018, release: 0.05,
+            filter: { kind: 'bandpass', frequency: 480, q: 0.9, mix: 0.95 },
+            filterEndFrequency: 2600,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.01, duration: 0.17, gain: 0.12, frequency: 330, endFrequency: 760,
+            wave: 'sine', attack: 0.014, release: 0.04,
+        });
+    }
+    function addPack(buffer, sampleRate) {
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.002, duration: 0.08, gain: 0.18, seed: synth_1.seedFromString('sfx-pack-tape'),
+            attack: 0.001, decay: 0.02, release: 0.01,
+            filter: { kind: 'bandpass', frequency: 2600, q: 1.1, mix: 1 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.006, duration: 0.18, gain: 0.3, frequency: 172, endFrequency: 68,
+            wave: 'sine', attack: 0.002, decay: 0.063, release: 0.03,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.15, duration: 0.2, gain: 0.12, frequency: 1046.5, wave: 'triangle',
+            attack: 0.002, decay: 0.07, release: 0.035,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.155, duration: 0.17, gain: 0.065, frequency: 1568, wave: 'sine',
+            attack: 0.002, decay: 0.06, release: 0.03,
+        });
+    }
+    function addCombo(buffer, sampleRate, level) {
+        const frequency = comboFrequency(level);
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.003, duration: 0.3, gain: 0.36, frequency, endFrequency: frequency * 1.012,
+            glideSeconds: 0.055, wave: 'sine', attack: 0.003, decay: 0.17, release: 0.065,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.003, duration: 0.2, gain: 0.018, frequency: frequency * 3, wave: 'sine',
+            attack: 0.003, decay: 0.09, release: 0.04,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.0, duration: 0.014, gain: 0.025, seed: synth_1.seedFromString(`sfx-combo-${level}`),
+            attack: 0.001, decay: 0.004, release: 0.003,
+            filter: { kind: 'highpass', frequency: 4500, q: 0.8, mix: 1 },
+        });
+    }
+    function addWarn(buffer, sampleRate) {
+        const notes = [880, 880, 740];
+        for (let index = 0; index < notes.length; index++) {
+            const start = index * 0.19;
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 0.11, gain: 0.16, frequency: notes[index], wave: 'square',
+                attack: 0.004, release: 0.025,
+                filter: { kind: 'lowpass', frequency: 2200, q: 0.9, mix: 0.75 },
+            });
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 0.1, gain: 0.055, frequency: notes[index] * 2, wave: 'sine',
+                attack: 0.003, release: 0.02,
+            });
+        }
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.41, duration: 0.16, gain: 0.1, frequency: 185, wave: 'sine',
+            attack: 0.006, decay: 0.06, release: 0.04,
+        });
+    }
+    function addMom(buffer, sampleRate) {
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.01, duration: 0.22, gain: 0.19, frequency: 440, wave: 'triangle',
+            attack: 0.01, release: 0.05, vibratoRate: 4.8, vibratoCents: 10, vibratoDelay: 0.04,
+            filter: { kind: 'bandpass', frequency: 1200, q: 1.1, mix: 0.35 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.15, duration: 0.3, gain: 0.16, frequency: 587.33, wave: 'triangle',
+            attack: 0.012, release: 0.06, vibratoRate: 5.1, vibratoCents: 8, vibratoDelay: 0.05,
+            filter: { kind: 'bandpass', frequency: 1350, q: 1.0, mix: 0.35 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.15, duration: 0.27, gain: 0.06, frequency: 880, wave: 'sine',
+            attack: 0.012, release: 0.06,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.0, duration: 0.06, gain: 0.035, seed: synth_1.seedFromString('sfx-mom-knock'),
+            attack: 0.001, decay: 0.015, release: 0.01,
+            filter: { kind: 'bandpass', frequency: 1900, q: 0.9, mix: 1 },
+        });
+    }
+    function addSwap(buffer, sampleRate) {
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.0, duration: 0.17, gain: 0.16, seed: synth_1.seedFromString('sfx-swap-air'),
+            attack: 0.006, release: 0.045,
+            filter: { kind: 'bandpass', frequency: 2100, q: 0.85, mix: 0.95 },
+            filterEndFrequency: 520,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.12, duration: 0.035, gain: 0.12, seed: synth_1.seedFromString('sfx-swap-click'),
+            attack: 0.001, decay: 0.009, release: 0.006,
+            filter: { kind: 'bandpass', frequency: 1800, q: 1.3, mix: 1 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.12, duration: 0.1, gain: 0.085, frequency: 320, endFrequency: 176,
+            wave: 'square', attack: 0.001, decay: 0.03, release: 0.018,
+            filter: { kind: 'lowpass', frequency: 1500, q: 0.8, mix: 0.7 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.16, duration: 0.17, gain: 0.18, frequency: 142, endFrequency: 63,
+            wave: 'sine', attack: 0.002, decay: 0.055, release: 0.03,
+        });
+    }
+    function addGongOpening(buffer, sampleRate) {
+        const ratios = [1, 1.49, 2.13, 2.79, 4.03];
+        const levels = [1, 0.58, 0.38, 0.24, 0.13];
+        for (let index = 0; index < ratios.length; index++) {
+            synth_1.addTone(buffer, sampleRate, {
+                start: 0.0, duration: 1.9, gain: 0.075 * levels[index], frequency: 118 * ratios[index],
+                wave: 'sine', attack: 0.004, decay: 0.72 / (index * 0.22 + 1), release: 0.08,
+            });
+        }
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.0, duration: 0.2, gain: 0.055, seed: synth_1.seedFromString('sfx-win-gong'),
+            attack: 0.001, decay: 0.04, release: 0.02,
+            filter: { kind: 'bandpass', frequency: 3400, q: 0.72, mix: 0.9 },
+        });
+    }
+    function addFirecrackers(buffer, sampleRate) {
+        const random = synth_1.createNoise(synth_1.seedFromString('sfx-win-firecrackers-v1'));
+        for (let index = 0; index < 34; index++) {
+            const start = 0.3 + random() * 1.72;
+            const duration = 0.02 + random() * 0.045;
+            const frequency = 1300 + random() * 4300;
+            const gain = 0.1 + random() * 0.11;
+            synth_1.addNoise(buffer, sampleRate, {
+                start, duration, gain, seed: Math.floor(random() * 0xffffffff),
+                attack: 0.001, decay: 0.009 + random() * 0.008, release: 0.007,
+                filter: { kind: 'bandpass', frequency, q: 0.75 + random() * 0.6, mix: 0.95 },
+            });
+            if (random() < 0.34) {
+                synth_1.addTone(buffer, sampleRate, {
+                    start, duration: 0.055, gain: 0.045 + random() * 0.035, frequency: 92 + random() * 95,
+                    wave: 'sine', attack: 0.001, decay: 0.018, release: 0.012,
+                });
+            }
+        }
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 2.01, duration: 0.25, gain: 0.15, seed: synth_1.seedFromString('sfx-win-final-cymbal'),
+            attack: 0.001, decay: 0.085, release: 0.04,
+            filter: { kind: 'highpass', frequency: 4300, q: 0.8, mix: 1 },
+        });
+    }
+    function addWin(buffer, sampleRate) {
+        addGongOpening(buffer, sampleRate);
+        const notes = [587.33, 739.99, 880, 1174.66];
+        for (let index = 0; index < notes.length; index++) {
+            const start = index * 0.12;
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 0.23, gain: 0.13, frequency: notes[index], wave: 'sawtooth',
+                attack: 0.005, decay: 0.09, release: 0.05,
+                filter: { kind: 'bandpass', frequency: 1600, q: 0.9, mix: 0.7 },
+            });
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 0.2, gain: 0.04, frequency: notes[index] * 2, wave: 'sine',
+                attack: 0.004, decay: 0.075, release: 0.04,
+            });
+        }
+        addFirecrackers(buffer, sampleRate);
+    }
+    function addFail(buffer, sampleRate) {
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.0, duration: 0.58, gain: 0.16, frequency: 392, endFrequency: 196,
+            wave: 'sawtooth', attack: 0.01, release: 0.12,
+            filter: { kind: 'lowpass', frequency: 1350, q: 0.9, mix: 0.7 },
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.04, duration: 0.76, gain: 0.12, frequency: 293.66, endFrequency: 146.83,
+            wave: 'triangle', attack: 0.012, release: 0.16,
+        });
+        synth_1.addTone(buffer, sampleRate, {
+            start: 0.08, duration: 0.7, gain: 0.16, frequency: 110, endFrequency: 55,
+            wave: 'sine', attack: 0.008, decay: 0.33, release: 0.12,
+        });
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.0, duration: 0.22, gain: 0.08, seed: synth_1.seedFromString('sfx-fail-thud'),
+            attack: 0.002, decay: 0.05, release: 0.03,
+            filter: { kind: 'lowpass', frequency: 520, q: 0.8, mix: 1 },
+        });
+    }
+    function addProp(buffer, sampleRate) {
+        const notes = [587.33, 739.99, 880, 1174.66];
+        for (let index = 0; index < notes.length; index++) {
+            const start = index * 0.075;
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 0.3, gain: 0.115, frequency: notes[index], wave: 'sine',
+                attack: 0.003, decay: 0.12, release: 0.06,
+            });
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 0.2, gain: 0.03, frequency: notes[index] * 2.01, wave: 'sine',
+                attack: 0.002, decay: 0.075, release: 0.04,
+            });
+        }
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 0.02, duration: 0.3, gain: 0.045, seed: synth_1.seedFromString('sfx-prop-shimmer'),
+            attack: 0.02, decay: 0.11, release: 0.08,
+            filter: { kind: 'bandpass', frequency: 4800, q: 1.3, mix: 0.9 },
+            filterEndFrequency: 7200,
+        });
+    }
+    /** Render one deterministic mono sound effect. Peak is always <= 0.6. */
+    function renderSfx(event, sampleRate, options = {}) {
+        var _a;
+        if (!Number.isFinite(sampleRate) || sampleRate < 1000)
+            throw new RangeError('sampleRate must be at least 1000 Hz');
+        if (!(event in SFX_DURATIONS))
+            throw new RangeError(`Unknown sfx event: ${String(event)}`);
+        const duration = SFX_DURATIONS[event];
+        const buffer = new Float32Array(Math.max(1, Math.round(duration * sampleRate)));
+        switch (event) {
+            case 'tap':
+                addTap(buffer, sampleRate);
+                break;
+            case 'fly':
+                addFly(buffer, sampleRate);
+                break;
+            case 'pack':
+                addPack(buffer, sampleRate);
+                break;
+            case 'combo':
+                addCombo(buffer, sampleRate, (_a = options.level) !== null && _a !== void 0 ? _a : 1);
+                break;
+            case 'warn':
+                addWarn(buffer, sampleRate);
+                break;
+            case 'mom':
+                addMom(buffer, sampleRate);
+                break;
+            case 'swap':
+                addSwap(buffer, sampleRate);
+                break;
+            case 'win':
+                addWin(buffer, sampleRate);
+                break;
+            case 'fail':
+                addFail(buffer, sampleRate);
+                break;
+            case 'prop':
+                addProp(buffer, sampleRate);
+                break;
+        }
+        synth_1.fadeEdges(buffer, sampleRate, 0.0015, event === 'win' ? 0.03 : 0.012);
+        synth_1.normalizePeak(buffer, SFX_PEAKS[event]);
+        return buffer;
+    }
+    exports_1("renderSfx", renderSfx);
+    return {
+        setters: [
+            function (synth_1_1) {
+                synth_1 = synth_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("STACK_SFX_EVENTS", STACK_SFX_EVENTS = [
+                'tap', 'fly', 'pack', 'combo', 'warn', 'mom', 'swap', 'win', 'fail', 'prop',
+            ]);
+            exports_1("SFX_DURATIONS", SFX_DURATIONS = {
+                tap: 0.12,
+                fly: 0.22,
+                pack: 0.36,
+                combo: 0.34,
+                warn: 0.62,
+                mom: 0.55,
+                swap: 0.32,
+                win: 2.3,
+                fail: 0.9,
+                prop: 0.6,
+            });
+            SFX_PEAKS = {
+                tap: 0.38,
+                fly: 0.42,
+                pack: 0.52,
+                combo: 0.48,
+                warn: 0.5,
+                mom: 0.46,
+                swap: 0.46,
+                win: 0.58,
+                fail: 0.52,
+                prop: 0.46,
+            };
+        }
+    };
+});
+
+/** Pure TypeScript DSP helpers shared by the synthesized music and SFX renderers. */
+System.register("chunks:///_virtual/synth.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var TAU, Biquad;
+    var __moduleName = context_1 && context_1.id;
+    function clamp(value, minimum, maximum) {
+        return Math.min(maximum, Math.max(minimum, value));
+    }
+    exports_1("clamp", clamp);
+    /** Deterministic 32-bit PRNG (mulberry32). Same seed always gives the same stream. */
+    function createNoise(seed) {
+        let state = seed >>> 0;
+        return () => {
+            state = (state + 0x6D2B79F5) >>> 0;
+            let value = state;
+            value = Math.imul(value ^ (value >>> 15), value | 1);
+            value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+            return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+    exports_1("createNoise", createNoise);
+    function seedFromString(text) {
+        let hash = 2166136261;
+        for (let index = 0; index < text.length; index++) {
+            hash ^= text.charCodeAt(index);
+            hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+    }
+    exports_1("seedFromString", seedFromString);
+    function midiToFrequency(midi) {
+        return 440 * Math.pow(2, (midi - 69) / 12);
+    }
+    exports_1("midiToFrequency", midiToFrequency);
+    function noteToMidi(note) {
+        const match = /^([A-G]#?)(-?\d)$/.exec(note);
+        if (!match)
+            throw new RangeError(`Invalid note: ${note}`);
+        const semitones = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
+        return (Number(match[2]) + 1) * 12 + semitones[match[1]];
+    }
+    exports_1("noteToMidi", noteToMidi);
+    function waveform(wave, phase) {
+        const sine = Math.sin(phase);
+        if (wave === 'sine')
+            return sine;
+        if (wave === 'square')
+            return sine >= 0 ? 1 : -1;
+        const position = (phase / TAU) % 1;
+        if (wave === 'sawtooth')
+            return position * 2 - 1;
+        return 2 * Math.abs(position * 2 - 1) - 1;
+    }
+    function addAt(target, index, value, loop) {
+        if (loop) {
+            const length = target.length;
+            target[((index % length) + length) % length] += value;
+        }
+        else if (index >= 0 && index < target.length) {
+            target[index] += value;
+        }
+    }
+    function envelope(t, duration, attack, release, decay) {
+        const attackGain = attack > 0 ? Math.min(1, t / attack) : 1;
+        const releaseGain = release > 0 ? Math.min(1, Math.max(0, duration - t) / release) : 1;
+        const body = decay > 0 ? Math.exp(-t / decay) : 1;
+        return attackGain * releaseGain * body;
+    }
+    function addTone(target, sampleRate, options) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+        if (!(options.duration > 0) || !(options.gain > 0) || !Number.isFinite(options.frequency))
+            return;
+        const loop = options.loop === true;
+        const startIndex = Math.round(options.start * sampleRate);
+        if (!loop && startIndex >= target.length)
+            return;
+        const wanted = Math.max(1, Math.round(options.duration * sampleRate));
+        const count = loop ? wanted : Math.max(0, Math.min(wanted, target.length - startIndex));
+        if (count <= 0)
+            return;
+        const attack = clamp((_a = options.attack) !== null && _a !== void 0 ? _a : 0.004, 0.0001, options.duration);
+        const release = clamp((_b = options.release) !== null && _b !== void 0 ? _b : 0.02, 0, options.duration);
+        const decay = Math.max(0, (_c = options.decay) !== null && _c !== void 0 ? _c : 0);
+        const wave = (_d = options.wave) !== null && _d !== void 0 ? _d : 'sine';
+        const glideDuration = options.endFrequency && options.endFrequency > 0
+            ? clamp((_e = options.glideSeconds) !== null && _e !== void 0 ? _e : options.duration, 0.0001, options.duration)
+            : 0;
+        const vibratoRate = Math.max(0, (_f = options.vibratoRate) !== null && _f !== void 0 ? _f : 0);
+        const vibratoCents = Math.max(0, (_g = options.vibratoCents) !== null && _g !== void 0 ? _g : 0);
+        const vibratoDelay = Math.max(0, (_h = options.vibratoDelay) !== null && _h !== void 0 ? _h : 0);
+        const filter = options.filter ? new Biquad(options.filter.kind, options.filter.frequency, (_j = options.filter.q) !== null && _j !== void 0 ? _j : 1, sampleRate) : undefined;
+        const filterMix = clamp((_l = (_k = options.filter) === null || _k === void 0 ? void 0 : _k.mix) !== null && _l !== void 0 ? _l : 1, 0, 1);
+        let phase = ((_m = options.phaseOffset) !== null && _m !== void 0 ? _m : 0) * TAU;
+        for (let index = 0; index < count; index++) {
+            const t = index / sampleRate;
+            let frequency = options.frequency;
+            if (glideDuration > 0 && options.endFrequency) {
+                const glide = Math.min(1, t / glideDuration);
+                frequency *= Math.pow(options.endFrequency / options.frequency, glide);
+            }
+            if (vibratoCents > 0 && t >= vibratoDelay) {
+                frequency *= Math.pow(2, (vibratoCents * Math.sin(TAU * vibratoRate * (t - vibratoDelay))) / 1200);
+            }
+            phase += (TAU * frequency) / sampleRate;
+            let sample = waveform(wave, phase) * envelope(t, options.duration, attack, release, decay);
+            if (filter)
+                sample = sample * (1 - filterMix) + filter.process(sample) * filterMix;
+            addAt(target, startIndex + index, sample * options.gain, loop);
+        }
+    }
+    exports_1("addTone", addTone);
+    function addNoise(target, sampleRate, options) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        if (!(options.duration > 0) || !(options.gain > 0))
+            return;
+        const loop = options.loop === true;
+        const startIndex = Math.round(options.start * sampleRate);
+        if (!loop && startIndex >= target.length)
+            return;
+        const wanted = Math.max(1, Math.round(options.duration * sampleRate));
+        const count = loop ? wanted : Math.max(0, Math.min(wanted, target.length - startIndex));
+        if (count <= 0)
+            return;
+        const random = createNoise(options.seed);
+        const attack = clamp((_a = options.attack) !== null && _a !== void 0 ? _a : 0.002, 0.0001, options.duration);
+        const release = clamp((_b = options.release) !== null && _b !== void 0 ? _b : 0.012, 0, options.duration);
+        const decay = Math.max(0, (_c = options.decay) !== null && _c !== void 0 ? _c : 0);
+        const filter = options.filter ? new Biquad(options.filter.kind, options.filter.frequency, (_d = options.filter.q) !== null && _d !== void 0 ? _d : 1, sampleRate) : undefined;
+        const filterMix = clamp((_f = (_e = options.filter) === null || _e === void 0 ? void 0 : _e.mix) !== null && _f !== void 0 ? _f : 1, 0, 1);
+        const startFrequency = (_h = (_g = options.filter) === null || _g === void 0 ? void 0 : _g.frequency) !== null && _h !== void 0 ? _h : 1000;
+        const endFrequency = (_j = options.filterEndFrequency) !== null && _j !== void 0 ? _j : startFrequency;
+        let nextFilterUpdate = 0;
+        for (let index = 0; index < count; index++) {
+            const t = index / sampleRate;
+            if (filter && options.filter && index >= nextFilterUpdate) {
+                const sweep = Math.min(1, index / Math.max(1, count - 1));
+                filter.set(options.filter.kind, startFrequency * Math.pow(endFrequency / startFrequency, sweep), (_k = options.filter.q) !== null && _k !== void 0 ? _k : 1, sampleRate);
+                nextFilterUpdate = index + 32;
+            }
+            let sample = (random() * 2 - 1) * envelope(t, options.duration, attack, release, decay);
+            if (filter)
+                sample = sample * (1 - filterMix) + filter.process(sample) * filterMix;
+            addAt(target, startIndex + index, sample * options.gain, loop);
+        }
+    }
+    exports_1("addNoise", addNoise);
+    /** One-tap echo; the dry copy is used as the source so the delay cannot run away. */
+    function addEcho(target, sampleRate, delaySeconds, mix, loop = false) {
+        const length = target.length;
+        const delay = Math.max(1, Math.round(delaySeconds * sampleRate));
+        if (length === 0 || mix <= 0)
+            return;
+        const dry = target.slice();
+        for (let index = 0; index < length; index++) {
+            const source = index - delay;
+            const wrapped = loop ? (source + length) % length : source;
+            if (wrapped >= 0 && wrapped < length)
+                target[index] += dry[wrapped] * mix;
+        }
+    }
+    exports_1("addEcho", addEcho);
+    /** Fade the very end into the first sample so a loop point is click-free. */
+    function matchLoopSeam(target, samples = 128) {
+        if (target.length < 2)
+            return;
+        const count = Math.min(samples, Math.floor(target.length / 4));
+        if (count < 2)
+            return;
+        const delta = target[0] - target[target.length - 1];
+        for (let index = 0; index < count; index++) {
+            const position = (index + 1) / count;
+            target[target.length - count + index] += delta * position * position;
+        }
+    }
+    exports_1("matchLoopSeam", matchLoopSeam);
+    /** Scale the whole buffer to an absolute peak. Returns the resulting peak. */
+    function normalizePeak(target, peak) {
+        if (!(peak > 0))
+            return 0;
+        let maximum = 0;
+        for (let index = 0; index < target.length; index++)
+            maximum = Math.max(maximum, Math.abs(target[index]));
+        if (maximum <= 1e-9)
+            return 0;
+        const scale = peak / maximum;
+        for (let index = 0; index < target.length; index++)
+            target[index] *= scale;
+        return peak;
+    }
+    exports_1("normalizePeak", normalizePeak);
+    function fadeEdges(target, sampleRate, fadeInSeconds, fadeOutSeconds) {
+        const length = target.length;
+        const fadeIn = Math.min(length, Math.max(0, Math.round(fadeInSeconds * sampleRate)));
+        for (let index = 0; index < fadeIn; index++) {
+            target[index] *= fadeIn > 1 ? index / (fadeIn - 1) : 0;
+        }
+        const fadeOut = Math.min(length, Math.max(0, Math.round(fadeOutSeconds * sampleRate)));
+        for (let index = 0; index < fadeOut; index++) {
+            target[length - fadeOut + index] *= fadeOut > 1 ? (fadeOut - 1 - index) / (fadeOut - 1) : 0;
+        }
+    }
+    exports_1("fadeEdges", fadeEdges);
+    return {
+        setters: [],
+        execute: function () {/** Pure TypeScript DSP helpers shared by the synthesized music and SFX renderers. */
+            TAU = Math.PI * 2;
+            /** RBJ biquad; sufficient for the formant/noise shaping used by these cues. */
+            Biquad = class Biquad {
+                constructor(kind, frequency, q, sampleRate) {
+                    this.b0 = 1;
+                    this.b1 = 0;
+                    this.b2 = 0;
+                    this.a1 = 0;
+                    this.a2 = 0;
+                    this.x1 = 0;
+                    this.x2 = 0;
+                    this.y1 = 0;
+                    this.y2 = 0;
+                    this.set(kind, frequency, q, sampleRate);
+                }
+                set(kind, frequency, q, sampleRate) {
+                    const nyquist = sampleRate * 0.45;
+                    const cutoff = clamp(frequency, 20, Math.max(20, nyquist));
+                    const resonance = clamp(q, 0.1, 20);
+                    const omega = (TAU * cutoff) / sampleRate;
+                    const cosine = Math.cos(omega);
+                    const sine = Math.sin(omega);
+                    const alpha = sine / (2 * resonance);
+                    let b0 = 1;
+                    let b1 = 0;
+                    let b2 = 0;
+                    let a0 = 1 + alpha;
+                    let a1 = -2 * cosine;
+                    let a2 = 1 - alpha;
+                    if (kind === 'lowpass') {
+                        b0 = (1 - cosine) / 2;
+                        b1 = 1 - cosine;
+                        b2 = b0;
+                    }
+                    else if (kind === 'highpass') {
+                        b0 = (1 + cosine) / 2;
+                        b1 = -(1 + cosine);
+                        b2 = b0;
+                    }
+                    else {
+                        b0 = alpha;
+                        b1 = 0;
+                        b2 = -alpha;
+                    }
+                    this.b0 = b0 / a0;
+                    this.b1 = b1 / a0;
+                    this.b2 = b2 / a0;
+                    this.a1 = a1 / a0;
+                    this.a2 = a2 / a0;
+                }
+                process(input) {
+                    const output = this.b0 * input + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
+                    this.x2 = this.x1;
+                    this.x1 = input;
+                    this.y2 = this.y1;
+                    this.y1 = output;
+                    return output;
+                }
+            };
+            exports_1("Biquad", Biquad);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/date.ts", ["./vehicles.ts"], function (exports_1, context_1) {
     "use strict";
     var vehicles_1;
@@ -1700,6 +2559,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     this.slotList = [];
                     this.currentStatus = 'playing';
                     this.propState = { moveOut: false, undo: false, shuffle: false };
+                    this.reviveUsed = false;
                     this.groupsCleared = 0;
                     this.lastMomGroup = 0;
                     this.momEvents = 0;
@@ -1717,6 +2577,8 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                 get clearedGroups() { return this.groupsCleared; }
                 get momEventCount() { return this.momEvents; }
                 get props() { return this.propState; }
+                /** A lost game may be revived once (three slot cards go to the side shelf). */
+                get canRevive() { return !this.reviveUsed && this.currentStatus === 'lost' && this.slotList.length >= stack_constants_1.PACK_SIZE; }
                 canTap(id) {
                     if (this.currentStatus !== 'playing')
                         return false;
@@ -1776,8 +2638,9 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     return this.moveOutCards();
                 }
                 revive() {
-                    if (this.currentStatus !== 'lost' || this.slotList.length < stack_constants_1.PACK_SIZE)
+                    if (!this.canRevive)
                         return [];
+                    this.reviveUsed = true;
                     const moved = this.moveOutCards();
                     this.currentStatus = 'playing';
                     this.history = undefined;
@@ -3757,7 +4620,7 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./OptionalR
 
 System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./RankPage.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
+    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
     var __moduleName = context_1 && context_1.id;
     /** CSS env(safe-area-inset-bottom) in CSS pixels (iOS home indicator, Android gesture bar). */
     function cssSafeBottomPx() {
@@ -3837,6 +4700,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             }
         ],
         execute: function () {
+            /** Packs closer together than this count as a combo. */
+            STACK_COMBO_WINDOW_MS = 3000;
             ink = new cc_1.Color(74, 44, 26);
             red = new cc_1.Color(184, 27, 43);
             brightRed = new cc_1.Color(218, 52, 43);
@@ -3871,17 +4736,25 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.carFrames = {};
                     this.carRect = { x: 30, y: 940, w: 690, h: 420 };
                     this.carScaleY = stack_layout_1.STACK_CAR_SCALE_Y;
-                    this.soundRect = { x: 647, y: 162, w: 94, h: 52 };
+                    this.soundRect = { x: 655, y: 150, w: 86, h: 40 };
+                    this.musicRect = { x: 655, y: 196, w: 86, h: 40 };
+                    this.comboCount = 0;
+                    this.lastPackAt = 0;
+                    this.warnActive = false;
                     this.cardViews = new Map();
                     this.itemFrames = new Map();
                     this.slotViews = [];
+                    this.slotViewMap = new Map();
+                    /** Card ids currently being packed; their nodes are the only ones allowed to vanish. */
+                    this.packingIds = new Set();
                     this.slotRects = Array.from({ length: stack_rules_1.SLOT_CAPACITY }, () => ({ x: 0, y: 0, w: 0, h: 0 }));
                     this.actions = [];
                     this.failButtons = [];
                     this.touchWorld = new cc_1.Vec3();
                     this.touchLocal = new cc_1.Vec3();
                     this.touchPoint = { x: 0, y: 0 };
-                    this.onHide = () => { this.busy = false; };
+                    this.onHide = () => { this.busy = false; this.sounds.pause(); };
+                    this.onShow = () => this.sounds.resume();
                     this.rankApi = new RankApi_1.RankApi();
                     this.finishStarted = 0;
                     this.startedAt = Date.now();
@@ -3943,14 +4816,21 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     UIKit_1.label(this.hud, 'ModeTitle', '年货三消', 38, 0, 0).color = gold;
                     const subtitle = UIKit_1.label(this.hud, 'Subtitle', '点没被压住的年货 · 三件装一箱', 19, 0, 0);
                     subtitle.color = cream;
-                    this.soundButton = UIKit_1.uiNode('SoundToggle', this.hud, 94, 52);
+                    this.soundButton = UIKit_1.uiNode('SoundToggle', this.hud, 86, 40);
                     this.soundButtonArt = this.soundButton.addComponent(cc_1.Graphics);
-                    this.soundButtonLabel = UIKit_1.label(this.soundButton, 'SoundLabel', '声音 开', 16, 0, 0);
+                    this.soundButtonLabel = UIKit_1.label(this.soundButton, 'SoundLabel', '音效 开', 15, 0, 0);
+                    this.musicButton = UIKit_1.uiNode('MusicToggle', this.hud, 86, 40);
+                    this.musicButtonArt = this.musicButton.addComponent(cc_1.Graphics);
+                    this.musicButtonLabel = UIKit_1.label(this.musicButton, 'MusicLabel', '音乐 开', 15, 0, 0);
                     this.drawSoundButton();
                     this.reserveLayer = UIKit_1.uiNode('ReserveZone', this.node, 750, 1334);
                     this.reserveShelf = this.reserveLayer.addComponent(cc_1.Graphics);
                     this.reserveLayer.active = false;
                     this.pileLayer = UIKit_1.uiNode('CargoPile', this.node, 750, 1334);
+                    this.warnLayer = UIKit_1.uiNode('TrunkWarning', this.node, 750, 1334);
+                    this.warnArt = this.warnLayer.addComponent(cc_1.Graphics);
+                    this.warnLayer.addComponent(cc_1.UIOpacity);
+                    this.warnLayer.active = false;
                     this.slotLayer = UIKit_1.uiNode('TrunkSlots', this.node, 750, 1334);
                     this.fxLayer = UIKit_1.uiNode('Effects', this.node, 750, 1334);
                     this.slotTitle = UIKit_1.label(this.node, 'SlotTitle', '轿车后备箱 · 7 格', 17, 0, 0);
@@ -3986,6 +4866,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     });
                     this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
                     cc_1.game.on(cc_1.Game.EVENT_HIDE, this.onHide);
+                    cc_1.game.on(cc_1.Game.EVENT_SHOW, this.onShow);
                     this.debugHook = {
                         getState: () => this.debugState(),
                         getClickable: () => this.debugClickable(),
@@ -4007,12 +4888,15 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                             x: card.x, y: card.y, w: card.w, h: card.h,
                         })),
                         getLayout: () => this.debugLayout(),
+                        getSlotViews: () => this.debugSlotViews(),
                     };
                     if (typeof window !== 'undefined') {
                         window.__stack = Object.freeze(this.debugHook);
                     }
                     this.node.once(cc_1.Node.EventType.NODE_DESTROYED, () => {
                         cc_1.game.off(cc_1.Game.EVENT_HIDE, this.onHide);
+                        cc_1.game.off(cc_1.Game.EVENT_SHOW, this.onShow);
+                        this.sounds.dispose();
                         if (this.momHideTimer)
                             clearTimeout(this.momHideTimer);
                         if (typeof window !== 'undefined' && window.__stack === this.debugHook) {
@@ -4091,7 +4975,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     }
                     this.stageLabel.node.setPosition(-242, this.height / 2 - 61);
                     this.remainingLabel.node.setPosition(198, this.height / 2 - 61);
-                    this.soundButton.setPosition(319, this.height / 2 - 188);
+                    this.soundButton.setPosition(323, this.height / 2 - 170);
+                    this.musicButton.setPosition(323, this.height / 2 - 216);
                     this.hud.getChildByName('ModeTitle').setPosition(0, this.height / 2 - 61);
                     this.hud.getChildByName('Subtitle').setPosition(0, this.height / 2 - 105);
                     this.slotTitle.node.setPosition(0, this.height / 2 - (this.slotY - 17));
@@ -4111,6 +4996,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.drawActions();
                     this.drawSoundButton();
                     this.drawFailButtons();
+                    this.warnActive = false;
+                    this.warnLayer.active = false;
                     this.refresh();
                     (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.layout(this.height);
                 }
@@ -4224,17 +5111,19 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     return { key, title, rect: { x: 0, y: 0, w: 0, h: 0 }, label: text };
                 }
                 drawSoundButton() {
-                    const g = this.soundButtonArt;
+                    this.drawToggle(this.soundButtonArt, this.soundButtonLabel, this.sounds.soundEnabled, '音效');
+                    this.drawToggle(this.musicButtonArt, this.musicButtonLabel, this.sounds.musicEnabled, '音乐');
+                }
+                drawToggle(g, text, on, name) {
                     g.clear();
-                    const on = this.sounds.enabled;
-                    UIKit_1.fill(g, on ? gold : new cc_1.Color(96, 87, 89), -47, -26, 94, 52, 16);
-                    UIKit_1.fill(g, on ? new cc_1.Color(139, 31, 38) : new cc_1.Color(67, 61, 64), -43, -22, 86, 44, 13);
+                    UIKit_1.fill(g, on ? gold : new cc_1.Color(96, 87, 89), -43, -20, 86, 40, 14);
+                    UIKit_1.fill(g, on ? new cc_1.Color(139, 31, 38) : new cc_1.Color(67, 61, 64), -40, -17, 80, 34, 11);
                     g.strokeColor = on ? new cc_1.Color(255, 226, 164) : new cc_1.Color(155, 146, 146);
                     g.lineWidth = 1.5;
-                    g.roundRect(-45, -24, 90, 48, 15);
+                    g.roundRect(-41, -18, 82, 36, 12);
                     g.stroke();
-                    this.soundButtonLabel.string = on ? '声音 开' : '声音 关';
-                    this.soundButtonLabel.color = on ? paleGold : new cc_1.Color(205, 198, 194);
+                    text.string = `${name} ${on ? '开' : '关'}`;
+                    text.color = on ? paleGold : new cc_1.Color(205, 198, 194);
                 }
                 drawActions() {
                     const g = this.buttonsArt;
@@ -4248,11 +5137,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         action.label.color = used ? new cc_1.Color(185, 177, 169) : paleGold;
                     }
                 }
-                refresh() {
+                refresh(animateSlot = false) {
                     this.updateHud();
                     this.updateReserve();
                     this.syncPile();
-                    this.renderSlot(this.game.slot);
+                    this.renderSlot(this.game.slot, { animate: animateSlot });
+                    this.updateWarning();
                     this.drawActions();
                 }
                 updateReserve() {
@@ -4310,19 +5200,61 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.drawDim(view, stack_rules_1.isBlocked(card, this.game.cards));
                     }
                 }
-                renderSlot(cards) {
-                    for (const view of this.slotViews)
+                /**
+                 * Reconciles slot card nodes with the slot contents. Every card keeps its own node for as long
+                 * as it stays in the slot (never hidden, rebuilt or re-textured); cards that move tween to their
+                 * new cell, cards that left are destroyed, and `reserve` keeps an empty cell for a card in flight.
+                 */
+                renderSlot(cards, options = {}) {
+                    const keep = new Set(cards.map(card => card.id));
+                    for (const [id, view] of this.slotViewMap) {
+                        if (keep.has(id) && id !== options.reserve)
+                            continue;
+                        cc_1.Tween.stopAllByTarget(view.node);
                         if (view.node.isValid)
                             view.node.destroy();
-                    this.slotViews = [];
+                        this.slotViewMap.delete(id);
+                    }
                     for (let index = 0; index < cards.length && index < stack_rules_1.SLOT_CAPACITY; index++) {
                         const card = cards[index];
+                        if (card.id === options.reserve)
+                            continue;
                         const rect = this.slotRects[index];
-                        const size = Math.max(42, rect.w - 6);
-                        const view = this.makeCardView(card, size, this.slotLayer);
-                        view.node.setPosition(rect.x + rect.w / 2 - 375, this.height / 2 - (rect.y + rect.h / 2));
-                        this.slotViews.push(view);
+                        const target = new cc_1.Vec3(rect.x + rect.w / 2 - 375, this.height / 2 - (rect.y + rect.h / 2), 0);
+                        let view = this.slotViewMap.get(card.id);
+                        if (!view) {
+                            view = this.makeCardView(card, Math.max(42, rect.w - 6), this.slotLayer);
+                            view.node.setPosition(target);
+                            this.slotViewMap.set(card.id, view);
+                            continue;
+                        }
+                        const current = view.node.position;
+                        if (Math.abs(current.x - target.x) < .5 && Math.abs(current.y - target.y) < .5)
+                            continue;
+                        cc_1.Tween.stopAllByTarget(view.node);
+                        if (options.animate)
+                            cc_1.tween(view.node).to(.16, { position: target }, { easing: 'quadOut' }).start();
+                        else
+                            view.node.setPosition(target);
                     }
+                    this.slotViews = [...this.slotViewMap.values()];
+                }
+                /** Snapshot for the frame-sampling slot check (tools/play-slot.mjs). */
+                debugSlotViews() {
+                    return [...this.slotViewMap.values()].map(view => {
+                        var _a, _b, _c;
+                        return ({
+                            id: view.cardId,
+                            kind: view.kind,
+                            uuid: view.node.uuid,
+                            active: view.node.isValid && view.node.activeInHierarchy,
+                            opacity: (_b = (_a = view.node.getComponent(cc_1.UIOpacity)) === null || _a === void 0 ? void 0 : _a.opacity) !== null && _b !== void 0 ? _b : 255,
+                            spriteEnabled: view.sprite.enabled,
+                            frame: view.sprite.spriteFrame ? `${view.sprite.spriteFrame.name}#${(_c = view.sprite.spriteFrame._uuid) !== null && _c !== void 0 ? _c : ''}` : 'fallback',
+                            x: view.node.position.x,
+                            scale: view.node.scale.x,
+                        });
+                    });
                 }
                 makeCardView(card, size, parent) {
                     const node = UIKit_1.uiNode(`Card-${card.id}`, parent, size, size);
@@ -4445,7 +5377,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         return;
                     }
                     if (contains(this.soundRect, p.x, p.y)) {
-                        this.sounds.toggle();
+                        this.sounds.toggleSound();
+                        this.drawSoundButton();
+                        return;
+                    }
+                    if (contains(this.musicRect, p.x, p.y)) {
+                        this.sounds.toggleMusic();
                         this.drawSoundButton();
                         return;
                     }
@@ -4493,9 +5430,14 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     const scale = Math.max(.35, (slot.w - 6) / (result.card.w * this.board.scale));
                     this.syncPile();
                     this.updateHud();
+                    // Neighbours after the insert point slide right now, leaving a gap the flyer lands in.
+                    this.renderSlot(result.slotBeforePack, { animate: true, reserve: result.card.id });
+                    const landed = result.card;
                     cc_1.tween(flyer.node).to(.2, { position: target, scale: new cc_1.Vec3(scale, scale, 1) }, { easing: 'quadOut' }).call(() => {
                         if (flyer.node.isValid)
                             flyer.node.destroy();
+                        this.renderSlot(result.slotBeforePack, { animate: true });
+                        void landed;
                         if (result.packed.length === stack_rules_1.PACK_SIZE)
                             this.playPack(result);
                         else
@@ -4503,36 +5445,52 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     }).start();
                 }
                 playPack(result) {
-                    this.renderSlot(result.slotBeforePack);
                     this.sounds.play('pack');
+                    const now = Date.now();
+                    this.comboCount = now - this.lastPackAt <= STACK_COMBO_WINDOW_MS ? this.comboCount + 1 : 1;
+                    this.lastPackAt = now;
+                    if (this.comboCount >= 2) {
+                        const level = Math.min(8, this.comboCount - 1);
+                        setTimeout(() => { if (this.node.isValid)
+                            this.sounds.play('combo', { level }); }, 120);
+                        this.showCombo(this.comboCount);
+                    }
                     const packed = new Set(result.packed.map(card => card.id));
-                    const views = this.slotViews.filter(view => packed.has(view.cardId));
+                    this.packingIds = packed;
+                    const views = [...this.slotViewMap.values()].filter(view => packed.has(view.cardId));
                     const first = views[0];
                     if (!first) {
+                        this.packingIds = new Set();
                         this.finishTap(result);
                         return;
                     }
-                    const center = first.node.position.clone();
-                    const start = views.map(view => view.node.position.clone());
+                    const center = views[Math.min(1, views.length - 1)].node.position.clone();
                     setTimeout(() => {
                         if (!this.node.isValid)
                             return;
                         for (let i = 0; i < views.length; i++) {
                             const view = views[i];
+                            cc_1.Tween.stopAllByTarget(view.node);
                             cc_1.tween(view.node).to(.24, { position: center, scale: new cc_1.Vec3(.58, .58, 1), angle: i === 0 ? -8 : i === 2 ? 8 : 0 }, { easing: 'quadIn' }).start();
                         }
                         setTimeout(() => {
                             if (!this.node.isValid)
                                 return;
-                            for (let i = 0; i < views.length; i++)
-                                views[i].node.setPosition(start[i]);
+                            // Only the three packed cards leave; every other slot card keeps its node and slides left.
+                            for (const view of views) {
+                                cc_1.Tween.stopAllByTarget(view.node);
+                                if (view.node.isValid)
+                                    view.node.destroy();
+                                this.slotViewMap.delete(view.cardId);
+                            }
+                            this.slotViews = [...this.slotViewMap.values()];
+                            this.packingIds = new Set();
+                            this.renderSlot(this.game.slot, { animate: true });
                             this.showPackedBox(center, () => this.finishTap(result));
                         }, 250);
                     }, 80);
                 }
                 showPackedBox(at, onDone) {
-                    for (const view of this.slotViews)
-                        view.node.active = false;
                     const box = UIKit_1.uiNode('PackedBox', this.fxLayer, 132, 104);
                     box.setPosition(at.x, at.y, 20);
                     const g = box.addComponent(cc_1.Graphics);
@@ -4563,27 +5521,64 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 }
                 finishTap(result) {
                     this.busy = false;
-                    this.refresh();
+                    this.refresh(true);
                     if (result.status === 'lost')
                         this.openFail();
                     else if (result.status === 'won')
                         this.beginFinish();
                 }
                 useAction(key) {
-                    this.sounds.play('tap');
-                    if (key === 'moveOut') {
-                        const moved = this.game.useMoveOut();
-                        if (moved.length)
-                            this.sounds.play('fly');
-                    }
-                    else if (key === 'undo') {
-                        if (this.game.useUndo())
-                            this.sounds.play('fly');
-                    }
-                    else if (this.game.useShuffle()) {
-                        this.sounds.play('fly');
-                    }
+                    let used = false;
+                    if (key === 'moveOut')
+                        used = this.game.useMoveOut().length > 0;
+                    else if (key === 'undo')
+                        used = this.game.useUndo();
+                    else
+                        used = this.game.useShuffle();
+                    this.sounds.play(used ? 'prop' : 'tap');
                     this.refresh();
+                }
+                /** “连击 ×N” floats up from the slot and fades out. */
+                showCombo(count) {
+                    const node = UIKit_1.uiNode('ComboFloat', this.fxLayer, 320, 80);
+                    const text = UIKit_1.label(node, 'ComboText', `连击 ×${count}`, 44, 0, 0);
+                    text.color = gold;
+                    text.enableOutline = true;
+                    text.outlineColor = new cc_1.Color(120, 14, 22);
+                    text.outlineWidth = 4;
+                    const opacity = node.addComponent(cc_1.UIOpacity);
+                    const y = this.height / 2 - (this.slotY - 70);
+                    node.setPosition(0, y, 30);
+                    node.setScale(.6, .6, 1);
+                    cc_1.tween(node).to(.16, { scale: new cc_1.Vec3(1.15, 1.15, 1) }, { easing: 'backOut' }).to(.5, { position: new cc_1.Vec3(0, y + 70, 30) }).call(() => { if (node.isValid)
+                        node.destroy(); }).start();
+                    cc_1.tween(opacity).delay(.35).to(.3, { opacity: 0 }).start();
+                }
+                /** Red pulsing trunk when only one or two slot cells are left. */
+                updateWarning() {
+                    const free = stack_rules_1.SLOT_CAPACITY - this.game.slot.length;
+                    const danger = this.game.status === 'playing' && !this.finish && free <= 2;
+                    if (danger === this.warnActive)
+                        return;
+                    this.warnActive = danger;
+                    const opacity = this.warnLayer.getComponent(cc_1.UIOpacity);
+                    cc_1.Tween.stopAllByTarget(opacity);
+                    this.warnLayer.active = danger;
+                    if (!danger)
+                        return;
+                    this.sounds.play('warn');
+                    const g = this.warnArt;
+                    g.clear();
+                    const t = this.trunk;
+                    g.fillColor = new cc_1.Color(230, 30, 36, 92);
+                    g.roundRect(t.x - 6 - 375, this.height / 2 - (t.y + t.h) - 6, t.w + 12, t.h + 12, 18);
+                    g.fill();
+                    g.strokeColor = new cc_1.Color(255, 70, 60, 255);
+                    g.lineWidth = 5;
+                    g.roundRect(t.x - 6 - 375, this.height / 2 - (t.y + t.h) - 6, t.w + 12, t.h + 12, 18);
+                    g.stroke();
+                    opacity.opacity = 255;
+                    cc_1.tween(opacity).repeatForever(cc_1.tween().to(.32, { opacity: 70 }).to(.32, { opacity: 255 })).start();
                 }
                 prefillFailure() {
                     var _a;
@@ -4614,10 +5609,13 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     const hint = UIKit_1.label(layer, 'OverflowHint', '7 格全满，还差一件同款年货', 22, 0, 190);
                     hint.color = cream;
                     this.drawOverflowCar(layer);
-                    const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -98);
                     const share = this.failButton(layer, 'share', '生成分享图', -180);
                     const restart = this.failButton(layer, 'restart', '重来', -262);
-                    this.failButtons.push(revive, share, restart);
+                    if (this.game.canRevive)
+                        this.failButtons.push(this.failButton(layer, 'revive', '用道具复活一次 · 移出 3 件', -98));
+                    else
+                        UIKit_1.label(layer, 'ReviveUsed', '本局复活已用过', 22, 0, -98).color = cream;
+                    this.failButtons.push(share, restart);
                     this.sounds.play('fail');
                     this.refreshFailButtons();
                 }
@@ -4713,7 +5711,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     (_a = this.failLayer) === null || _a === void 0 ? void 0 : _a.destroy();
                     this.failLayer = undefined;
                     this.failButtons.length = 0;
-                    this.sounds.play('tap');
+                    this.sounds.play('prop');
                     this.refresh();
                 }
                 beginFinish(instant = false) {
@@ -6943,9 +7941,9 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
     };
 });
 
-System.register("chunks:///_virtual/StackSound.ts", [], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackSound.ts", ["./stack-music.ts","./stack-sfx.ts"], function (exports_1, context_1) {
     "use strict";
-    var STACK_SOUND_STORAGE_KEY, STACK_SOUND_EVENTS, STACK_SOUND_PROFILES, StackSound;
+    var stack_music_1, stack_sfx_1, STACK_SOUND_STORAGE_KEY, STACK_MUSIC_STORAGE_KEY, STACK_SOUND_EVENTS, STACK_SOUND_PROFILES, SFX_MASTER_LEVEL, MUSIC_MASTER_LEVEL, RENDER_RATE, bgmSamples, sfxSamples, StackSound;
     var __moduleName = context_1 && context_1.id;
     function readStackSoundEnabled(storage = browserStorage()) {
         try {
@@ -6963,9 +7961,33 @@ System.register("chunks:///_virtual/StackSound.ts", [], function (exports_1, con
         catch ( /* Private mode: keep in-memory state. */_a) { /* Private mode: keep in-memory state. */ }
     }
     exports_1("writeStackSoundEnabled", writeStackSoundEnabled);
+    function readStackMusicEnabled(storage = browserStorage()) {
+        try {
+            return (storage === null || storage === void 0 ? void 0 : storage.getItem(STACK_MUSIC_STORAGE_KEY)) !== '0';
+        }
+        catch (_a) {
+            return true;
+        }
+    }
+    exports_1("readStackMusicEnabled", readStackMusicEnabled);
+    function writeStackMusicEnabled(enabled, storage = browserStorage()) {
+        try {
+            storage === null || storage === void 0 ? void 0 : storage.setItem(STACK_MUSIC_STORAGE_KEY, enabled ? '1' : '0');
+        }
+        catch ( /* Private mode: keep in-memory state. */_a) { /* Private mode: keep in-memory state. */ }
+    }
+    exports_1("writeStackMusicEnabled", writeStackMusicEnabled);
     function browserStorage() {
         try {
             return typeof localStorage === 'undefined' ? undefined : localStorage;
+        }
+        catch (_a) {
+            return undefined;
+        }
+    }
+    function browserDocument() {
+        try {
+            return typeof document === 'undefined' ? undefined : document;
         }
         catch (_a) {
             return undefined;
@@ -6976,140 +7998,316 @@ System.register("chunks:///_virtual/StackSound.ts", [], function (exports_1, con
         const scope = globalThis;
         return (_a = scope.AudioContext) !== null && _a !== void 0 ? _a : scope.webkitAudioContext;
     }
+    function comboLevel(level) {
+        if (level === undefined || !Number.isFinite(level))
+            return 1;
+        return Math.max(1, Math.min(8, Math.round(level)));
+    }
+    function renderRateFor(context) {
+        return Math.min(RENDER_RATE, Math.max(8000, Math.round(context.sampleRate)));
+    }
+    function bgmData(rate) {
+        let data = bgmSamples.get(rate);
+        if (!data) {
+            data = stack_music_1.renderBgm(rate);
+            bgmSamples.set(rate, data);
+        }
+        return data;
+    }
+    function sfxData(event, level, rate) {
+        const key = `${event}:${level}:${rate}`;
+        let data = sfxSamples.get(key);
+        if (!data) {
+            data = stack_sfx_1.renderSfx(event, rate, event === 'combo' ? { level } : undefined);
+            sfxSamples.set(key, data);
+        }
+        return data;
+    }
     return {
-        setters: [],
+        setters: [
+            function (stack_music_1_1) {
+                stack_music_1 = stack_music_1_1;
+            },
+            function (stack_sfx_1_1) {
+                stack_sfx_1 = stack_sfx_1_1;
+            }
+        ],
         execute: function () {
             exports_1("STACK_SOUND_STORAGE_KEY", STACK_SOUND_STORAGE_KEY = 'stack-sound-enabled');
-            exports_1("STACK_SOUND_EVENTS", STACK_SOUND_EVENTS = ['tap', 'fly', 'pack', 'fail', 'win', 'mom']);
+            exports_1("STACK_MUSIC_STORAGE_KEY", STACK_MUSIC_STORAGE_KEY = 'stack-music-enabled');
+            exports_1("STACK_SOUND_EVENTS", STACK_SOUND_EVENTS = [
+                'tap', 'fly', 'pack', 'combo', 'warn', 'mom', 'swap', 'win', 'fail', 'prop',
+            ]);
             exports_1("STACK_SOUND_PROFILES", STACK_SOUND_PROFILES = {
-                tap: { label: '短哒', layers: 1 },
-                fly: { label: '轻嗖', layers: 2 },
-                pack: { label: '封箱咔哒与叮', layers: 2 },
-                fail: { label: '下行低音', layers: 2 },
-                win: { label: '上行喜庆音', layers: 4 },
-                mom: { label: '妈妈提示音', layers: 2 },
+                tap: { label: '短哒木鱼', layers: 1 },
+                fly: { label: '飞入轻嗖', layers: 2 },
+                pack: { label: '封箱咔哒与叮', layers: 3 },
+                combo: { label: '连击高音铃', layers: 3 },
+                warn: { label: '槽位告急双音', layers: 2 },
+                mom: { label: '妈妈加塞提示', layers: 3 },
+                swap: { label: '换车机械声', layers: 3 },
+                win: { label: '通关唢呐与鞭炮', layers: 5 },
+                fail: { label: '下行低音', layers: 3 },
+                prop: { label: '道具闪光铃', layers: 3 },
             });
-            /** Synthesizes short cues after the first real touch unlocks the browser AudioContext. */
+            SFX_MASTER_LEVEL = 0.65;
+            MUSIC_MASTER_LEVEL = 0.58;
+            RENDER_RATE = 22050;
+            bgmSamples = new Map();
+            sfxSamples = new Map();
+            /** Synthesizes music and cues after the first real touch unlocks the browser AudioContext. */
             StackSound = class StackSound {
                 constructor(storage = browserStorage()) {
+                    this.visibilityListener = () => {
+                        const doc = browserDocument();
+                        if (!doc)
+                            return;
+                        if (doc.hidden)
+                            this.pause();
+                        else
+                            this.resume();
+                    };
+                    this.listening = false;
+                    this.paused = false;
+                    this.disposed = false;
+                    this.sfxBuffers = new Map();
                     this.storage = storage;
-                    this.soundEnabled = readStackSoundEnabled(storage);
-                }
-                get enabled() { return this.soundEnabled; }
-                toggle() {
-                    this.soundEnabled = !this.soundEnabled;
-                    writeStackSoundEnabled(this.soundEnabled, this.storage);
-                    if (this.soundEnabled) {
-                        this.unlock();
-                        this.play('tap');
+                    this._soundEnabled = readStackSoundEnabled(storage);
+                    this._musicEnabled = readStackMusicEnabled(storage);
+                    const doc = browserDocument();
+                    if (doc) {
+                        try {
+                            doc.addEventListener('visibilitychange', this.visibilityListener);
+                            this.listening = true;
+                        }
+                        catch ( /* Optional browser integration. */_a) { /* Optional browser integration. */ }
                     }
-                    return this.soundEnabled;
                 }
+                /** Backwards-compatible alias for the sound-effects switch. */
+                get enabled() { return this._soundEnabled; }
+                get soundEnabled() { return this._soundEnabled; }
+                get musicEnabled() { return this._musicEnabled; }
+                setSoundEnabled(enabled) {
+                    this._soundEnabled = !!enabled;
+                    writeStackSoundEnabled(this._soundEnabled, this.storage);
+                    this.updateSfxGain();
+                }
+                setMusicEnabled(enabled) {
+                    this._musicEnabled = !!enabled;
+                    writeStackMusicEnabled(this._musicEnabled, this.storage);
+                    if (!this._musicEnabled)
+                        this.stopMusic();
+                    else if (this.context && !this.paused)
+                        this.startMusic();
+                }
+                toggleSound() {
+                    this.setSoundEnabled(!this._soundEnabled);
+                    if (this._soundEnabled)
+                        this.unlock();
+                    return this._soundEnabled;
+                }
+                toggleMusic() {
+                    this.setMusicEnabled(!this._musicEnabled);
+                    if (this._musicEnabled)
+                        this.unlock();
+                    return this._musicEnabled;
+                }
+                /** Backwards-compatible alias for the sound-effects toggle. */
+                toggle() {
+                    return this.toggleSound();
+                }
+                /** Called from the first real touch. Creates/resumes the AudioContext and starts music. */
                 unlock() {
+                    if (this.disposed)
+                        return;
                     const Ctor = contextConstructor();
                     if (!Ctor)
                         return;
                     try {
                         if (!this.context) {
-                            this.context = new Ctor();
-                            this.master = this.context.createGain();
-                            this.master.gain.value = .42;
-                            this.master.connect(this.context.destination);
+                            const context = new Ctor();
+                            const sfxGain = context.createGain();
+                            const musicGain = context.createGain();
+                            sfxGain.gain.value = this._soundEnabled ? SFX_MASTER_LEVEL : 0.0001;
+                            musicGain.gain.value = 0.0001;
+                            sfxGain.connect(context.destination);
+                            musicGain.connect(context.destination);
+                            this.context = context;
+                            this.sfxGain = sfxGain;
+                            this.musicGain = musicGain;
                         }
-                        if (this.context.state === 'suspended')
+                        if (this.context.state === 'suspended' && !this.paused) {
                             void this.context.resume().catch(() => undefined);
+                        }
+                        if (!this.paused)
+                            this.startMusic();
                     }
                     catch (_a) {
-                        this.context = undefined;
-                        this.master = undefined;
+                        this.close();
                     }
                 }
-                play(event) {
-                    if (!this.soundEnabled)
+                play(event, options = {}) {
+                    if (!this._soundEnabled || this.paused || this.disposed)
                         return;
                     const context = this.context;
-                    if (!context || !this.master)
+                    const output = this.sfxGain;
+                    if (!context || !output)
+                        return;
+                    try {
+                        if (context.state === 'suspended' && !this.paused)
+                            void context.resume().catch(() => undefined);
+                        if (context.state === 'closed')
+                            return;
+                        const level = comboLevel(options.level);
+                        const buffer = this.sfxBuffer(context, event, level);
+                        if (!buffer)
+                            return;
+                        const source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.connect(output);
+                        source.start();
+                    }
+                    catch ( /* Device/browser failure: audio is optional. */_a) { /* Device/browser failure: audio is optional. */ }
+                }
+                /** Pause music and suspend the context while the game is in the background. */
+                pause() {
+                    var _a;
+                    if (this.disposed)
+                        return;
+                    this.paused = true;
+                    try {
+                        if (((_a = this.context) === null || _a === void 0 ? void 0 : _a.state) === 'running')
+                            void this.context.suspend().catch(() => undefined);
+                    }
+                    catch ( /* Optional browser integration. */_b) { /* Optional browser integration. */ }
+                }
+                /** Resume music after the game returns to the foreground, if the music switch is on. */
+                resume() {
+                    var _a;
+                    if (this.disposed)
+                        return;
+                    if ((_a = browserDocument()) === null || _a === void 0 ? void 0 : _a.hidden) {
+                        this.paused = true;
+                        return;
+                    }
+                    this.paused = false;
+                    const context = this.context;
+                    if (!context)
                         return;
                     try {
                         if (context.state === 'suspended')
                             void context.resume().catch(() => undefined);
-                        if (context.state === 'closed')
-                            return;
-                        this.synthesize(context, event);
+                        if (this._musicEnabled)
+                            this.startMusic();
                     }
-                    catch ( /* Device/browser failure: audio is optional. */_a) { /* Device/browser failure: audio is optional. */ }
+                    catch ( /* Optional browser integration. */_b) { /* Optional browser integration. */ }
                 }
-                synthesize(context, event) {
-                    const now = context.currentTime + .012;
-                    switch (event) {
-                        case 'tap':
-                            this.tone(context, 'square', 560, 240, now, .052, .13);
-                            this.noise(context, now, .022, .045, 1500, 700);
-                            break;
-                        case 'fly':
-                            this.noise(context, now, .14, .09, 480, 1900);
-                            this.tone(context, 'sine', 290, 560, now, .11, .035);
-                            break;
-                        case 'pack':
-                            this.noise(context, now, .026, .13, 2400, 500);
-                            this.tone(context, 'triangle', 145, 68, now, .085, .18);
-                            this.tone(context, 'sine', 880, 880, now + .065, .18, .095);
-                            this.tone(context, 'sine', 1318.5, 1318.5, now + .075, .22, .06);
-                            break;
-                        case 'fail':
-                            this.tone(context, 'sawtooth', 245, 82, now, .52, .115);
-                            this.tone(context, 'triangle', 164, 62, now + .06, .62, .075);
-                            break;
-                        case 'win': {
-                            const notes = [523.25, 659.25, 783.99, 1046.5];
-                            for (let index = 0; index < notes.length; index++) {
-                                this.tone(context, 'sine', notes[index], notes[index], now + index * .075, .23, .09);
-                                this.tone(context, 'triangle', notes[index] * .5, notes[index] * .5, now + index * .075, .2, .025);
-                            }
-                            break;
+                dispose() {
+                    if (this.disposed)
+                        return;
+                    this.disposed = true;
+                    const doc = browserDocument();
+                    if (doc && this.listening) {
+                        try {
+                            doc.removeEventListener('visibilitychange', this.visibilityListener);
                         }
-                        case 'mom':
-                            this.tone(context, 'triangle', 659.25, 659.25, now, .16, .11);
-                            this.tone(context, 'sine', 880, 880, now + .13, .22, .09);
-                            break;
+                        catch ( /* Optional. */_a) { /* Optional. */ }
                     }
+                    this.listening = false;
+                    this.stopMusic();
+                    this.close();
                 }
-                tone(context, type, startFrequency, endFrequency, start, duration, peak) {
-                    const oscillator = context.createOscillator();
-                    const gain = context.createGain();
-                    oscillator.type = type;
-                    oscillator.frequency.setValueAtTime(Math.max(1, startFrequency), start);
-                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), start + duration);
-                    gain.gain.setValueAtTime(.0001, start);
-                    gain.gain.linearRampToValueAtTime(peak, start + .012);
-                    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
-                    oscillator.connect(gain);
-                    gain.connect(this.master);
-                    oscillator.start(start);
-                    oscillator.stop(start + duration + .02);
+                updateSfxGain() {
+                    var _a;
+                    const context = this.context;
+                    const gain = (_a = this.sfxGain) === null || _a === void 0 ? void 0 : _a.gain;
+                    if (!context || !gain)
+                        return;
+                    try {
+                        const now = context.currentTime;
+                        gain.cancelScheduledValues(now);
+                        gain.setTargetAtTime(this._soundEnabled ? SFX_MASTER_LEVEL : 0.0001, now, 0.01);
+                    }
+                    catch ( /* Optional browser integration. */_b) { /* Optional browser integration. */ }
                 }
-                noise(context, start, duration, peak, startFrequency, endFrequency) {
-                    const frameCount = Math.max(1, Math.ceil(context.sampleRate * duration));
-                    const buffer = context.createBuffer(1, frameCount, context.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let index = 0; index < data.length; index++)
-                        data[index] = Math.random() * 2 - 1;
-                    const source = context.createBufferSource();
-                    const filter = context.createBiquadFilter();
-                    const gain = context.createGain();
-                    source.buffer = buffer;
-                    filter.type = 'bandpass';
-                    filter.Q.value = .85;
-                    filter.frequency.setValueAtTime(startFrequency, start);
-                    filter.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), start + duration);
-                    gain.gain.setValueAtTime(.0001, start);
-                    gain.gain.linearRampToValueAtTime(peak, start + .008);
-                    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
-                    source.connect(filter);
-                    filter.connect(gain);
-                    gain.connect(this.master);
-                    source.start(start);
-                    source.stop(start + duration + .02);
+                startMusic() {
+                    var _a;
+                    const context = this.context;
+                    const output = this.musicGain;
+                    if (!context || !output || !this._musicEnabled || this.paused || this.disposed)
+                        return;
+                    if (this.musicSource)
+                        return;
+                    try {
+                        const buffer = (_a = this.musicBuffer) !== null && _a !== void 0 ? _a : this.createMusicBuffer(context);
+                        this.musicBuffer = buffer;
+                        const source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.loop = true;
+                        source.connect(output);
+                        const now = context.currentTime;
+                        const gain = output.gain;
+                        gain.cancelScheduledValues(now);
+                        gain.setValueAtTime(0.0001, now);
+                        gain.exponentialRampToValueAtTime(MUSIC_MASTER_LEVEL, now + 0.18);
+                        source.start();
+                        this.musicSource = source;
+                    }
+                    catch ( /* Device/browser failure: audio is optional. */_b) { /* Device/browser failure: audio is optional. */ }
+                }
+                stopMusic() {
+                    var _a;
+                    const context = this.context;
+                    const gain = (_a = this.musicGain) === null || _a === void 0 ? void 0 : _a.gain;
+                    const source = this.musicSource;
+                    this.musicSource = undefined;
+                    if (!context || !source)
+                        return;
+                    try {
+                        const now = context.currentTime;
+                        if (gain) {
+                            gain.cancelScheduledValues(now);
+                            gain.setValueAtTime(Math.max(0.0001, gain.value), now);
+                            gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+                        }
+                        source.stop(now + 0.12);
+                    }
+                    catch ( /* The source may already have stopped. */_b) { /* The source may already have stopped. */ }
+                }
+                createMusicBuffer(context) {
+                    const rate = renderRateFor(context);
+                    const data = bgmData(rate);
+                    const buffer = context.createBuffer(1, data.length, rate);
+                    buffer.getChannelData(0).set(data);
+                    return buffer;
+                }
+                sfxBuffer(context, event, level) {
+                    const rate = renderRateFor(context);
+                    const key = `${event}:${level}:${rate}`;
+                    const cached = this.sfxBuffers.get(key);
+                    if (cached)
+                        return cached;
+                    const data = sfxData(event, level, rate);
+                    const buffer = context.createBuffer(1, data.length, rate);
+                    buffer.getChannelData(0).set(data);
+                    this.sfxBuffers.set(key, buffer);
+                    return buffer;
+                }
+                close() {
+                    const context = this.context;
+                    this.context = undefined;
+                    this.sfxGain = undefined;
+                    this.musicGain = undefined;
+                    this.musicSource = undefined;
+                    this.musicBuffer = undefined;
+                    this.sfxBuffers.clear();
+                    if (!context)
+                        return;
+                    try {
+                        if (context.state !== 'closed')
+                            void context.close().catch(() => undefined);
+                    }
+                    catch ( /* Optional browser integration. */_a) { /* Optional browser integration. */ }
                 }
             };
             exports_1("StackSound", StackSound);
@@ -8517,8 +9715,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
