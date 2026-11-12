@@ -988,6 +988,38 @@ System.register("chunks:///_virtual/rank.ts", ["./brand.ts","./provinces.ts"], f
         return `全国累计 ${snapshot.totalClears} 次 · 今日 ${snapshot.todayClears} 次`;
     }
     exports_1("formatRankSummary", formatRankSummary);
+    /**
+     * Fills the public leaderboard to all 34 provincial regions. Returned API rows keep their
+     * server order and only positive totals are ranked; every missing region is appended as waiting.
+     */
+    function buildRankRows(snapshot, own) {
+        const unique = [];
+        const seen = new Set();
+        for (const entry of snapshot.provinces) {
+            if (seen.has(entry.province))
+                continue;
+            seen.add(entry.province);
+            unique.push(entry);
+        }
+        const ranked = unique.filter(entry => entry.total > 0);
+        const ordered = ranked.length === 0 && own
+            ? [own, ...provinces_1.PROVINCES.filter(province => province !== own)]
+            : [...provinces_1.PROVINCES];
+        const rows = [];
+        let rank = 0;
+        for (const entry of ranked) {
+            rank += 1;
+            rows.push(Object.assign(Object.assign({}, entry), { rank, badge: rank <= 3 ? rank : null, own: entry.province === own, waiting: false }));
+        }
+        const rankedProvinces = new Set(ranked.map(entry => entry.province));
+        for (const province of ordered) {
+            if (rankedProvinces.has(province))
+                continue;
+            rows.push({ province, total: 0, today: 0, rank: null, badge: null, own: province === own, waiting: true });
+        }
+        return rows;
+    }
+    exports_1("buildRankRows", buildRankRows);
     function formatRankToday(today) {
         return `今日 +${Math.max(0, Math.floor(today))}`;
     }
@@ -2918,7 +2950,7 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                         var _a;
                         (_a = this.rankPage) === null || _a === void 0 ? void 0 : _a.node.destroy();
                         this.rankPage = undefined;
-                    });
+                    }, this.actions.onStart);
                 }
                 refreshProvinceLabel() {
                     const province = this.rankApi.province;
@@ -2948,10 +2980,13 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
     };
 });
 
-System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.ts","./UIKit.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./OptionalResources.ts","./RankApi.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, rank_1, RankApi_1, UIKit_1, gold, paleGold, cream, ink, deep, panel, rowDark, rowLight, ownRow, muted, RankPage;
+    var cc_1, rank_1, OptionalResources_1, RankApi_1, UIKit_1, gold, brightGold, paleGold, cream, warmCream, ink, red, brightRed, deepRed, wine, rowWine, muted, silver, bronze, RankPage;
     var __moduleName = context_1 && context_1.id;
+    function colorWithAlpha(color, alpha) {
+        return new cc_1.Color(color.r, color.g, color.b, alpha);
+    }
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
     }
@@ -2963,6 +2998,9 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.t
             function (rank_1_1) {
                 rank_1 = rank_1_1;
             },
+            function (OptionalResources_1_1) {
+                OptionalResources_1 = OptionalResources_1_1;
+            },
             function (RankApi_1_1) {
                 RankApi_1 = RankApi_1_1;
             },
@@ -2972,34 +3010,56 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.t
         ],
         execute: function () {
             gold = new cc_1.Color(255, 207, 111);
-            paleGold = new cc_1.Color(255, 231, 173);
+            brightGold = new cc_1.Color(255, 226, 151);
+            paleGold = new cc_1.Color(255, 235, 190);
             cream = new cc_1.Color(255, 246, 229);
-            ink = new cc_1.Color(51, 22, 19);
-            deep = new cc_1.Color(22, 9, 22, 246);
-            panel = new cc_1.Color(84, 19, 30, 235);
-            rowDark = new cc_1.Color(52, 14, 27, 228);
-            rowLight = new cc_1.Color(94, 24, 34, 232);
-            ownRow = new cc_1.Color(255, 207, 111, 44);
-            muted = new cc_1.Color(222, 190, 164);
+            warmCream = new cc_1.Color(255, 239, 207);
+            ink = new cc_1.Color(75, 28, 20);
+            red = new cc_1.Color(184, 29, 42);
+            brightRed = new cc_1.Color(211, 52, 48);
+            deepRed = new cc_1.Color(84, 18, 27);
+            wine = new cc_1.Color(57, 12, 22, 236);
+            rowWine = new cc_1.Color(89, 24, 34, 238);
+            muted = new cc_1.Color(151, 126, 113);
+            silver = new cc_1.Color(218, 224, 228);
+            bronze = new cc_1.Color(205, 142, 86);
             /** Full-page leaderboard overlay with real API data only. */
             RankPage = class RankPage {
-                constructor(parent, height, onBack, api = new RankApi_1.RankApi()) {
+                constructor(parent, height, onBack, onStart, api = new RankApi_1.RankApi()) {
                     this.onBack = onBack;
+                    this.onStart = onStart;
                     this.width = 750;
-                    this.backRect = { x: 30, y: 34, w: 126, h: 54 };
-                    this.retryRect = { x: 225, y: 0, w: 300, h: 60 };
+                    this.backRect = { x: 24, y: 24, w: 112, h: 50 };
+                    this.retryRect = { x: 225, y: 0, w: 300, h: 64 };
                     this.status = 'loading';
+                    this.rows = [];
+                    this.page = 0;
+                    this.pageCount = 1;
+                    this.rowsPerPage = 1;
+                    this.listTop = 286;
                     this.destroyed = false;
                     this.api = api;
                     this.height = Math.max(1334, height);
                     this.node = UIKit_1.uiNode('RankPage', parent, this.width, this.height);
+                    this.background = UIKit_1.uiNode('RankNight', this.node, this.width, this.height).addComponent(cc_1.Sprite);
+                    this.background.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    this.background.trim = false;
+                    this.background.enabled = false;
+                    void OptionalResources_1.loadArt('ui/bg_night').then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        this.background.spriteFrame = frame;
+                        this.background.enabled = true;
+                        this.layoutBackground();
+                    });
                     this.chrome = UIKit_1.uiNode('RankChrome', this.node, this.width, this.height).addComponent(cc_1.Graphics);
-                    this.listArt = UIKit_1.uiNode('RankListArt', this.node, this.width, this.height).addComponent(cc_1.Graphics);
-                    this.listLayer = UIKit_1.uiNode('RankList', this.node, this.width, this.height);
-                    this.statusLabel = UIKit_1.label(this.node, 'RankStatus', rank_1.RANK_LOADING_TEXT, 28, 0, 0);
-                    this.statusLabel.color = paleGold;
-                    this.summary = UIKit_1.label(this.node, 'RankSummary', '', 19, 0, this.height / 2 - 174);
-                    this.summary.color = cream;
+                    this.contentLayer = UIKit_1.uiNode('RankContent', this.node, this.width, this.height);
+                    this.contentArt = this.contentLayer.addComponent(cc_1.Graphics);
+                    this.bottomBackRect = { x: 518, y: this.height - 124, w: 196, h: 74 };
+                    this.startRect = { x: 36, y: this.height - 124, w: 466, h: 74 };
+                    this.prevRect = { x: 36, y: this.height - 292, w: 176, h: 48 };
+                    this.nextRect = { x: 538, y: this.height - 292, w: 176, h: 48 };
+                    this.layoutBackground();
                     this.drawChrome();
                     this.debugHook = Object.freeze({
                         getState: () => this.debugState(),
@@ -3019,11 +3079,28 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.t
                     void this.load();
                 }
                 press(x, y) {
+                    var _a;
                     if (this.destroyed)
                         return false;
-                    if (contains(this.backRect, x, y)) {
+                    if (contains(this.backRect, x, y) || contains(this.bottomBackRect, x, y)) {
                         this.onBack();
                         return true;
+                    }
+                    if (contains(this.startRect, x, y)) {
+                        (_a = this.onStart) === null || _a === void 0 ? void 0 : _a.call(this);
+                        return true;
+                    }
+                    if (this.status === 'ready' && this.pageCount > 1) {
+                        if (contains(this.prevRect, x, y) && this.page > 0) {
+                            this.page--;
+                            this.renderReady();
+                            return true;
+                        }
+                        if (contains(this.nextRect, x, y) && this.page < this.pageCount - 1) {
+                            this.page++;
+                            this.renderReady();
+                            return true;
+                        }
                     }
                     if (this.status === 'error' && contains(this.retryRect, x, y)) {
                         void this.load();
@@ -3038,163 +3115,302 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.t
                         if (this.destroyed || !this.node.isValid)
                             return;
                         this.snapshot = snapshot;
+                        this.rows = rank_1.buildRankRows(snapshot, this.api.province);
                         this.status = 'ready';
-                        this.renderReady(snapshot);
+                        this.page = 0;
+                        this.renderReady();
                     }
                     catch (_a) {
                         if (this.destroyed || !this.node.isValid)
                             return;
                         this.snapshot = undefined;
+                        this.rows = [];
                         this.status = 'error';
                         this.renderError();
                     }
                 }
+                layoutBackground() {
+                    const scale = Math.max(1, this.height / 1334);
+                    this.background.node.getComponent(cc_1.UITransform).setContentSize(750 * scale, 1334 * scale);
+                    this.background.node.setPosition(0, 0);
+                }
                 drawChrome() {
                     const g = this.chrome;
-                    const box = (color, x, y, w, h, radius = 0) => {
-                        UIKit_1.fill(g, color, x - 375, this.height / 2 - y - h, w, h, radius);
+                    const top = this.height / 2;
+                    const rect = (color, x, y, w, h, radius = 0) => {
+                        UIKit_1.fill(g, color, x - 375, top - y - h, w, h, radius);
                     };
-                    const strokeBox = (x, y, w, h, radius) => {
-                        g.roundRect(x - 375, this.height / 2 - y - h, w, h, radius);
-                        g.stroke();
-                    };
-                    UIKit_1.fill(g, new cc_1.Color(3, 4, 14, 255), -375, -this.height / 2, 750, this.height);
-                    UIKit_1.fill(g, new cc_1.Color(31, 9, 26, 200), -375, this.height / 2 - 260, 750, 260);
-                    UIKit_1.fill(g, new cc_1.Color(64, 12, 28, 150), -375, -this.height / 2, 750, 220);
-                    UIKit_1.fill(g, new cc_1.Color(255, 207, 111, 34), -375, this.height / 2 - 250, 750, 2);
-                    UIKit_1.fill(g, new cc_1.Color(255, 207, 111, 24), -375, -this.height / 2 + 150, 750, 2);
-                    const back = this.backRect;
-                    box(new cc_1.Color(70, 18, 29, 238), back.x, back.y, back.w, back.h, 18);
-                    g.strokeColor = new cc_1.Color(255, 207, 111, 175);
+                    rect(new cc_1.Color(7, 8, 22, 112), 0, 0, 750, this.height);
+                    rect(new cc_1.Color(43, 8, 18, 104), 0, 0, 750, 250, 0);
+                    rect(new cc_1.Color(28, 8, 17, 130), 0, this.height - 260, 750, 260, 0);
+                    this.drawLanterns(g, 48, 34);
+                    this.drawLanterns(g, 702, 34);
+                    rect(new cc_1.Color(21, 7, 13, 150), 22, 24, 116, 54, 18);
+                    rect(new cc_1.Color(74, 17, 27, 246), 24, 26, 112, 50, 17);
+                    g.strokeColor = new cc_1.Color(255, 216, 136, 190);
                     g.lineWidth = 1.5;
-                    strokeBox(back.x, back.y, back.w, back.h, 18);
-                    const backLabel = UIKit_1.label(this.node, 'RankBack', '返回', 22, back.x + back.w / 2 - 375, this.height / 2 - (back.y + back.h / 2));
-                    backLabel.color = paleGold;
-                    UIKit_1.label(this.node, 'RankBackArrow', '‹', 34, back.x + 23 - 375, this.height / 2 - (back.y + back.h / 2)).color = gold;
-                    const title = UIKit_1.label(this.node, 'RankTitle', rank_1.RANK_TITLE, 34, 0, this.height / 2 - 103);
-                    title.color = gold;
-                    UIKit_1.label(this.node, 'RankKicker', '乡亲们的年货，都装到哪一步了？', 18, 0, this.height / 2 - 142).color = muted;
+                    g.roundRect(26 - 375, top - 74, 108, 46, 15);
+                    g.stroke();
+                    UIKit_1.label(this.node, 'RankBackArrow', '‹', 32, 44 - 375, top - 49).color = gold;
+                    UIKit_1.label(this.node, 'RankBack', '返回', 21, 90 - 375, top - 49).color = paleGold;
+                    rect(new cc_1.Color(25, 7, 15, 190), 60, 78, 630, 134, 30);
+                    rect(new cc_1.Color(99, 22, 29, 248), 66, 84, 618, 122, 26);
+                    rect(gold, 72, 90, 606, 110, 23);
+                    rect(red, 78, 96, 594, 98, 19);
+                    rect(brightRed, 86, 104, 578, 82, 15);
+                    rect(new cc_1.Color(255, 226, 151, 118), 132, 174, 486, 2, 1);
+                    const title = UIKit_1.label(this.node, 'RankTitle', rank_1.RANK_TITLE, 34, 0, top - 122);
+                    title.color = cream;
+                    title.isBold = true;
+                    title.node.getComponent(cc_1.UITransform).setContentSize(590, 45);
+                    title.overflow = cc_1.Label.Overflow.SHRINK;
+                    const subtitle = UIKit_1.label(this.node, 'RankKicker', '灯笼亮起，等你的家乡拔得头筹', 18, 0, top - 164);
+                    subtitle.color = paleGold;
+                    subtitle.node.getComponent(cc_1.UITransform).setContentSize(550, 26);
+                    subtitle.overflow = cc_1.Label.Overflow.SHRINK;
+                }
+                drawLanterns(g, x, y) {
+                    const top = this.height / 2;
+                    g.strokeColor = new cc_1.Color(255, 210, 124, 150);
+                    g.lineWidth = 2;
+                    g.moveTo(x - 375, top - y);
+                    g.lineTo(x - 375, top - y - 26);
+                    g.stroke();
+                    UIKit_1.fill(g, new cc_1.Color(255, 132, 74, 30), x - 33 - 375, top - y - 92, 66, 88, 28);
+                    UIKit_1.fill(g, gold, x - 25 - 375, top - y - 27, 50, 9, 4);
+                    UIKit_1.fill(g, new cc_1.Color(185, 31, 39), x - 29 - 375, top - y - 92, 58, 70, 22);
+                    UIKit_1.fill(g, new cc_1.Color(241, 71, 52), x - 22 - 375, top - y - 84, 44, 54, 18);
+                    UIKit_1.fill(g, new cc_1.Color(255, 213, 129, 145), x - 14 - 375, top - y - 77, 9, 39, 4);
+                    UIKit_1.fill(g, gold, x - 23 - 375, top - y - 96, 46, 8, 4);
+                    UIKit_1.fill(g, new cc_1.Color(255, 210, 124), x - 3 - 375, top - y - 104, 6, 9, 3);
+                    g.strokeColor = new cc_1.Color(255, 210, 124, 170);
+                    g.moveTo(x - 375, top - y - 96);
+                    g.lineTo(x - 7 - 375, top - y - 117);
+                    g.lineTo(x + 5 - 375, top - y - 117);
+                    g.stroke();
+                    UIKit_1.fill(g, gold, x - 4 - 375, top - y - 16, 8, 18, 3);
                 }
                 renderLoading() {
                     this.status = 'loading';
-                    this.clearList();
-                    this.summary.string = '';
-                    this.statusLabel.node.active = true;
-                    this.statusLabel.string = rank_1.RANK_LOADING_TEXT;
-                    this.statusLabel.color = paleGold;
-                    this.statusLabel.node.setPosition(0, 0);
-                    this.statusLabel.fontSize = 28;
-                    this.statusLabel.lineHeight = 34;
+                    this.rows = [];
+                    this.page = 0;
+                    this.clearContent();
+                    this.drawSummary(null);
+                    const card = { x: 86, y: 338, w: 578, h: 218 };
+                    this.drawCard(card, wine, gold);
+                    const title = this.contentLabel('RankLoading', rank_1.RANK_LOADING_TEXT, 28, 375, card.y + 80, paleGold);
+                    title.node.getComponent(cc_1.UITransform).setContentSize(520, 42);
+                    title.overflow = cc_1.Label.Overflow.SHRINK;
+                    const hint = this.contentLabel('RankLoadingHint', '正在看看乡亲们的年货都装到哪一步了', 20, 375, card.y + 143, muted);
+                    hint.node.getComponent(cc_1.UITransform).setContentSize(500, 34);
+                    hint.overflow = cc_1.Label.Overflow.SHRINK;
+                    this.drawFooter();
                 }
                 renderError() {
-                    this.clearList();
-                    this.summary.string = '';
-                    this.statusLabel.node.active = true;
-                    this.statusLabel.string = rank_1.RANK_ERROR_TEXT;
-                    this.statusLabel.color = paleGold;
-                    this.statusLabel.node.setPosition(0, 60);
-                    this.statusLabel.fontSize = 28;
-                    this.statusLabel.lineHeight = 34;
-                    this.retryRect.y = Math.round(this.height / 2 + 20);
-                    UIKit_1.fill(this.listArt, new cc_1.Color(98, 24, 34, 230), this.retryRect.x - 375, this.height / 2 - this.retryRect.y - this.retryRect.h, this.retryRect.w, this.retryRect.h, 20);
-                    this.listArt.strokeColor = gold;
-                    this.listArt.lineWidth = 2;
-                    this.listArt.roundRect(this.retryRect.x + 2 - 375, this.height / 2 - this.retryRect.y - this.retryRect.h + 2, this.retryRect.w - 4, this.retryRect.h - 4, 18);
-                    this.listArt.stroke();
-                    const retry = UIKit_1.label(this.listLayer, 'RankRetry', rank_1.RANK_RETRY_TEXT, 24, 0, this.height / 2 - (this.retryRect.y + this.retryRect.h / 2));
-                    retry.color = cream;
+                    this.clearContent();
+                    this.drawSummary(null);
+                    const card = { x: 64, y: 322, w: 622, h: 276 };
+                    this.drawCard(card, wine, gold);
+                    const title = this.contentLabel('RankError', rank_1.RANK_ERROR_TEXT, 30, 375, card.y + 78, paleGold);
+                    title.node.getComponent(cc_1.UITransform).setContentSize(540, 44);
+                    title.overflow = cc_1.Label.Overflow.SHRINK;
+                    const hint = this.contentLabel('RankErrorHint', '检查网络后再试一次，排行会在这里等你', 20, 375, card.y + 139, muted);
+                    hint.node.getComponent(cc_1.UITransform).setContentSize(520, 34);
+                    hint.overflow = cc_1.Label.Overflow.SHRINK;
+                    this.retryRect = { x: 225, y: card.y + 174, w: 300, h: 64 };
+                    this.drawButton(this.retryRect, gold, ink, rank_1.RANK_RETRY_TEXT, 25, true);
+                    this.drawFooter();
                 }
-                renderReady(snapshot) {
-                    this.statusLabel.node.active = false;
-                    this.summary.string = rank_1.formatRankSummary(snapshot);
-                    this.clearList();
-                    const entries = snapshot.provinces;
-                    if (!entries.length) {
-                        const empty = UIKit_1.label(this.node, 'RankEmpty', rank_1.RANK_EMPTY_TEXT, 26, 0, this.height / 2 - this.height * .47);
-                        empty.color = paleGold;
-                        this.listLayer.addChild(empty.node);
+                renderReady() {
+                    this.clearContent();
+                    const snapshot = this.snapshot;
+                    if (!snapshot)
+                        return;
+                    this.drawSummary(snapshot);
+                    const empty = !snapshot.provinces.some(entry => entry.total > 0);
+                    if (empty) {
+                        const callout = { x: 46, y: 272, w: 658, h: 126 };
+                        this.drawCard(callout, new cc_1.Color(110, 22, 29, 246), gold);
+                        const title = this.contentLabel('RankEmpty', rank_1.RANK_EMPTY_TEXT, 26, 375, callout.y + 52, cream);
+                        title.node.getComponent(cc_1.UITransform).setContentSize(600, 42);
+                        title.overflow = cc_1.Label.Overflow.SHRINK;
+                        const hint = this.contentLabel('RankEmptyHint', '第一箱年货，等你来装车', 19, 375, callout.y + 94, paleGold);
+                        hint.node.getComponent(cc_1.UITransform).setContentSize(520, 30);
+                        hint.overflow = cc_1.Label.Overflow.SHRINK;
+                        this.listTop = 424;
                     }
                     else {
-                        this.drawEntries(entries);
+                        this.listTop = 282;
                     }
-                    this.drawOwnProvince(snapshot, entries);
+                    this.drawList(empty);
+                    this.drawFooter();
                 }
-                drawEntries(entries) {
-                    const listTop = 242;
-                    const footerTop = this.height - 126;
-                    const available = Math.max(180, footerTop - listTop - 20);
-                    const rowH = Math.max(28, Math.min(60, Math.floor(available / entries.length)));
-                    const rowW = 678;
-                    const rowX = 36;
-                    const fontSize = rowH >= 50 ? 24 : rowH >= 40 ? 22 : rowH >= 34 ? 19 : 17;
-                    const headerY = 210;
-                    const headerSize = 17;
+                drawSummary(snapshot) {
+                    const pill = { x: 232, y: 220, w: 286, h: 38 };
+                    this.drawCard(pill, new cc_1.Color(42, 10, 20, 170), new cc_1.Color(255, 207, 111, 90));
+                    const text = snapshot ? rank_1.formatRankSummary(snapshot) : '全国乡亲 · 共赴团圆';
+                    const summary = this.contentLabel('RankSummary', text, 18, 375, pill.y + 19, snapshot ? cream : muted);
+                    summary.node.getComponent(cc_1.UITransform).setContentSize(270, 28);
+                    summary.overflow = cc_1.Label.Overflow.SHRINK;
+                }
+                drawList(empty) {
+                    const footerTop = this.height - 216;
+                    const listBottom = footerTop - 16;
+                    const pagerTop = listBottom - 48;
+                    const rowsBottom = pagerTop - 12;
+                    const headerTop = this.listTop;
+                    const headerH = 28;
+                    const rowH = 54;
+                    const gap = 7;
+                    const available = Math.max(rowH + gap, rowsBottom - headerTop - headerH - 8);
+                    this.rowsPerPage = Math.max(4, Math.floor(available / (rowH + gap)));
+                    this.pageCount = Math.max(1, Math.ceil(this.rows.length / this.rowsPerPage));
+                    this.page = Math.max(0, Math.min(this.pageCount - 1, this.page));
+                    const header = { x: 36, y: headerTop, w: 678, h: headerH };
+                    UIKit_1.fill(this.contentArt, new cc_1.Color(51, 12, 22, 180), header.x - 375, this.height / 2 - header.y - header.h, header.w, header.h, 12);
                     const columns = [
-                        { x: 72, label: '名次' },
-                        { x: 214, label: '省份' },
-                        { x: 516, label: '通关' },
-                        { x: 634, label: '今日' },
+                        { x: 76, w: 88, text: '名次' },
+                        { x: 236, w: 210, text: '省份' },
+                        { x: 503, w: 132, text: '通关' },
+                        { x: 642, w: 110, text: '今日' },
                     ];
-                    for (const column of columns) {
-                        const text = UIKit_1.label(this.listLayer, `RankHead-${column.label}`, column.label, headerSize, 0, this.height / 2 - headerY);
-                        text.node.getComponent(cc_1.UITransform).setContentSize(150, 24);
-                        text.node.setPosition(column.x - 375, this.height / 2 - headerY);
-                        text.color = muted;
+                    for (let index = 0; index < columns.length; index++) {
+                        const column = columns[index];
+                        const text = this.contentLabel(`RankHead-${index}`, column.text, 16, column.x, headerTop + 15, muted);
+                        text.node.getComponent(cc_1.UITransform).setContentSize(column.w, 24);
                         text.overflow = cc_1.Label.Overflow.SHRINK;
                     }
+                    const start = this.page * this.rowsPerPage;
+                    const pageRows = this.rows.slice(start, start + this.rowsPerPage);
+                    for (let index = 0; index < pageRows.length; index++) {
+                        const row = pageRows[index];
+                        const top = headerTop + headerH + 8 + index * (rowH + gap);
+                        this.drawRow(row, top, rowH, index);
+                    }
+                    this.prevRect = { x: 36, y: pagerTop, w: 176, h: 48 };
+                    this.nextRect = { x: 538, y: pagerTop, w: 176, h: 48 };
+                    this.drawPagerButton(this.prevRect, this.page > 0, '上一页');
+                    this.drawPagerButton(this.nextRect, this.page < this.pageCount - 1, '下一页');
+                    const pageText = this.contentLabel('RankPageCount', `第 ${this.page + 1} / ${this.pageCount} 页`, 19, 375, pagerTop + 24, empty ? muted : paleGold);
+                    pageText.node.getComponent(cc_1.UITransform).setContentSize(280, 30);
+                    pageText.overflow = cc_1.Label.Overflow.SHRINK;
+                }
+                drawRow(row, top, height, index) {
+                    const x = 36;
+                    const w = 678;
+                    const radius = 16;
+                    const rowColor = row.own
+                        ? new cc_1.Color(255, 231, 171, 248)
+                        : index % 2 === 0 ? cream : warmCream;
+                    UIKit_1.fill(this.contentArt, new cc_1.Color(21, 7, 13, 95), x - 375 + 2, this.height / 2 - top - height + 2, w, height, radius);
+                    UIKit_1.fill(this.contentArt, rowColor, x - 375, this.height / 2 - top - height, w, height, radius);
+                    if (row.own) {
+                        this.contentArt.strokeColor = gold;
+                        this.contentArt.lineWidth = 2.5;
+                        this.contentArt.roundRect(x + 2 - 375, this.height / 2 - top - height + 2, w - 4, height - 4, radius - 2);
+                        this.contentArt.stroke();
+                        UIKit_1.fill(this.contentArt, red, x - 375, this.height / 2 - top - height + 10, 6, height - 20, 3);
+                    }
+                    const centerY = top + height / 2;
+                    if (row.badge) {
+                        const badgeColor = row.badge === 1 ? gold : row.badge === 2 ? silver : bronze;
+                        UIKit_1.fill(this.contentArt, badgeColor, 76 - 375 - 20, this.height / 2 - centerY - 20, 40, 40, 20);
+                        UIKit_1.fill(this.contentArt, colorWithAlpha(badgeColor, 72), 76 - 375 - 15, this.height / 2 - centerY - 15, 30, 30, 15);
+                    }
+                    const rankText = row.badge ? `${row.badge}` : row.rank ? `${row.rank}` : '—';
+                    const rank = this.contentLabel(`Rank-${top}-rank`, rankText, row.badge ? 23 : 21, 76, centerY, row.badge ? ink : row.waiting ? muted : deepRed);
+                    rank.isBold = !!row.badge;
+                    rank.node.getComponent(cc_1.UITransform).setContentSize(70, height - 4);
+                    rank.overflow = cc_1.Label.Overflow.SHRINK;
+                    const provinceText = row.own ? `★ ${row.province}` : row.province;
+                    const province = this.contentLabel(`Rank-${top}-province`, provinceText, 23, 236, centerY, row.own ? deepRed : ink);
+                    province.isBold = row.own;
+                    province.node.getComponent(cc_1.UITransform).setContentSize(205, height - 4);
+                    province.overflow = cc_1.Label.Overflow.SHRINK;
+                    const totalText = row.waiting ? '待塞满' : `${Math.max(0, Math.floor(row.total))} 人`;
+                    const total = this.contentLabel(`Rank-${top}-total`, totalText, row.waiting ? 19 : 21, 503, centerY, row.waiting ? muted : deepRed);
+                    total.isBold = !row.waiting;
+                    total.node.getComponent(cc_1.UITransform).setContentSize(132, height - 4);
+                    total.overflow = cc_1.Label.Overflow.SHRINK;
+                    const todayText = row.waiting ? '—' : rank_1.formatRankToday(row.today);
+                    const today = this.contentLabel(`Rank-${top}-today`, todayText, 19, 642, centerY, row.waiting ? muted : red);
+                    today.isBold = !row.waiting;
+                    today.node.getComponent(cc_1.UITransform).setContentSize(110, height - 4);
+                    today.overflow = cc_1.Label.Overflow.SHRINK;
+                }
+                drawPagerButton(rect, enabled, text) {
+                    this.drawCard(rect, enabled ? new cc_1.Color(88, 20, 31, 242) : new cc_1.Color(56, 44, 49, 228), enabled ? new cc_1.Color(255, 218, 145, 190) : new cc_1.Color(136, 119, 109, 130), 13);
+                    const item = this.contentLabel(`RankPager-${text}`, text, 21, rect.x + rect.w / 2, rect.y + rect.h / 2, enabled ? paleGold : new cc_1.Color(160, 145, 137));
+                    item.node.getComponent(cc_1.UITransform).setContentSize(rect.w - 24, rect.h - 4);
+                    item.overflow = cc_1.Label.Overflow.SHRINK;
+                }
+                drawFooter() {
+                    const footerTop = this.height - 216;
+                    const card = { x: 36, y: footerTop, w: 678, h: 78 };
+                    UIKit_1.fill(this.contentArt, new cc_1.Color(20, 7, 13, 110), card.x - 375 + 2, this.height / 2 - card.y - card.h + 3, card.w, card.h, 24);
+                    UIKit_1.fill(this.contentArt, cream, card.x - 375, this.height / 2 - card.y - card.h, card.w, card.h, 24);
+                    this.contentArt.strokeColor = gold;
+                    this.contentArt.lineWidth = 2;
+                    this.contentArt.roundRect(card.x + 2 - 375, this.height / 2 - card.y - card.h + 2, card.w - 4, card.h - 4, 22);
+                    this.contentArt.stroke();
+                    UIKit_1.fill(this.contentArt, red, card.x + 20 - 375, this.height / 2 - card.y - card.h + 20, 5, card.h - 40, 3);
+                    const info = this.footerText();
+                    const own = this.contentLabel('RankOwnProvince', info, 22, 375, card.y + card.h / 2, this.api.province ? deepRed : muted);
+                    own.isBold = !!this.api.province;
+                    own.node.getComponent(cc_1.UITransform).setContentSize(636, card.h - 12);
+                    own.overflow = cc_1.Label.Overflow.SHRINK;
+                    this.drawButton(this.startRect, gold, ink, '去塞满', 32, true, '第 1 关');
+                    this.drawButton(this.bottomBackRect, new cc_1.Color(76, 17, 27, 244), paleGold, '返回', 27, false);
+                }
+                footerText() {
                     const own = this.api.province;
-                    for (let index = 0; index < entries.length; index++) {
-                        const entry = entries[index];
-                        const y = listTop + index * rowH;
-                        const isOwn = entry.province === own;
-                        UIKit_1.fill(this.listArt, isOwn ? ownRow : index % 2 === 0 ? rowDark : rowLight, rowX - 375, this.height / 2 - y - (rowH - 4), rowW, rowH - 4, Math.min(18, Math.round(rowH / 2) - 2));
-                        if (isOwn) {
-                            this.listArt.strokeColor = gold;
-                            this.listArt.lineWidth = 2;
-                            this.listArt.roundRect(rowX + 1 - 375, this.height / 2 - y - (rowH - 4) + 1, rowW - 2, rowH - 6, Math.min(17, Math.round(rowH / 2) - 3));
-                            this.listArt.stroke();
-                        }
-                        const values = [
-                            { x: columns[0].x, text: `${index + 1}`, width: 80 },
-                            { x: columns[1].x, text: entry.province, width: 220 },
-                            { x: columns[2].x, text: `${entry.total}`, width: 150 },
-                            { x: columns[3].x, text: rank_1.formatRankToday(entry.today), width: 170 },
-                        ];
-                        for (let column = 0; column < values.length; column++) {
-                            const item = values[column];
-                            const text = UIKit_1.label(this.listLayer, `Rank-${index}-${column}`, item.text, fontSize, 0, 0);
-                            text.node.getComponent(cc_1.UITransform).setContentSize(item.width, rowH);
-                            text.node.setPosition(item.x - 375, this.height / 2 - (y + (rowH - 4) / 2));
-                            text.color = isOwn ? paleGold : column === 0 ? gold : cream;
-                            text.isBold = column === 0 || isOwn;
-                            text.overflow = cc_1.Label.Overflow.SHRINK;
-                        }
+                    if (!own)
+                        return '你的省份：未选择';
+                    const row = this.rows.find(item => item.province === own);
+                    if (!row || row.waiting || !row.rank)
+                        return `你的省份：${own} · 待塞满`;
+                    return `你的省份：${own} · 排第 ${row.rank} 名 · ${row.total} 人通关`;
+                }
+                drawButton(rect, color, textColor, text, size, primary, subtext) {
+                    if (primary)
+                        UIKit_1.fill(this.contentArt, new cc_1.Color(22, 7, 13, 120), rect.x + 3 - 375, this.height / 2 - rect.y - rect.h - 4, rect.w, rect.h, 24);
+                    UIKit_1.fill(this.contentArt, color, rect.x - 375, this.height / 2 - rect.y - rect.h, rect.w, rect.h, 24);
+                    if (!primary) {
+                        this.contentArt.strokeColor = new cc_1.Color(255, 217, 139, 190);
+                        this.contentArt.lineWidth = 1.5;
+                        this.contentArt.roundRect(rect.x + 2 - 375, this.height / 2 - rect.y - rect.h + 2, rect.w - 4, rect.h - 4, 22);
+                        this.contentArt.stroke();
+                    }
+                    const title = this.contentLabel(`RankButton-${text}`, text, size, rect.x + rect.w / 2, rect.y + rect.h / 2 - (subtext ? 9 : 0), textColor);
+                    title.isBold = primary;
+                    title.node.getComponent(cc_1.UITransform).setContentSize(rect.w - 28, rect.h - 10);
+                    title.overflow = cc_1.Label.Overflow.SHRINK;
+                    if (subtext) {
+                        const sub = this.contentLabel(`RankButton-${text}-sub`, subtext, 15, rect.x + rect.w / 2, rect.y + rect.h / 2 + 23, new cc_1.Color(122, 65, 25));
+                        sub.node.getComponent(cc_1.UITransform).setContentSize(rect.w - 30, 22);
+                        sub.overflow = cc_1.Label.Overflow.SHRINK;
                     }
                 }
-                drawOwnProvince(snapshot, entries) {
-                    const own = this.api.province;
-                    const entry = own ? rank_1.findRankEntry(snapshot, own) : undefined;
-                    const rank = entry ? entries.findIndex(item => item.province === entry.province) + 1 : undefined;
-                    const footerY = this.height - 112;
-                    UIKit_1.fill(this.listArt, new cc_1.Color(58, 14, 27, 242), 36 - 375, this.height / 2 - footerY - 78, 678, 78, 24);
-                    this.listArt.strokeColor = new cc_1.Color(255, 207, 111, 160);
-                    this.listArt.lineWidth = 1.5;
-                    this.listArt.roundRect(38 - 375, this.height / 2 - footerY - 78 + 2, 674, 74, 22);
-                    this.listArt.stroke();
-                    const text = UIKit_1.label(this.listLayer, 'RankOwnProvince', rank_1.formatYourProvince(own, entry, rank), 21, 0, this.height / 2 - (footerY + 39));
-                    text.node.getComponent(cc_1.UITransform).setContentSize(646, 60);
-                    text.overflow = cc_1.Label.Overflow.SHRINK;
-                    text.color = own ? paleGold : muted;
+                drawCard(rect, color, border, radius = 22) {
+                    UIKit_1.fill(this.contentArt, color, rect.x - 375, this.height / 2 - rect.y - rect.h, rect.w, rect.h, radius);
+                    this.contentArt.strokeColor = border;
+                    this.contentArt.lineWidth = 1.5;
+                    this.contentArt.roundRect(rect.x + 2 - 375, this.height / 2 - rect.y - rect.h + 2, rect.w - 4, rect.h - 4, Math.max(2, radius - 2));
+                    this.contentArt.stroke();
                 }
-                clearList() {
-                    for (const child of [...this.listLayer.children])
+                contentLabel(name, text, size, x, top, color) {
+                    const item = UIKit_1.label(this.contentLayer, name, text, size, x - 375, this.height / 2 - top);
+                    item.color = color;
+                    return item;
+                }
+                clearContent() {
+                    for (const child of [...this.contentLayer.children])
                         child.destroy();
-                    this.listArt.clear();
+                    this.contentArt.clear();
                 }
                 debugState() {
                     var _a, _b, _c, _d, _e, _f;
-                    const screenWidth = typeof window === 'undefined' ? this.width : window.innerWidth;
-                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    const start = this.page * this.rowsPerPage;
                     return {
                         status: this.status,
                         title: rank_1.RANK_TITLE,
@@ -3203,13 +3419,41 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.t
                         totalClears: (_d = (_c = this.snapshot) === null || _c === void 0 ? void 0 : _c.totalClears) !== null && _d !== void 0 ? _d : null,
                         todayClears: (_f = (_e = this.snapshot) === null || _e === void 0 ? void 0 : _e.todayClears) !== null && _f !== void 0 ? _f : null,
                         errorText: this.status === 'error' ? rank_1.RANK_ERROR_TEXT : null,
+                        emptyText: rank_1.RANK_EMPTY_TEXT,
+                        page: this.page + 1,
+                        pages: this.pageCount,
+                        rowsPerPage: this.rowsPerPage,
+                        allRows: this.rows.map(row => ({
+                            province: row.province,
+                            total: row.total,
+                            today: row.today,
+                            rank: row.rank,
+                            badge: row.badge,
+                            own: row.own,
+                            waiting: row.waiting,
+                        })),
+                        rows: this.rows.slice(start, start + this.rowsPerPage).map(row => row.province),
                         buttons: {
-                            back: { screenX: (this.backRect.x + this.backRect.w / 2) / this.width * screenWidth, screenY: (this.backRect.y + this.backRect.h / 2) / this.height * screenHeight },
-                            retry: this.status === 'error'
-                                ? { screenX: (this.retryRect.x + this.retryRect.w / 2) / this.width * screenWidth, screenY: (this.retryRect.y + this.retryRect.h / 2) / this.height * screenHeight }
-                                : null,
+                            back: this.screenRect(this.backRect),
+                            bottomBack: this.screenRect(this.bottomBackRect),
+                            start: this.screenRect(this.startRect),
+                            prev: this.status === 'ready' && this.pageCount > 1 ? this.screenRect(this.prevRect) : null,
+                            next: this.status === 'ready' && this.pageCount > 1 ? this.screenRect(this.nextRect) : null,
+                            retry: this.status === 'error' ? this.screenRect(this.retryRect) : null,
+                        },
+                        layout: {
+                            width: this.width,
+                            height: this.height,
+                            listTop: this.listTop,
+                            listBottom: this.height - 232,
+                            footerTop: this.height - 216,
                         },
                     };
+                }
+                screenRect(rect) {
+                    const screenWidth = typeof window === 'undefined' ? this.width : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    return Object.assign(Object.assign({}, rect), { screenX: (rect.x + rect.w / 2) / this.width * screenWidth, screenY: (rect.y + rect.h / 2) / this.height * screenHeight, screenLeft: rect.x / this.width * screenWidth, screenRight: (rect.x + rect.w) / this.width * screenWidth, screenTop: rect.y / this.height * screenHeight, screenBottom: (rect.y + rect.h) / this.height * screenHeight, screenW: rect.w / this.width * screenWidth, screenH: rect.h / this.height * screenHeight });
                 }
             };
             exports_1("RankPage", RankPage);
@@ -3438,6 +3682,14 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         getActions: () => this.debugActions(),
                         getFinishButtons: () => this.debugFinishButtons(),
                         getFinishRank: () => { var _a, _b; return (_b = (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.rankStatusText) !== null && _b !== void 0 ? _b : null; },
+                        getFinishStats: () => {
+                            var _a, _b;
+                            return this.finishStats ? {
+                                elapsedSec: this.finishStats.elapsedSec,
+                                boxes: this.finishStats.boxes,
+                                text: (_b = (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.statsLine) !== null && _b !== void 0 ? _b : '',
+                            } : null;
+                        },
                         getBoard: () => this.game.cards.map(card => ({
                             id: card.id, kind: card.kind, source: card.source, layer: card.layer,
                             x: card.x, y: card.y, w: card.w, h: card.h,
@@ -3464,7 +3716,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         if (this.game.status === 'lost')
                             this.openFail();
                     }
-                    if (debug === 'win' && this.level.stage === 2)
+                    if (debug === 'win')
                         this.beginFinish(true);
                 }
                 tick() {
@@ -4160,7 +4412,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         ? [{ title: '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }]
                         : [{ title: '再来一次', action: 'replay' }, { title: '回第 1 关', action: 'first' }];
                     const elapsedSec = instant ? Math.round(elapsedMs / 1000) : Math.max(1, Math.round(elapsedMs / 1000));
-                    this.finishStats = { elapsedSec, boxes: this.game.clearedGroups };
+                    const totalBoxes = Math.floor(this.level.cards.length / 3);
+                    this.finishStats = { elapsedSec, boxes: instant ? totalBoxes : this.game.clearedGroups };
                     this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, this.finishStats, action => this.mapFinish(action), () => this.openShare(true), () => this.openRankPage());
                     this.finishView.layout(this.height);
                     this.finishView.render(instant ? this.finish.advance(FinishTimeline_1.FINISH_DURATION) : this.finish.state);
@@ -4237,7 +4490,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         var _a;
                         (_a = this.rankPage) === null || _a === void 0 ? void 0 : _a.node.destroy();
                         this.rankPage = undefined;
-                    });
+                    }, () => this.onAction('first'));
                 }
                 mapFinish(action) {
                     if (action === 'next')
@@ -4362,22 +4615,27 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         return [];
                     const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
                     const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
-                    return this.finishView.buttonPoints().map(button => ({
-                        action: button.action,
-                        screenX: (button.rect.x + button.rect.w / 2) / 750 * screenWidth,
-                        screenY: (button.rect.y + button.rect.h / 2) / this.height * screenHeight,
-                    }));
+                    return this.finishView.buttonPoints().map(button => this.debugRect(button.action, button.rect, screenWidth, screenHeight));
                 }
                 debugModalButtons() {
                     if (this.modal !== 'fail')
                         return [];
                     const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
                     const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
-                    return this.failButtons.map(button => ({
-                        action: button.action,
-                        screenX: (button.rect.x + button.rect.w / 2) / 750 * screenWidth,
-                        screenY: (button.rect.y + button.rect.h / 2) / this.height * screenHeight,
-                    }));
+                    return this.failButtons.map(button => this.debugRect(button.action, button.rect, screenWidth, screenHeight));
+                }
+                debugRect(action, rect, screenWidth, screenHeight) {
+                    return {
+                        action,
+                        screenX: (rect.x + rect.w / 2) / 750 * screenWidth,
+                        screenY: (rect.y + rect.h / 2) / this.height * screenHeight,
+                        screenLeft: rect.x / 750 * screenWidth,
+                        screenRight: (rect.x + rect.w) / 750 * screenWidth,
+                        screenTop: rect.y / this.height * screenHeight,
+                        screenBottom: (rect.y + rect.h) / this.height * screenHeight,
+                        screenW: rect.w / 750 * screenWidth,
+                        screenH: rect.h / this.height * screenHeight,
+                    };
                 }
             };
             exports_1("StackPage", StackPage);
@@ -7456,6 +7714,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.rankLabel.active = !!text && !!((_a = this.state) === null || _a === void 0 ? void 0 : _a.celebration);
                 }
                 get rankStatusText() { return this.rankText; }
+                get statsLine() { return this.statsText(); }
                 buttonPoints() {
                     return this.buttons.map(button => ({ action: button.action, rect: Object.assign({}, button.rect) }));
                 }
