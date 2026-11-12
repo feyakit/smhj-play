@@ -790,7 +790,7 @@ System.register("chunks:///_virtual/provinces.ts", [], function (exports_1, cont
 
 System.register("chunks:///_virtual/rank.ts", ["./brand.ts","./provinces.ts"], function (exports_1, context_1) {
     "use strict";
-    var brand_1, provinces_1, RANK_DEFAULT_API_BASE, RANK_PROVINCE_STORAGE_KEY, RANK_DEVICE_STORAGE_KEY, RANK_PENDING_STORAGE_KEY, RANK_REQUEST_TIMEOUT_MS, RANK_MAX_REPORT_ATTEMPTS, RANK_MAX_PENDING_CLEARS, RANK_MIN_CLEAR_MS, RANK_TITLE, RANK_EMPTY_TEXT, RANK_LOADING_TEXT, RANK_ERROR_TEXT, RANK_RETRY_TEXT, SESSION_ID_PATTERN, DEVICE_ALPHABET, MUNICIPALITIES, BARE_NAMES;
+    var brand_1, provinces_1, RANK_DEFAULT_API_BASE, RANK_PROVINCE_STORAGE_KEY, RANK_DEVICE_STORAGE_KEY, RANK_PENDING_STORAGE_KEY, RANK_REQUEST_TIMEOUT_MS, RANK_MAX_REPORT_ATTEMPTS, RANK_MAX_PENDING_CLEARS, RANK_MIN_CLEAR_MS, RANK_TITLE, RANK_EMPTY_TEXT, RANK_LOADING_TEXT, RANK_ERROR_TEXT, RANK_RETRY_TEXT, RANK_DEBUG_TEXT, SESSION_ID_PATTERN, DEVICE_ALPHABET, MUNICIPALITIES, BARE_NAMES;
     var __moduleName = context_1 && context_1.id;
     /** Resolves the API base from `?api=`; `off` disables every rank request. */
     function resolveRankApi(search) {
@@ -827,9 +827,16 @@ System.register("chunks:///_virtual/rank.ts", ["./brand.ts","./provinces.ts"], f
         return isProvince(report.province)
             && isRankStage(report.stage)
             && isPositiveFinite(report.ms)
-            && isValidSessionId(report.sessionId);
+            && isValidSessionId(report.sessionId)
+            && isCount(report.boxes)
+            && isCount(report.momBoxes);
     }
     exports_1("isValidClearReport", isValidClearReport);
+    /** Any `debug` URL parameter (win/fail/mom/…) marks a run that must never reach the leaderboard. */
+    function isDebugRun(search) {
+        return new URLSearchParams(search).has('debug');
+    }
+    exports_1("isDebugRun", isDebugRun);
     /** Creates a device id that satisfies the server's 8–64 character session rule. */
     function createDeviceId(source = globalThis.crypto) {
         var _a, _b;
@@ -1067,6 +1074,9 @@ System.register("chunks:///_virtual/rank.ts", ["./brand.ts","./provinces.ts"], f
             return undefined;
         }
     }
+    function isCount(value) {
+        return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+    }
     function isPositiveFinite(value) {
         return typeof value === 'number' && Number.isFinite(value) && value > 0;
     }
@@ -1111,6 +1121,7 @@ System.register("chunks:///_virtual/rank.ts", ["./brand.ts","./provinces.ts"], f
             exports_1("RANK_LOADING_TEXT", RANK_LOADING_TEXT = '排行加载中…');
             exports_1("RANK_ERROR_TEXT", RANK_ERROR_TEXT = '排行暂时连不上');
             exports_1("RANK_RETRY_TEXT", RANK_RETRY_TEXT = '重试');
+            exports_1("RANK_DEBUG_TEXT", RANK_DEBUG_TEXT = '调试模式不计入排行');
             SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
             DEVICE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
             MUNICIPALITIES = ['北京', '天津', '上海', '重庆'];
@@ -4417,6 +4428,11 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, this.finishStats, action => this.mapFinish(action), () => this.openShare(true), () => this.openRankPage());
                     this.finishView.layout(this.height);
                     this.finishView.render(instant ? this.finish.advance(FinishTimeline_1.FINISH_DURATION) : this.finish.state);
+                    // Any ?debug=… run (win/fail/mom/…) is a test drive: it never reaches the leaderboard.
+                    if (typeof window !== 'undefined' && rank_1.isDebugRun(window.location.search)) {
+                        this.finishView.setRankStatus(rank_1.RANK_DEBUG_TEXT);
+                        return;
+                    }
                     if (this.level.stage === 2)
                         this.startRankReporting(elapsedMs);
                     else
@@ -4474,6 +4490,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                             stage,
                             ms,
                             sessionId: this.rankApi.deviceId,
+                            boxes: this.game.clearedGroups,
+                            momBoxes: this.game.momEventCount,
                         });
                     }
                     catch (_c) {
@@ -6092,6 +6110,8 @@ System.register("chunks:///_virtual/RankApi.ts", ["./rank.ts"], function (export
                                 stage: report.stage,
                                 ms: report.ms,
                                 sessionId: report.sessionId,
+                                boxes: report.boxes,
+                                momBoxes: report.momBoxes,
                             }),
                         });
                     }
