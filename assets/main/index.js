@@ -80,6 +80,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     this.stack = undefined;
                     this.home = new HomePage_1.HomePage(this.node, {
                         onStart: () => this.startStack(1),
+                        onDaily: () => this.startStack('daily'),
                         onClassic: () => this.startPack(),
                     });
                 }
@@ -104,17 +105,23 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                             this.show(level);
                     });
                 }
-                startStack(stage) {
+                startStack(route) {
                     this.node.destroyAllChildren();
                     this.stage = undefined;
                     this.home = undefined;
-                    this.stack = new StackPage_1.StackPage(this.node, stage, (action) => {
-                        if (action === 'next')
-                            this.startStack(2);
+                    this.stack = new StackPage_1.StackPage(this.node, route, (action) => {
+                        if (route === 'daily') {
+                            if (action === 'replay')
+                                this.startStack('daily');
+                            else
+                                this.showHome();
+                        }
+                        else if (action === 'next')
+                            this.startStack(route + 1);
                         else if (action === 'first')
                             this.startStack(1);
                         else
-                            this.startStack(stage);
+                            this.startStack(route);
                     });
                 }
                 async startMomMode() {
@@ -2085,7 +2092,7 @@ System.register("chunks:///_virtual/shapes.ts", [], function (exports_1, context
 
 System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, context_1) {
     "use strict";
-    var STAGE1_ITEMS, STAGE2_ITEMS, MOM_ITEM_KEYS;
+    var STAGE1_ITEMS, STAGE2_ITEMS, MOM_ITEM_KEYS, ENDLESS_ITEMS;
     var __moduleName = context_1 && context_1.id;
     function stackItems(stage) {
         return stage === 1 ? STAGE1_ITEMS : STAGE2_ITEMS;
@@ -2157,27 +2164,386 @@ System.register("chunks:///_virtual/stack-catalog.ts", [], function (exports_1, 
             exports_1("MOM_ITEM_KEYS", MOM_ITEM_KEYS = [
                 'mandarin', 'duck', 'fruitbasket', 'suitcase_l', 'toycar', 'milk', 'oven',
             ]);
+            /**
+             * Additional cargo keys already backed by art under resources/art/items. Endless levels grow
+             * their kind count from this list without changing the fixed stage-two catalog above.
+             */
+            exports_1("ENDLESS_ITEMS", ENDLESS_ITEMS = [
+                ...STAGE2_ITEMS,
+                { key: 'apples', name: '苹果' },
+                { key: 'candy', name: '糖果' },
+                { key: 'coop', name: '鸡笼' },
+                { key: 'couplets', name: '春联' },
+                { key: 'crab', name: '螃蟹' },
+                { key: 'dates', name: '红枣' },
+                { key: 'driedgoods', name: '干货' },
+                { key: 'drinks', name: '饮料' },
+                { key: 'dryfish', name: '鱼干' },
+                { key: 'duffel', name: '行李袋' },
+                { key: 'eggs', name: '鸡蛋' },
+                { key: 'frozenbox', name: '冷冻食品' },
+                { key: 'fudeco', name: '福字' },
+                { key: 'giftstack', name: '礼盒堆' },
+                { key: 'guamian', name: '挂面' },
+                { key: 'hairtail', name: '带鱼' },
+                { key: 'hongbao', name: '红包' },
+                { key: 'lanterns', name: '灯笼' },
+                { key: 'larou', name: '腊肉' },
+                { key: 'liquor', name: '白酒' },
+                { key: 'lotusroot', name: '莲藕' },
+                { key: 'milkflat', name: '奶片' },
+                { key: 'noodles', name: '面条' },
+                { key: 'nutbox', name: '坚果盒' },
+                { key: 'oil', name: '食用油' },
+                { key: 'painting', name: '年画' },
+                { key: 'pastry', name: '糕点' },
+                { key: 'pomelo', name: '柚子' },
+                { key: 'quilt', name: '棉被' },
+                { key: 'ricebag', name: '米袋' },
+                { key: 'ricecake', name: '年糕' },
+                { key: 'ricecooker', name: '电饭煲' },
+                { key: 'sausage', name: '香肠' },
+                { key: 'scallion', name: '大葱' },
+                { key: 'sugarcane', name: '甘蔗' },
+                { key: 'suitcase_s', name: '小行李箱' },
+                { key: 'teabox', name: '茶叶' },
+                { key: 'tv', name: '电视' },
+                { key: 'winebox', name: '酒箱' },
+            ]);
         }
     };
 });
 
 System.register("chunks:///_virtual/stack-constants.ts", [], function (exports_1, context_1) {
     "use strict";
-    var SLOT_CAPACITY, PACK_SIZE;
+    var SLOT_CAPACITY, MIN_SLOT_CAPACITY, MAX_SLOT_CAPACITY, PACK_SIZE;
     var __moduleName = context_1 && context_1.id;
+    /** Resolves an optional level capacity while keeping every pre-capacity level on seven slots. */
+    function slotCapacityOf(level) {
+        var _a;
+        const capacity = (_a = level.slotCapacity) !== null && _a !== void 0 ? _a : SLOT_CAPACITY;
+        if (!Number.isInteger(capacity) || capacity < MIN_SLOT_CAPACITY || capacity > MAX_SLOT_CAPACITY) {
+            throw new Error('invalid stack slot capacity');
+        }
+        return capacity;
+    }
+    exports_1("slotCapacityOf", slotCapacityOf);
     return {
         setters: [],
         execute: function () {
             /** Shared rule constants (kept dependency-free so solver and rules never import each other). */
             exports_1("SLOT_CAPACITY", SLOT_CAPACITY = 7);
+            exports_1("MIN_SLOT_CAPACITY", MIN_SLOT_CAPACITY = 7);
+            exports_1("MAX_SLOT_CAPACITY", MAX_SLOT_CAPACITY = 9);
             exports_1("PACK_SIZE", PACK_SIZE = 3);
         }
     };
 });
 
-System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-catalog.ts","./stack-rules.ts","./stack-layout.ts","./stack-solver.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-daily.ts", ["./rng.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-solver.ts"], function (exports_1, context_1) {
     "use strict";
-    var rng_1, stack_catalog_1, stack_rules_1, stack_layout_1, stack_solver_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS, STAGE2_CARD, GRID, HALF, GRID_X0, GRID_Y0, MAIN_LAYERS, SIDE_STACKS;
+    var rng_1, stack_catalog_1, stack_generator_1, stack_layout_1, stack_solver_1, BEIJING_OFFSET_MS, beijingDateKey, DAILY_CARD_OPTIONS, DAILY_LAYERS, DAILY_SLOT_CAPACITY;
+    var __moduleName = context_1 && context_1.id;
+    /** Returns the UTC+8 calendar day as YYYY-MM-DD, independent of the host timezone. */
+    function dailySeed(date) {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime()))
+            throw new Error('invalid daily stack date');
+        const beijing = new Date(date.getTime() + BEIJING_OFFSET_MS);
+        const year = beijing.getUTCFullYear();
+        const month = String(beijing.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(beijing.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    exports_1("dailySeed", dailySeed);
+    function dateHash(key) {
+        let hash = 2166136261 >>> 0;
+        for (let index = 0; index < key.length; index++) {
+            hash ^= key.charCodeAt(index);
+            hash = Math.imul(hash, 16777619) >>> 0;
+        }
+        return hash;
+    }
+    function validateDateKey(key) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+        if (!match)
+            throw new Error('invalid daily stack date key');
+        const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+        const date = new Date(Date.UTC(year, month - 1, day));
+        if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+            throw new Error('invalid daily stack date key');
+        }
+    }
+    function dailyCard(id, x, y, layer) {
+        return { id, kind: '', name: '', x, y, w: stack_layout_1.STACK_CARD_SIZE, h: stack_layout_1.STACK_CARD_SIZE, layer, source: 'pile' };
+    }
+    function layoutDaily(option, random) {
+        const cards = [];
+        let id = 0;
+        const grid = 112;
+        const columns = 5;
+        option.layers.forEach((count, layer) => {
+            const rows = Math.ceil(count / columns);
+            const width = columns * grid + stack_layout_1.STACK_CARD_SIZE;
+            const startX = Math.round((750 - width) / 2) + (layer % 2 ? grid / 2 : 0);
+            const startY = 190 + layer * 14 + (layer % 2 ? 28 : 0);
+            for (let index = 0; index < count; index++) {
+                const row = Math.floor(index / columns);
+                const col = index % columns;
+                const jitterX = Math.round((random() - .5) * 4);
+                const jitterY = Math.round((random() - .5) * 4);
+                cards.push(dailyCard(++id, startX + col * grid + jitterX, startY + row * grid + jitterY, layer));
+            }
+            // Keep the row count part of the layout shape even though all cards are explicit.
+            if (rows < 1)
+                throw new Error('invalid daily layer');
+        });
+        return cards;
+    }
+    exports_1("layoutDaily", layoutDaily);
+    function attemptDaily(dateKey, baseSeed, attempt) {
+        const seed = attempt === 0 ? baseSeed : `${baseSeed}#retry-${attempt}`;
+        const random = rng_1.createRng(seed);
+        const option = DAILY_CARD_OPTIONS[dateHash(dateKey) % DAILY_CARD_OPTIONS.length];
+        const cards = layoutDaily(option, random);
+        const items = stack_catalog_1.STAGE2_ITEMS.slice(0, option.items);
+        const assigned = stack_generator_1.assignTriples(cards, items, random, {
+            capacity: DAILY_SLOT_CAPACITY,
+            minGap: 25,
+            maxOpenGroups: 4,
+        });
+        if (!assigned)
+            return undefined;
+        const level = {
+            stage: 0,
+            seed,
+            cardW: stack_layout_1.STACK_CARD_SIZE,
+            cardH: stack_layout_1.STACK_CARD_SIZE,
+            items,
+            cards: assigned.cards,
+            reservePositions: stack_generator_1.stackReservePositions(stack_layout_1.STACK_CARD_SIZE, stack_layout_1.STACK_CARD_SIZE, 12),
+            momPositions: stack_generator_1.stackMomPositions(stack_layout_1.STACK_CARD_SIZE),
+            solution: assigned.solution,
+            slotCapacity: DAILY_SLOT_CAPACITY,
+        };
+        return stack_solver_1.solveStackLevel(level, { maxNodes: 120000 }).solvable ? level : undefined;
+    }
+    function generateDailyLevel(dateKey, maxAttempts = 8) {
+        validateDateKey(dateKey);
+        if (!Number.isInteger(maxAttempts) || maxAttempts < 1)
+            throw new Error('invalid daily generator attempts');
+        const seed = `trunk-daily-${dateKey}`;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const level = attemptDaily(dateKey, seed, attempt);
+            if (level)
+                return level;
+        }
+        throw new Error(`no solvable daily stack seed after ${maxAttempts} attempts`);
+    }
+    exports_1("generateDailyLevel", generateDailyLevel);
+    function dailySeedFor(dateKey) {
+        validateDateKey(dateKey);
+        return `trunk-daily-${dateKey}`;
+    }
+    exports_1("dailySeedFor", dailySeedFor);
+    return {
+        setters: [
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            },
+            function (stack_catalog_1_1) {
+                stack_catalog_1 = stack_catalog_1_1;
+            },
+            function (stack_generator_1_1) {
+                stack_generator_1 = stack_generator_1_1;
+            },
+            function (stack_layout_1_1) {
+                stack_layout_1 = stack_layout_1_1;
+            },
+            function (stack_solver_1_1) {
+                stack_solver_1 = stack_solver_1_1;
+            }
+        ],
+        execute: function () {
+            BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
+            exports_1("beijingDateKey", beijingDateKey = dailySeed);
+            exports_1("DAILY_CARD_OPTIONS", DAILY_CARD_OPTIONS = [
+                { cards: 72, items: 9, layers: [27, 21, 18, 6] },
+                { cards: 78, items: 9, layers: [30, 24, 18, 6] },
+                { cards: 84, items: 10, layers: [30, 27, 21, 6] },
+                { cards: 90, items: 10, layers: [30, 27, 24, 9] },
+            ]);
+            exports_1("DAILY_LAYERS", DAILY_LAYERS = 4);
+            exports_1("DAILY_SLOT_CAPACITY", DAILY_SLOT_CAPACITY = 7);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-solver.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, stack_catalog_1, stack_generator_1, stack_layout_1, stack_solver_1, ENDLESS_MIN_STAGE, ENDLESS_MAX_CARDS, ENDLESS_BASE_CARDS, ENDLESS_CARDS_PER_STAGE, ENDLESS_MAX_LAYERS, ENDLESS_BASE_LAYERS, ROUTE_TITLES;
+    var __moduleName = context_1 && context_1.id;
+    function capacityForLevel(n) {
+        if (!Number.isInteger(n) || n < 1)
+            throw new Error('invalid endless level');
+        if (n <= 3)
+            return 7;
+        if (n <= 5)
+            return 8;
+        return 9;
+    }
+    exports_1("capacityForLevel", capacityForLevel);
+    function routeTitleForLevel(n) {
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+            throw new Error('invalid endless route level');
+        return `第 ${n} 关 · ${ROUTE_TITLES[(n - ENDLESS_MIN_STAGE) % ROUTE_TITLES.length]}`;
+    }
+    exports_1("routeTitleForLevel", routeTitleForLevel);
+    function endlessCardCount(n) {
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+            throw new Error('invalid endless level');
+        return Math.min(ENDLESS_MAX_CARDS, ENDLESS_BASE_CARDS + (n - ENDLESS_MIN_STAGE) * ENDLESS_CARDS_PER_STAGE);
+    }
+    exports_1("endlessCardCount", endlessCardCount);
+    function endlessKindCount(n, available = stack_catalog_1.ENDLESS_ITEMS.length) {
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+            throw new Error('invalid endless level');
+        return Math.min(available, 14 + (n - ENDLESS_MIN_STAGE));
+    }
+    exports_1("endlessKindCount", endlessKindCount);
+    function card(id, x, y, layer, source) {
+        return { id, kind: '', name: '', x, y, w: stack_layout_1.STACK_CARD_SIZE, h: stack_layout_1.STACK_CARD_SIZE, layer, source };
+    }
+    function addExtraLayer(cards, index, random) {
+        const layer = ENDLESS_BASE_LAYERS + index;
+        const half = index % 2 === 1 ? 56 : 0;
+        const wave = (index % 3 - 1) * 18;
+        const idBase = Math.max(...cards.map(item => item.id));
+        let id = idBase;
+        for (let row = 1; row <= 5; row++) {
+            for (let col = 1; col <= 4; col++) {
+                const jitterX = Math.round((random() - .5) * 4);
+                const jitterY = Math.round((random() - .5) * 4);
+                cards.push(card(++id, 92 + half + wave + col * 112 + jitterX, 150 + half * stack_generator_1.STACK_ROW_STEP / 112 + row * stack_generator_1.STACK_ROW_STEP + jitterY, layer, 'pile'));
+            }
+        }
+    }
+    function addSideFan(cards, count) {
+        const left = Math.ceil(count / 2);
+        const right = count - left;
+        let id = Math.max(...cards.map(item => item.id));
+        for (let index = 0; index < left; index++) {
+            cards.push(card(++id, 36 + index * 13, stack_generator_1.STACK_SIDE_FAN_Y, 40 + index, 'side-left'));
+        }
+        for (let index = 0; index < right; index++) {
+            cards.push(card(++id, 606 - index * 13, stack_generator_1.STACK_SIDE_FAN_Y, 40 + index, 'side-right'));
+        }
+    }
+    /**
+     * A compact endless mound. The base reuses the approved stage-two footprint; later stages add
+     * stacked inner layers and grow the two side fans instead of widening the board.
+     */
+    function layoutEndless(n, random) {
+        const target = endlessCardCount(n);
+        const extraLayers = Math.max(0, Math.min(5, n - ENDLESS_MIN_STAGE));
+        const main = stack_generator_1.layoutStageTwo(random).filter(item => item.source === 'pile');
+        const cards = main.map(item => (Object.assign({}, item)));
+        for (let index = 0; index < extraLayers; index++)
+            addExtraLayer(cards, index, random);
+        const sideCount = target - cards.length;
+        if (sideCount < 0)
+            throw new Error('endless layout exceeds target');
+        addSideFan(cards, sideCount);
+        if (cards.length !== target)
+            throw new Error('endless layout card count mismatch');
+        return cards;
+    }
+    exports_1("layoutEndless", layoutEndless);
+    function attemptEndless(n, baseSeed, attempt) {
+        const seed = attempt === 0 ? baseSeed : `${baseSeed}#retry-${attempt}`;
+        const random = rng_1.createRng(seed);
+        const cards = layoutEndless(n, random);
+        const items = stack_catalog_1.ENDLESS_ITEMS.slice(0, endlessKindCount(n));
+        const capacity = capacityForLevel(n);
+        const assigned = stack_generator_1.assignTriples(cards, items, random, {
+            capacity,
+            minGap: n === 3 ? 3 : n === 4 ? 5 : n === 5 ? 4 : n === 6 ? 20 : n === 7 ? 10 : 15,
+            maxOpenGroups: n === 3 ? 1 : n === 4 ? 3 : n === 5 ? 2 : n === 6 ? 3 : n === 7 ? 4 : 3,
+        });
+        if (!assigned)
+            return undefined;
+        const level = {
+            stage: n,
+            seed,
+            cardW: stack_layout_1.STACK_CARD_SIZE,
+            cardH: stack_layout_1.STACK_CARD_SIZE,
+            items,
+            cards: assigned.cards,
+            reservePositions: stack_generator_1.stackReservePositions(stack_layout_1.STACK_CARD_SIZE, stack_layout_1.STACK_CARD_SIZE, 12, stack_generator_1.STACK_SHELF_Y),
+            momPositions: stack_generator_1.stackMomPositions(stack_layout_1.STACK_CARD_SIZE),
+            solution: assigned.solution,
+            slotCapacity: capacity,
+            hideCovered: n >= 4,
+        };
+        return stack_solver_1.solveStackLevel(level, { maxNodes: 240000 }).solvable ? level : undefined;
+    }
+    function generateEndlessLevel(n, maxAttempts = 8) {
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+            throw new Error('invalid endless level');
+        if (!Number.isInteger(maxAttempts) || maxAttempts < 1)
+            throw new Error('invalid endless generator attempts');
+        const seed = `trunk-road-${n}`;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const level = attemptEndless(n, seed, attempt);
+            if (level)
+                return level;
+        }
+        throw new Error(`no solvable endless stack seed after ${maxAttempts} attempts`);
+    }
+    exports_1("generateEndlessLevel", generateEndlessLevel);
+    function endlessSeedFor(n) {
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+            throw new Error('invalid endless level');
+        return `trunk-road-${n}`;
+    }
+    exports_1("endlessSeedFor", endlessSeedFor);
+    return {
+        setters: [
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            },
+            function (stack_catalog_1_1) {
+                stack_catalog_1 = stack_catalog_1_1;
+            },
+            function (stack_generator_1_1) {
+                stack_generator_1 = stack_generator_1_1;
+            },
+            function (stack_layout_1_1) {
+                stack_layout_1 = stack_layout_1_1;
+            },
+            function (stack_solver_1_1) {
+                stack_solver_1 = stack_solver_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("ENDLESS_MIN_STAGE", ENDLESS_MIN_STAGE = 3);
+            exports_1("ENDLESS_MAX_CARDS", ENDLESS_MAX_CARDS = 240);
+            exports_1("ENDLESS_BASE_CARDS", ENDLESS_BASE_CARDS = 165);
+            exports_1("ENDLESS_CARDS_PER_STAGE", ENDLESS_CARDS_PER_STAGE = 15);
+            exports_1("ENDLESS_MAX_LAYERS", ENDLESS_MAX_LAYERS = 11);
+            exports_1("ENDLESS_BASE_LAYERS", ENDLESS_BASE_LAYERS = 6);
+            exports_1("ROUTE_TITLES", ROUTE_TITLES = [
+                '出城收费站', '高速服务区', '跨江大桥', '山区隧道', '县城环岛', '老街牌坊',
+                '河堤长坡', '稻田岔路', '石桥驿站', '竹林弯道', '水库大坝', '省道加油站',
+                '集市路口', '火车涵洞', '山顶垭口', '松林慢坡', '渡口码头', '新村广场',
+                '学校后门', '果园岔口', '窑厂小路', '铁路道口', '祠堂前街', '入镇牌楼',
+            ]);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-catalog.ts","./stack-rules.ts","./stack-layout.ts","./stack-solver.ts","./stack-constants.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, stack_catalog_1, stack_rules_1, stack_layout_1, stack_solver_1, stack_constants_1, STACK_SEEDS, STAGE1_CARDS, STAGE2_CARDS, STAGE2_ITEM_COUNT, STAGE2_CARD, GRID, HALF, GRID_X0, GRID_Y0, STACK_ROW_STEP, STACK_SIDE_FAN_Y, STACK_SHELF_Y, MAIN_LAYERS, SIDE_STACKS;
     var __moduleName = context_1 && context_1.id;
     function pileCard(id, x, y, w, h, layer, source) {
         return { id, kind: '', name: '', x, y, w, h, layer, source };
@@ -2215,7 +2581,7 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
                         continue;
                     const jitterX = Math.round((random() - .5) * 4);
                     const jitterY = Math.round((random() - .5) * 4);
-                    cards.push(pileCard(++id, GRID_X0 + offset + wave + col * GRID + jitterX, GRID_Y0 + offset + row * GRID + jitterY, STAGE2_CARD, STAGE2_CARD, index, 'pile'));
+                    cards.push(pileCard(++id, GRID_X0 + offset + wave + col * GRID + jitterX, GRID_Y0 + offset * STACK_ROW_STEP / GRID + row * STACK_ROW_STEP + jitterY, STAGE2_CARD, STAGE2_CARD, index, 'pile'));
                 }
             }
         });
@@ -2226,63 +2592,168 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
         }
         return cards;
     }
-    function reservePositions(cardW, cardH, count) {
+    exports_1("layoutStageTwo", layoutStageTwo);
+    function stackReservePositions(cardW, cardH, count, top = 936) {
         const gap = 8, columns = 6;
         const reserveW = Math.round(cardW * .72);
         const total = columns * reserveW + (columns - 1) * gap;
         const start = Math.round((750 - total) / 2);
         return Array.from({ length: count }, (_, index) => ({
             x: start + (index % columns) * (reserveW + gap),
-            y: 936 + Math.floor(index / columns) * (Math.round(cardH * .72) + 8),
+            y: top + Math.floor(index / columns) * (Math.round(cardH * .72) + 8),
         }));
     }
-    function momPositions(cardW) {
+    exports_1("stackReservePositions", stackReservePositions);
+    function stackMomPositions(cardW) {
         return [0, 1, 2].map(index => ({ x: Math.round(375 - cardW * 1.5 + index * cardW), y: 290 }));
     }
+    exports_1("stackMomPositions", stackMomPositions);
     function buildCards(stage, random) {
         if (stage === 1) {
             return { cards: layoutStageOne(), items: stack_catalog_1.stackItems(1), w: 136, h: 136 };
         }
         if (stage === 2) {
-            return { cards: layoutStageTwo(random), items: stack_catalog_1.stackItems(2), w: STAGE2_CARD, h: STAGE2_CARD };
+            return {
+                cards: layoutStageTwo(random),
+                items: stack_catalog_1.stackItems(2).slice(0, STAGE2_ITEM_COUNT),
+                w: STAGE2_CARD,
+                h: STAGE2_CARD,
+            };
         }
         throw new Error(`unknown stack stage ${stage}`);
     }
+    function plannedGroupKinds(groupCount, items, random) {
+        if (!items.length || groupCount < items.length)
+            return undefined;
+        const groups = [...items];
+        for (let index = items.length; index < groupCount; index++) {
+            groups.push(items[Math.floor(random() * items.length)]);
+        }
+        return rng_1.shuffle(groups, random);
+    }
     /**
-     * Assigns kinds to a generated legal click order. Each round removes three currently reachable
-     * cards, so replaying the recorded ids always clears a triple without filling the seven slots.
+     * Assigns kinds to a legal click order. A small set of unfinished groups keeps the certificate's
+     * slot occupancy around 3–5 cards instead of clearing each triple immediately. Cards of one kind
+     * are deliberately separated by other picks, while open groups always have distinct kinds so the
+     * recorded order can never auto-pack more than one group at a time.
      */
-    function assignTriples(cards, items, random) {
+    function assignTriples(cards, items, random, capacityOrOptions = stack_constants_1.SLOT_CAPACITY) {
+        var _a, _b, _c, _d, _e, _f, _g;
+        const options = typeof capacityOrOptions === 'number'
+            ? { capacity: capacityOrOptions }
+            : capacityOrOptions;
+        const capacity = stack_constants_1.slotCapacityOf({ slotCapacity: (_a = options.capacity) !== null && _a !== void 0 ? _a : stack_constants_1.SLOT_CAPACITY });
+        const minGap = (_b = options.minGap) !== null && _b !== void 0 ? _b : 7;
+        const maxOpenGroups = (_c = options.maxOpenGroups) !== null && _c !== void 0 ? _c : 3;
+        if (!Number.isInteger(minGap) || minGap < 0)
+            throw new Error('invalid stack triple gap');
+        if (!Number.isInteger(maxOpenGroups) || maxOpenGroups < 1)
+            throw new Error('invalid stack in-flight groups');
+        if (cards.length % stack_constants_1.PACK_SIZE !== 0)
+            return undefined;
+        const planned = plannedGroupKinds(cards.length / stack_constants_1.PACK_SIZE, items, random);
+        if (!planned)
+            return undefined;
+        const remaining = new Map();
+        for (const item of planned)
+            remaining.set(item.key, ((_d = remaining.get(item.key)) !== null && _d !== void 0 ? _d : 0) + 1);
+        const itemByKey = new Map(items.map(item => [item.key, item]));
+        const lastPick = new Map();
         let active = [...cards];
         const solution = [];
-        const firstCycle = rng_1.shuffle(items, random);
-        const totalGroups = cards.length / 3;
-        for (let group = 0; group < totalGroups; group++) {
-            const picks = [];
-            for (let slot = 0; slot < 3; slot++) {
-                const available = stack_rules_1.freeCards(active);
-                if (available.length === 0)
+        const open = [];
+        let pending = 0;
+        const pickOpen = (wanted) => {
+            const matches = open.filter(group => group.picks === wanted);
+            if (!matches.length)
+                return undefined;
+            return matches[Math.floor(random() * matches.length)];
+        };
+        const canStart = (index) => {
+            if (open.length >= maxOpenGroups)
+                return false;
+            const openKeys = new Set(open.map(group => group.item.key));
+            return [...remaining.entries()].some(([key, count]) => count > 0 && !openKeys.has(key)
+                && (lastPick.get(key) === undefined || index - lastPick.get(key) >= minGap));
+        };
+        const startGroup = (index) => {
+            var _a;
+            if (open.length >= maxOpenGroups)
+                return undefined;
+            const openKeys = new Set(open.map(group => group.item.key));
+            const available = [...remaining.entries()]
+                .filter(([key, count]) => count > 0 && !openKeys.has(key) && itemByKey.has(key));
+            const spaced = available.filter(([key]) => lastPick.get(key) === undefined || index - lastPick.get(key) >= minGap);
+            const pool = spaced.length ? spaced : available;
+            if (!pool.length)
+                return undefined;
+            const [key] = pool[Math.floor(random() * pool.length)];
+            remaining.set(key, ((_a = remaining.get(key)) !== null && _a !== void 0 ? _a : 0) - 1);
+            const group = { item: itemByKey.get(key), picks: 0 };
+            open.push(group);
+            return group;
+        };
+        const continueGroup = (group) => {
+            group.picks++;
+            pending++;
+        };
+        const completeGroup = (group) => {
+            group.picks++;
+            pending -= stack_constants_1.PACK_SIZE - 1;
+            open.splice(open.indexOf(group), 1);
+        };
+        for (let index = 0; index < cards.length; index++) {
+            const available = stack_rules_1.freeCards(active);
+            if (!available.length)
+                return undefined;
+            let group;
+            const pair = pickOpen(2);
+            const single = pickOpen(1);
+            if (pending >= 5) {
+                if (!pair)
                     return undefined;
-                const pick = available[Math.floor(random() * available.length)];
-                picks.push(pick);
-                active = active.filter(card => card.id !== pick.id);
+                group = pair;
             }
-            const item = group < firstCycle.length
-                ? firstCycle[group]
-                : items[Math.floor(random() * items.length)];
-            for (const pick of picks) {
-                pick.kind = item.key;
-                pick.name = item.name;
-                solution.push(pick.id);
+            else if (pending <= 2) {
+                group = (_f = (_e = startGroup(index)) !== null && _e !== void 0 ? _e : single) !== null && _f !== void 0 ? _f : pair;
             }
+            else if (pending === 3) {
+                group = (_g = single !== null && single !== void 0 ? single : startGroup(index)) !== null && _g !== void 0 ? _g : pair;
+            }
+            else {
+                group = canStart(index) ? startGroup(index) : pair;
+                group !== null && group !== void 0 ? group : (group = single);
+            }
+            if (!group)
+                return undefined;
+            if (group.picks === 2)
+                completeGroup(group);
+            else
+                continueGroup(group);
+            if (pending > capacity)
+                return undefined;
+            const card = available[Math.floor(random() * available.length)];
+            card.kind = group.item.key;
+            card.name = group.item.name;
+            lastPick.set(group.item.key, index);
+            solution.push(card.id);
+            active = active.filter(candidate => candidate.id !== card.id);
         }
-        return active.length === 0 ? { cards, solution } : undefined;
+        if (active.length || pending !== 0 || open.length)
+            return undefined;
+        return { cards, solution };
     }
+    exports_1("assignTriples", assignTriples);
     function attemptLevel(stage, baseSeed, attempt) {
         const seed = attempt === 0 ? baseSeed : `${baseSeed}#retry-${attempt}`;
         const random = rng_1.createRng(seed);
         const built = buildCards(stage, random);
-        const assigned = assignTriples(built.cards, built.items, random);
+        const capacity = stack_constants_1.SLOT_CAPACITY;
+        const assigned = assignTriples(built.cards, built.items, random, {
+            capacity,
+            minGap: stage === 2 ? 5 : 4,
+            maxOpenGroups: stage === 2 ? 2 : 2,
+        });
         if (!assigned)
             throw new Error('layout could not be assigned');
         const level = {
@@ -2292,9 +2763,10 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             cardH: built.h,
             items: built.items,
             cards: assigned.cards,
-            reservePositions: reservePositions(built.w, built.h, 12),
-            momPositions: momPositions(built.w),
+            reservePositions: stackReservePositions(built.w, built.h, 12, stage === 2 ? STACK_SHELF_Y : 936),
+            momPositions: stackMomPositions(built.w),
             solution: assigned.solution,
+            slotCapacity: capacity,
         };
         return { level, solvable: stack_solver_1.solveStackLevel(level, { maxNodes: 120000 }).solvable };
     }
@@ -2332,17 +2804,29 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             },
             function (stack_solver_1_1) {
                 stack_solver_1 = stack_solver_1_1;
+            },
+            function (stack_constants_1_1) {
+                stack_constants_1 = stack_constants_1_1;
             }
         ],
         execute: function () {
-            exports_1("STACK_SEEDS", STACK_SEEDS = ['trunk-stack-stage1-v1', 'trunk-stack-stage2-v1']);
+            exports_1("STACK_SEEDS", STACK_SEEDS = ['trunk-stack-stage1-v1', 'trunk-stack-stage2-v2a']);
             exports_1("STAGE1_CARDS", STAGE1_CARDS = 18);
             exports_1("STAGE2_CARDS", STAGE2_CARDS = 150);
+            exports_1("STAGE2_ITEM_COUNT", STAGE2_ITEM_COUNT = 12);
             STAGE2_CARD = stack_layout_1.STACK_CARD_SIZE;
             GRID = 112;
             HALF = GRID / 2;
             GRID_X0 = Math.round((750 - (5 * GRID + STAGE2_CARD)) / 2);
             GRID_Y0 = 150;
+            /**
+             * Rows sit 100 apart (cards are 108), slightly tighter than the 112 columns, so the 150-card
+             * mound fits a 390×844 phone at full card size (≥56px) above the vehicle.
+             */
+            exports_1("STACK_ROW_STEP", STACK_ROW_STEP = 100);
+            /** Top of the two bottom side fans and of the side shelf for moved-out cards. */
+            exports_1("STACK_SIDE_FAN_Y", STACK_SIDE_FAN_Y = GRID_Y0 + 6 * STACK_ROW_STEP + STAGE2_CARD + 76);
+            exports_1("STACK_SHELF_Y", STACK_SHELF_Y = STACK_SIDE_FAN_Y - 70);
             /**
              * Bottom-to-top layers of the hard mound. Odd layers sit half a card right and down, so every
              * card is pinned by up to four cards above; upper layers shrink towards the centre and the
@@ -2358,8 +2842,8 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
                 { cols: [2, 2], rows: [0, 5], half: true, wave: 40 },
             ];
             SIDE_STACKS = [
-                { source: 'side-left', x: 36, y: 1006, count: 12, step: 13 },
-                { source: 'side-right', x: 606, y: 1006, count: 12, step: -13 },
+                { source: 'side-left', x: 36, y: STACK_SIDE_FAN_Y, count: 12, step: 13 },
+                { source: 'side-right', x: 606, y: STACK_SIDE_FAN_Y, count: 12, step: -13 },
             ];
         }
     };
@@ -2497,6 +2981,118 @@ System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, c
     };
 });
 
+System.register("chunks:///_virtual/stack-progress.ts", ["./stack-daily.ts","./stack-endless.ts","./stack-generator.ts"], function (exports_1, context_1) {
+    "use strict";
+    var stack_daily_1, stack_endless_1, stack_generator_1, STACK_BEST_LEVEL_KEY, STACK_DAILY_DONE_KEY;
+    var __moduleName = context_1 && context_1.id;
+    function normalizeRoute(value) {
+        if (value === 'daily')
+            return 'daily';
+        const n = Number(value);
+        return Number.isInteger(n) && n >= 1 && n <= 999 ? n : 1;
+    }
+    exports_1("normalizeRoute", normalizeRoute);
+    function levelForRoute(route, now = new Date()) {
+        if (route === 'daily')
+            return stack_daily_1.generateDailyLevel(stack_daily_1.dailySeed(now));
+        if (route >= stack_endless_1.ENDLESS_MIN_STAGE)
+            return stack_endless_1.generateEndlessLevel(route);
+        const stage = route === 2 ? 2 : 1;
+        return stack_generator_1.generateStackLevel(stage, stack_generator_1.STACK_SEEDS[stage - 1]).level;
+    }
+    exports_1("levelForRoute", levelForRoute);
+    /** HUD lines: “第 3 关” + “出城收费站”, or the daily date. */
+    function routeHeadline(route, now = new Date()) {
+        if (route === 'daily') {
+            const [, month, day] = stack_daily_1.dailySeed(now).split('-').map(Number);
+            return { stage: '每日一关', subtitle: `${month} 月 ${day} 日 · 今日挑战` };
+        }
+        if (route >= stack_endless_1.ENDLESS_MIN_STAGE) {
+            const [stage, place] = stack_endless_1.routeTitleForLevel(route).split(' · ');
+            return { stage, subtitle: place };
+        }
+        return { stage: `第 ${route} 关`, subtitle: null };
+    }
+    exports_1("routeHeadline", routeHeadline);
+    /** Daily boards ride a different vehicle each day (Beijing date), level boards follow the level. */
+    function vehicleLevelForRoute(route, now = new Date()) {
+        if (route !== 'daily')
+            return route;
+        const [year, month, day] = stack_daily_1.dailySeed(now).split('-').map(Number);
+        const dayNumber = Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+        return 1 + dayNumber % 9;
+    }
+    exports_1("vehicleLevelForRoute", vehicleLevelForRoute);
+    function readBestLevel(storage) {
+        try {
+            const n = Number(storage === null || storage === void 0 ? void 0 : storage.getItem(STACK_BEST_LEVEL_KEY));
+            return Number.isInteger(n) && n > 0 ? n : 0;
+        }
+        catch (_a) {
+            return 0;
+        }
+    }
+    exports_1("readBestLevel", readBestLevel);
+    /** Remembers the farthest level the player has reached (started). Returns the new best. */
+    function recordLevelReached(storage, level) {
+        const best = Math.max(readBestLevel(storage), Math.floor(level));
+        try {
+            storage === null || storage === void 0 ? void 0 : storage.setItem(STACK_BEST_LEVEL_KEY, String(best));
+        }
+        catch ( /* storage optional */_a) { /* storage optional */ }
+        return best;
+    }
+    exports_1("recordLevelReached", recordLevelReached);
+    function isDailyDone(storage, now = new Date()) {
+        try {
+            return (storage === null || storage === void 0 ? void 0 : storage.getItem(STACK_DAILY_DONE_KEY)) === stack_daily_1.dailySeed(now);
+        }
+        catch (_a) {
+            return false;
+        }
+    }
+    exports_1("isDailyDone", isDailyDone);
+    function markDailyDone(storage, now = new Date()) {
+        try {
+            storage === null || storage === void 0 ? void 0 : storage.setItem(STACK_DAILY_DONE_KEY, stack_daily_1.dailySeed(now));
+        }
+        catch ( /* storage optional */_a) { /* storage optional */ }
+    }
+    exports_1("markDailyDone", markDailyDone);
+    function nextRouteTitle(route) {
+        if (route === 'daily')
+            return null;
+        return `继续回家路 · 第 ${route + 1} 关`;
+    }
+    exports_1("nextRouteTitle", nextRouteTitle);
+    function browserStorage() {
+        try {
+            return typeof localStorage === 'undefined' ? undefined : localStorage;
+        }
+        catch (_a) {
+            return undefined;
+        }
+    }
+    exports_1("browserStorage", browserStorage);
+    return {
+        setters: [
+            function (stack_daily_1_1) {
+                stack_daily_1 = stack_daily_1_1;
+            },
+            function (stack_endless_1_1) {
+                stack_endless_1 = stack_endless_1_1;
+            },
+            function (stack_generator_1_1) {
+                stack_generator_1 = stack_generator_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("STACK_BEST_LEVEL_KEY", STACK_BEST_LEVEL_KEY = 'smhj.bestLevel');
+            exports_1("STACK_DAILY_DONE_KEY", STACK_DAILY_DONE_KEY = 'smhj.dailyDone');
+        }
+    };
+});
+
 System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalog.ts","./stack-state-solver.ts","./stack-constants.ts"], function (exports_1, context_1) {
     "use strict";
     var rng_1, stack_catalog_1, stack_state_solver_1, stack_constants_1, MOM_INTERVAL_MS, MOM_SOLVE_NODES, MOM_PLACEMENT_ATTEMPTS, StackGame;
@@ -2551,6 +3147,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
         execute: function () {
             exports_1("PACK_SIZE", stack_constants_1.PACK_SIZE);
             exports_1("SLOT_CAPACITY", stack_constants_1.SLOT_CAPACITY);
+            exports_1("slotCapacityOf", stack_constants_1.slotCapacityOf);
             exports_1("MOM_INTERVAL_MS", MOM_INTERVAL_MS = 25000);
             /** Solver budget per candidate placement of mom's goods. */
             exports_1("MOM_SOLVE_NODES", MOM_SOLVE_NODES = 6000);
@@ -2581,6 +3178,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                 get clearedGroups() { return this.groupsCleared; }
                 get momEventCount() { return this.momEvents; }
                 get props() { return this.propState; }
+                get slotCapacity() { return stack_constants_1.slotCapacityOf(this.level); }
                 /** A lost game may be revived once (three slot cards go to the side shelf). */
                 get canRevive() { return !this.reviveUsed && this.currentStatus === 'lost' && this.slotList.length >= stack_constants_1.PACK_SIZE; }
                 canTap(id) {
@@ -2615,7 +3213,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                         this.slotList = this.slotList.filter(candidate => !packedIds.has(candidate.id));
                         this.groupsCleared++;
                     }
-                    else if (this.slotList.length >= stack_constants_1.SLOT_CAPACITY) {
+                    else if (this.slotList.length >= this.slotCapacity) {
                         this.currentStatus = 'lost';
                     }
                     if (this.cardList.length === 0 && this.slotList.length === 0)
@@ -2676,7 +3274,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
                     for (let attempt = 0; attempt < MOM_PLACEMENT_ATTEMPTS && !chosen; attempt++) {
                         const added = this.momPlacement(item, attempt);
                         fallback !== null && fallback !== void 0 ? fallback : (fallback = added);
-                        const check = stack_state_solver_1.solveStackState([...this.cardList, ...added], slotKinds, { maxNodes: MOM_SOLVE_NODES });
+                        const check = stack_state_solver_1.solveStackState([...this.cardList, ...added], slotKinds, { maxNodes: MOM_SOLVE_NODES, capacity: this.slotCapacity });
                         if (check.solvable)
                             chosen = added;
                     }
@@ -2768,9 +3366,9 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
     };
 });
 
-System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts","./rank.ts"], function (exports_1, context_1) {
     "use strict";
-    var brand_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_BACKLOG_THRESHOLD, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS;
+    var brand_1, rank_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_BACKLOG_THRESHOLD, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS, STACK_SHARE_LINK, FAIL_TAUNTS;
     var __moduleName = context_1 && context_1.id;
     function safeInteger(value, minimum = 0) {
         if (!Number.isFinite(value))
@@ -2810,10 +3408,36 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (e
         return `${brand_1.GAME_TITLE}-第${safeInteger(stage, 1)}关-${victory ? '胜利' : '差一点'}.png`;
     }
     exports_1("stackShareFileName", stackShareFileName);
+    /**
+     * Province line on the share card: a win claims “+1” (and the rank once the board answered),
+     * a loss taunts the player's province. No province chosen → no line.
+     */
+    function formatStackShareProvince(province, victory, rank = null, random = Math.random, 
+    /** Levels the board does not count (3+, debug runs) never claim a “+1”. */
+    counted = true) {
+        if (!province)
+            return null;
+        const place = rank_1.provinceLabel(province);
+        if (victory && !counted)
+            return `我替${place}把年货装满一车了`;
+        if (victory)
+            return rank === null ? `我为${place}${brand_1.GAME_TITLE} +1` : `我为${place}${brand_1.GAME_TITLE} +1，${place}排第 ${rank}`;
+        const drawn = random();
+        const value = Number.isFinite(drawn) ? Math.max(0, Math.min(0.999999, drawn)) : 0;
+        return FAIL_TAUNTS[Math.floor(value * FAIL_TAUNTS.length)](place);
+    }
+    exports_1("formatStackShareProvince", formatStackShareProvince);
+    function formatStackShareVehicle(name) {
+        return name ? `本关座驾：${name}` : null;
+    }
+    exports_1("formatStackShareVehicle", formatStackShareVehicle);
     return {
         setters: [
             function (brand_1_1) {
                 brand_1 = brand_1_1;
+            },
+            function (rank_1_1) {
+                rank_1 = rank_1_1;
             }
         ],
         execute: function () {
@@ -2838,6 +3462,245 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (e
                 '车尾装不下，家里的牵挂装得下',
                 '一路顺风，回家过年',
             ]);
+            /** Trial-site address printed on every share card. */
+            exports_1("STACK_SHARE_LINK", STACK_SHARE_LINK = 'feyakit.github.io/smhj-play');
+            FAIL_TAUNTS = [
+                (place) => `${place}还差我一箱`,
+                (place) => `${place}的年货，还差我这一车`,
+                (place) => `差一点就为${place}塞满了`,
+            ];
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-sim.ts", ["./rng.ts","./stack-rules.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, stack_rules_1, DEFAULT_SIM_CLICKS, DEFAULT_CLICK_INTERVAL_MS;
+    var __moduleName = context_1 && context_1.id;
+    function slotCounts(game) {
+        var _a;
+        const counts = new Map();
+        for (const card of game.slot)
+            counts.set(card.kind, ((_a = counts.get(card.kind)) !== null && _a !== void 0 ? _a : 0) + 1);
+        return counts;
+    }
+    function visibleKindCounts(cards) {
+        var _a;
+        const counts = new Map();
+        for (const card of cards)
+            counts.set(card.kind, ((_a = counts.get(card.kind)) !== null && _a !== void 0 ? _a : 0) + 1);
+        return counts;
+    }
+    function randomFrom(values, random) {
+        const raw = random();
+        const value = Number.isFinite(raw) ? Math.max(0, Math.min(0.999999, raw)) : 0;
+        return values[Math.floor(value * values.length)];
+    }
+    function pickBest(scored, random) {
+        if (!scored.length)
+            return undefined;
+        const best = Math.max(...scored.map(entry => entry.score));
+        return randomFrom(scored.filter(entry => entry.score === best), random).value;
+    }
+    function exposureScore(card, cards, slot) {
+        var _a;
+        let newlyFree = 0;
+        let matchingSlot = 0;
+        let matchingKind = 0;
+        for (const below of cards) {
+            if (below.id === card.id || below.layer >= card.layer)
+                continue;
+            if (!(card.x < below.x + below.w && card.x + card.w > below.x
+                && card.y < below.y + below.h && card.y + card.h > below.y))
+                continue;
+            const stillCovered = cards.some(other => other.id !== card.id && other.id !== below.id
+                && other.layer > below.layer
+                && other.x < below.x + below.w && other.x + other.w > below.x
+                && other.y < below.y + below.h && other.y + other.h > below.y);
+            if (stillCovered)
+                continue;
+            newlyFree++;
+            if (((_a = slot.get(below.kind)) !== null && _a !== void 0 ? _a : 0) > 0)
+                matchingSlot++;
+            if (below.kind === card.kind)
+                matchingKind++;
+        }
+        return { newlyFree, matchingSlot, matchingKind };
+    }
+    function chooseCard(game, strategy, random, banned) {
+        let candidates = stack_rules_1.freeCards(game.cards);
+        if (!candidates.length)
+            return undefined;
+        if (banned !== undefined && candidates.length > 1) {
+            candidates = candidates.filter(card => card.id !== banned);
+        }
+        if (strategy === 'random')
+            return randomFrom(candidates, random);
+        const slot = slotCounts(game);
+        const visible = visibleKindCounts(candidates);
+        if (strategy === 'greedy') {
+            return pickBest(candidates.map(card => {
+                var _a, _b;
+                const inSlot = (_a = slot.get(card.kind)) !== null && _a !== void 0 ? _a : 0;
+                const priority = inSlot >= 2 ? 2 : inSlot === 1 ? 1 : 0;
+                return { value: card, score: priority * 10000 + ((_b = visible.get(card.kind)) !== null && _b !== void 0 ? _b : 0) };
+            }), random);
+        }
+        const capacity = game.slotCapacity;
+        return pickBest(candidates.map(card => {
+            var _a, _b;
+            const inSlot = (_a = slot.get(card.kind)) !== null && _a !== void 0 ? _a : 0;
+            const pack = inSlot >= 2;
+            const exposure = exposureScore(card, game.cards, slot);
+            const nextSlotSize = pack ? Math.max(0, game.slot.length - 2) : game.slot.length + 1;
+            const pressure = nextSlotSize >= capacity - 1 ? 30000 : nextSlotSize >= capacity - 2 ? 8000 : 0;
+            return {
+                value: card,
+                score: (pack ? 1000000 : inSlot === 1 ? 180000 : 0)
+                    + ((_b = visible.get(card.kind)) !== null && _b !== void 0 ? _b : 0) * 4000
+                    + exposure.newlyFree * 2000
+                    + exposure.matchingSlot * 6000
+                    + exposure.matchingKind * 3000
+                    - pressure,
+            };
+        }), random);
+    }
+    function packAvailable(slot, candidates) {
+        return candidates.some(card => { var _a; return ((_a = slot.get(card.kind)) !== null && _a !== void 0 ? _a : 0) >= 2; });
+    }
+    /** Whether at least two copies of some kind can still be brought together. */
+    function hasPairPotential(slot, candidates) {
+        if ([...slot.values()].some(count => count >= 2))
+            return true;
+        const visible = visibleKindCounts(candidates);
+        if ([...visible.values()].some(count => count >= 2))
+            return true;
+        return candidates.some(card => { var _a; return ((_a = slot.get(card.kind)) !== null && _a !== void 0 ? _a : 0) === 1; });
+    }
+    function summarize(results) {
+        const runs = results.length;
+        const wins = results.filter(result => result.won).length;
+        const total = (value) => results.reduce((sum, result) => sum + value(result), 0);
+        const rate = (value) => runs ? total(result => value(result) ? 1 : 0) / runs : 0;
+        return {
+            runs,
+            wins,
+            winRate: runs ? wins / runs : 0,
+            averageRemaining: runs ? total(result => result.remaining) / runs : 0,
+            averageClicks: runs ? total(result => result.clicks) / runs : 0,
+            averageGroupsCleared: runs ? total(result => result.groupsCleared) / runs : 0,
+            averageMomEvents: runs ? total(result => result.momEvents) / runs : 0,
+            itemUseRate: {
+                moveOut: rate(result => result.itemsUsed.moveOut),
+                undo: rate(result => result.itemsUsed.undo),
+                shuffle: rate(result => result.itemsUsed.shuffle),
+                revive: rate(result => result.itemsUsed.revive),
+            },
+        };
+    }
+    /**
+     * Plays one deterministic run. The player only sees currently free cards; covered cards are
+     * considered only by the lookahead strategy after a candidate tap would reveal them.
+     */
+    function simulateStackRun(level, options, runIndex = 0) {
+        var _a, _b, _c, _d;
+        const clickIntervalMs = (_a = options.clickIntervalMs) !== null && _a !== void 0 ? _a : DEFAULT_CLICK_INTERVAL_MS;
+        if (!Number.isFinite(clickIntervalMs) || clickIntervalMs <= 0)
+            throw new Error('invalid stack click interval');
+        const maxClicks = (_b = options.maxClicks) !== null && _b !== void 0 ? _b : DEFAULT_SIM_CLICKS;
+        if (!Number.isInteger(maxClicks) || maxClicks < 1)
+            throw new Error('invalid stack click limit');
+        const itemMode = (_c = options.itemMode) !== null && _c !== void 0 ? _c : 'none';
+        const seed = `${(_d = options.seed) !== null && _d !== void 0 ? _d : level.seed}|${options.strategy}|${itemMode}|${runIndex}`;
+        const random = rng_1.createRng(seed);
+        const game = new stack_rules_1.StackGame(level, random, 0);
+        const used = {
+            moveOut: false, undo: false, shuffle: false, revive: false,
+        };
+        let clicks = 0;
+        let now = 0;
+        let lastTap;
+        let bannedAfterUndo;
+        while (game.status === 'playing' && clicks < maxClicks) {
+            let candidates = stack_rules_1.freeCards(game.cards);
+            if (!candidates.length)
+                break;
+            const slot = slotCounts(game);
+            if (itemMode !== 'none') {
+                const imminentLoss = game.slot.length >= game.slotCapacity - 1 && !packAvailable(slot, candidates);
+                if (!used.undo && game.props.undo === false && imminentLoss && game.useUndo()) {
+                    used.undo = true;
+                    bannedAfterUndo = lastTap;
+                    lastTap = undefined;
+                    continue;
+                }
+                candidates = stack_rules_1.freeCards(game.cards);
+                const refreshedSlot = slotCounts(game);
+                if (!used.moveOut && !game.props.moveOut && game.slot.length >= 5
+                    && !hasPairPotential(refreshedSlot, candidates) && game.useMoveOut().length > 0) {
+                    used.moveOut = true;
+                    continue;
+                }
+                if (!used.shuffle && !game.props.shuffle && !packAvailable(refreshedSlot, candidates)
+                    && !hasPairPotential(refreshedSlot, candidates) && game.useShuffle()) {
+                    used.shuffle = true;
+                    candidates = stack_rules_1.freeCards(game.cards);
+                }
+            }
+            const card = chooseCard(game, options.strategy, random, bannedAfterUndo);
+            bannedAfterUndo = undefined;
+            if (!card)
+                break;
+            now += clickIntervalMs;
+            const result = game.tap(card.id, now);
+            if (!result.ok)
+                break;
+            lastTap = card.id;
+            clicks++;
+            game.tickMom(now);
+            const statusAfterTap = game.status;
+            if (statusAfterTap === 'lost' && itemMode === 'all-revive' && !used.revive && game.canRevive) {
+                if (game.revive().length > 0)
+                    used.revive = true;
+            }
+        }
+        return {
+            won: game.status === 'won',
+            status: game.status,
+            remaining: game.remaining,
+            clicks,
+            groupsCleared: game.clearedGroups,
+            momEvents: game.momEventCount,
+            itemsUsed: used,
+        };
+    }
+    exports_1("simulateStackRun", simulateStackRun);
+    function simulateStackBatch(level, options, runs = 1000) {
+        if (!Number.isInteger(runs) || runs < 1)
+            throw new Error('invalid stack simulation run count');
+        const results = [];
+        for (let index = 0; index < runs; index++)
+            results.push(simulateStackRun(level, options, index));
+        return summarize(results);
+    }
+    exports_1("simulateStackBatch", simulateStackBatch);
+    /** Exposed for tools/tests that need to inspect the exact card set a player may tap. */
+    function visibleStackCards(game) {
+        return stack_rules_1.freeCards(game.cards);
+    }
+    exports_1("visibleStackCards", visibleStackCards);
+    return {
+        setters: [
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            },
+            function (stack_rules_1_1) {
+                stack_rules_1 = stack_rules_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("DEFAULT_SIM_CLICKS", DEFAULT_SIM_CLICKS = 2000);
+            exports_1("DEFAULT_CLICK_INTERVAL_MS", DEFAULT_CLICK_INTERVAL_MS = 1800);
         }
     };
 });
@@ -2873,6 +3736,7 @@ System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts","./sta
         return index;
     }
     function simulateStackPicks(level, picks, maxClicks = picks.length) {
+        const capacity = stack_rules_1.slotCapacityOf(level);
         const cards = level.cards.map(card => (Object.assign({}, card)));
         const active = new Map(cards.map(card => [card.id, card]));
         const slot = [];
@@ -2885,7 +3749,7 @@ System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts","./sta
                 return { valid: false, used: index };
             active.delete(card.id);
             insertAndClear(slot, card.kind);
-            if (slot.length >= stack_rules_1.SLOT_CAPACITY)
+            if (slot.length >= capacity)
                 return { valid: false, used: index + 1 };
         }
         return { valid: active.size === 0 && slot.length === 0, used: Math.min(picks.length, maxClicks) };
@@ -2893,6 +3757,7 @@ System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts","./sta
     exports_1("simulateStackPicks", simulateStackPicks);
     function solveStackLevel(level, options = {}) {
         var _a;
+        const capacity = stack_rules_1.slotCapacityOf(level);
         const maxNodes = (_a = options.maxNodes) !== null && _a !== void 0 ? _a : 120000;
         if (level.solution.length > 0) {
             const certificate = simulateStackPicks(level, level.solution);
@@ -2926,7 +3791,7 @@ System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts","./sta
             for (const card of reachable)
                 byKind.set(card.kind, [...((_a = byKind.get(card.kind)) !== null && _a !== void 0 ? _a : []), card]);
             const compound = [...byKind.entries()]
-                .filter(([kind, cardsOfKind]) => cardsOfKind.length >= stack_rules_1.PACK_SIZE && !state.slot.includes(kind) && state.slot.length <= stack_rules_1.SLOT_CAPACITY - stack_rules_1.PACK_SIZE)
+                .filter(([kind, cardsOfKind]) => cardsOfKind.length >= stack_rules_1.PACK_SIZE && !state.slot.includes(kind) && state.slot.length <= capacity - stack_rules_1.PACK_SIZE)
                 .sort((a, b) => b[1].length - a[1].length);
             for (const [, cardsOfKind] of compound) {
                 const picks = cardsOfKind.slice(0, stack_rules_1.PACK_SIZE).map(card => card.id);
@@ -2951,14 +3816,14 @@ System.register("chunks:///_virtual/stack-solver.ts", ["./stack-rules.ts","./sta
                 return bPair - aPair || ((_b = (_a = byKind.get(b.kind)) === null || _a === void 0 ? void 0 : _a.length) !== null && _b !== void 0 ? _b : 0) - ((_d = (_c = byKind.get(a.kind)) === null || _c === void 0 ? void 0 : _c.length) !== null && _d !== void 0 ? _d : 0);
             });
             for (const card of singles) {
-                if (state.slot.length >= stack_rules_1.SLOT_CAPACITY && state.slot.filter(kind => kind === card.kind).length < 2)
+                if (state.slot.length >= capacity && state.slot.filter(kind => kind === card.kind).length < 2)
                     continue;
                 const nextActive = [...state.active];
                 const index = level.cards.findIndex(candidate => candidate.id === card.id);
                 nextActive[index] = false;
                 const nextSlot = [...state.slot];
                 insertAndClear(nextSlot, card.kind);
-                if (nextSlot.length >= stack_rules_1.SLOT_CAPACITY)
+                if (nextSlot.length >= capacity)
                     continue;
                 const answer = search({ active: nextActive, slot: nextSlot, picks: [...state.picks, card.id] });
                 if (answer)
@@ -3153,6 +4018,11 @@ System.register("chunks:///_virtual/stack-vehicles.ts", [], function (exports_1,
         return { def, lap, tint, displayName: `${colour}${def.name}` };
     }
     exports_1("vehicleForLevel", vehicleForLevel);
+    /** Short phones (page under 1450 design units tall) shrink the ride so the board keeps ~44px cards. */
+    function vehicleScaleForPage(pageHeight) {
+        return pageHeight < 1450 ? .76 : 1;
+    }
+    exports_1("vehicleScaleForPage", vehicleScaleForPage);
     function vehicleSlotLabel(def, capacity) {
         return `${def.container} · ${capacity} 格`;
     }
@@ -3161,9 +4031,9 @@ System.register("chunks:///_virtual/stack-vehicles.ts", [], function (exports_1,
      * The art is bottom-anchored so its wheels tuck behind the prop buttons (starting at `actionY`),
      * but never so low that a cargo cell slips under them.
      */
-    function vehicleArtRect(def, actionY, designWidth = 750) {
+    function vehicleArtRect(def, actionY, designWidth = 750, scale = 1) {
         var _a;
-        const h = def.height;
+        const h = def.height * scale;
         const w = h * def.artSize.w / def.artSize.h * ((_a = def.stretchX) !== null && _a !== void 0 ? _a : 1);
         const lowestCargo = Math.max(0, ...def.regions.map(region => region.y + region.h));
         const bottom = Math.min(actionY + 80, actionY - 12 + (1 - lowestCargo) * h);
@@ -3252,9 +4122,9 @@ System.register("chunks:///_virtual/stack-vehicles.ts", [], function (exports_1,
                 {
                     key: 'moto', name: '摩托车', container: '摩托后尾箱', art: 'vehicles/moto', artSize: { w: 548, h: 678 }, height: 540,
                     regions: [
-                        { x: .13, y: .325, w: .74, h: .165, style: 'box' },
-                        { x: 0, y: .56, w: .35, h: .32, style: 'bag' },
-                        { x: .65, y: .56, w: .35, h: .32, style: 'bag' },
+                        { x: .12, y: .30, w: .76, h: .20, style: 'box' },
+                        { x: 0, y: .54, w: .36, h: .38, style: 'bag' },
+                        { x: .64, y: .54, w: .36, h: .38, style: 'bag' },
                     ],
                     split: { 7: [3, 2, 2], 8: [4, 2, 2], 9: [3, 3, 3] },
                     palette: RED_GOLD,
@@ -3911,9 +4781,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./RankPage.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./stack-progress.ts","./RankPage.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, RankPage_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, HomePage;
+    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, stack_progress_1, RankPage_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, HomePage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -3943,6 +4813,9 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
             },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
+            },
+            function (stack_progress_1_1) {
+                stack_progress_1 = stack_progress_1_1;
             },
             function (RankPage_1_1) {
                 RankPage_1 = RankPage_1_1;
@@ -3975,6 +4848,7 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.classicRect = { x: 195, y: 0, w: CLASSIC_WIDTH, h: CLASSIC_HEIGHT };
                     this.provinceRect = { x: 185, y: 0, w: 380, h: 56 };
                     this.rankRect = { x: 225, y: 0, w: 300, h: 58 };
+                    this.dailyRect = { x: 390, y: 0, w: 290, h: 58 };
                     this.width = 750;
                     this.height = 1334;
                     this.layoutWidth = -1;
@@ -4055,6 +4929,14 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.provinceLabel.color = paleGold;
                     this.rankLabel = UIKit_1.label(this.node, 'HomeRankText', '省份排行', 24, 0, 0);
                     this.rankLabel.color = paleGold;
+                    const storage = stack_progress_1.browserStorage();
+                    this.dailyLabel = UIKit_1.label(this.node, 'HomeDailyText', stack_progress_1.isDailyDone(storage) ? '每日一关 · 今日已塞满' : '每日一关', 24, 0, 0);
+                    this.dailyLabel.color = paleGold;
+                    const best = stack_progress_1.readBestLevel(storage);
+                    this.bestLabel = UIKit_1.label(this.startNode, 'HomeBestText', best >= 2 ? `最远到过第 ${best} 关` : '', 19, 0, -26);
+                    this.bestLabel.color = new cc_1.Color(110, 40, 20);
+                    if (best >= 2)
+                        this.startLabel.node.setPosition(0, 10);
                     this.refreshProvinceLabel();
                     this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
                     this.debugHook = Object.freeze({
@@ -4106,8 +4988,10 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.provinceRect = { x: (750 - 380) / 2, y: provinceY, w: 380, h: 56 };
                     this.provinceLabel.node.setPosition(0, this.height / 2 - (provinceY + 28));
                     const rankY = this.height - 382;
-                    this.rankRect = { x: (750 - 300) / 2, y: rankY, w: 300, h: 58 };
-                    this.rankLabel.node.setPosition(0, this.height / 2 - (rankY + 29));
+                    this.rankRect = { x: 70, y: rankY, w: 290, h: 58 };
+                    this.rankLabel.node.setPosition(this.rankRect.x + 145 - 375, this.height / 2 - (rankY + 29));
+                    this.dailyRect = { x: 390, y: rankY, w: 290, h: 58 };
+                    this.dailyLabel.node.setPosition(this.dailyRect.x + 145 - 375, this.height / 2 - (rankY + 29));
                     const startY = this.height - 272;
                     this.startRect = { x: (750 - START_WIDTH) / 2, y: startY, w: START_WIDTH, h: START_HEIGHT };
                     this.startNode.setPosition(0, this.height / 2 - (startY + START_HEIGHT / 2));
@@ -4172,6 +5056,13 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     g.roundRect(left + rank.x + 2, top - (rank.y + rank.h) + 2, rank.w - 4, rank.h - 4, 18);
                     g.stroke();
                     rect(new cc_1.Color(255, 213, 132, 52), rank.x + 44, rank.y + 10, rank.w - 88, 2, 1);
+                    const daily = this.dailyRect;
+                    rect(new cc_1.Color(120, 22, 30, 228), daily.x, daily.y, daily.w, daily.h, 20);
+                    g.strokeColor = new cc_1.Color(255, 207, 111, 220);
+                    g.lineWidth = 2;
+                    g.roundRect(left + daily.x + 2, top - (daily.y + daily.h) + 2, daily.w - 4, daily.h - 4, 18);
+                    g.stroke();
+                    rect(new cc_1.Color(255, 213, 132, 52), daily.x + 44, daily.y + 10, daily.w - 88, 2, 1);
                     this.drawCarFallback();
                 }
                 layoutCar() {
@@ -4214,6 +5105,7 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     UIKit_1.fill(g, new cc_1.Color(20, 15, 20), -295, -222, 590, 28, 12);
                 }
                 touch(event) {
+                    var _a, _b;
                     const point = this.point(event);
                     if (this.provincePicker) {
                         this.provincePicker.press(point.x, point.y);
@@ -4229,6 +5121,10 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     }
                     if (contains(this.rankRect, point.x, point.y)) {
                         this.openRankPage();
+                        return;
+                    }
+                    if (contains(this.dailyRect, point.x, point.y)) {
+                        (_b = (_a = this.actions).onDaily) === null || _b === void 0 ? void 0 : _b.call(_a);
                         return;
                     }
                     if (contains(this.startRect, point.x, point.y)) {
@@ -4248,11 +5144,12 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                 debugButtons() {
                     const screenWidth = this.screenWidth();
                     const screenHeight = this.screenHeight();
-                    return ['start', 'classic', 'province', 'rank'].map(key => {
+                    return ['start', 'classic', 'province', 'rank', 'daily'].map(key => {
                         const rect = key === 'start' ? this.startRect
                             : key === 'classic' ? this.classicRect
                                 : key === 'province' ? this.provinceRect
-                                    : this.rankRect;
+                                    : key === 'daily' ? this.dailyRect
+                                        : this.rankRect;
                         return {
                             key,
                             screenX: (rect.x + rect.w / 2) / 750 * screenWidth,
@@ -4796,9 +5693,9 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./OptionalR
     };
 });
 
-System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-vehicles.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./RankPage.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","./stack-layout.ts","./stack-rules.ts","./stack-vehicles.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./RankPage.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, stack_vehicles_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
+    var cc_1, stack_progress_1, stack_layout_1, stack_rules_1, stack_vehicles_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
     var __moduleName = context_1 && context_1.id;
     /** CSS env(safe-area-inset-bottom) in CSS pixels (iOS home indicator, Android gesture bar). */
     function cssSafeBottomPx() {
@@ -4834,8 +5731,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             function (cc_1_1) {
                 cc_1 = cc_1_1;
             },
-            function (stack_generator_1_1) {
-                stack_generator_1 = stack_generator_1_1;
+            function (stack_progress_1_1) {
+                stack_progress_1 = stack_progress_1_1;
             },
             function (stack_layout_1_1) {
                 stack_layout_1 = stack_layout_1_1;
@@ -4912,8 +5809,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             };
             /** Code-built match-three page. All rules live in core/stack; this file only paints and animates. */
             StackPage = class StackPage {
-                constructor(parent, stage, onAction) {
-                    var _a;
+                constructor(parent, route, onAction) {
+                    var _a, _b;
+                    this.route = route;
                     this.onAction = onAction;
                     this.carFrames = {};
                     this.carRect = { x: 30, y: 940, w: 690, h: 420 };
@@ -4932,6 +5830,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.slotRects = [];
                     this.artRect = { x: 0, y: 0, w: 0, h: 0 };
                     this.introShown = false;
+                    /** Province rank returned by the last stage-2 clear, for the share card. */
+                    this.lastProvinceRank = null;
                     this.actions = [];
                     this.failButtons = [];
                     this.touchWorld = new cc_1.Vec3();
@@ -4956,10 +5856,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.board = stack_layout_1.IDENTITY_BOARD;
                     this.actionY = 1527;
                     this.actionH = stack_layout_1.STACK_ACTION_HEIGHT;
-                    this.level = stack_generator_1.generateStackLevel(stage, stack_generator_1.STACK_SEEDS[stage - 1]).level;
+                    this.level = stack_progress_1.levelForRoute(route);
+                    if (route !== 'daily')
+                        stack_progress_1.recordLevelReached(stack_progress_1.browserStorage(), route);
                     this.capacity = (_a = this.level.slotCapacity) !== null && _a !== void 0 ? _a : stack_rules_1.SLOT_CAPACITY;
                     const forcedVehicle = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('vehicle');
-                    const levelVehicle = stack_vehicles_1.vehicleForLevel(this.level.stage);
+                    const levelVehicle = stack_vehicles_1.vehicleForLevel(stack_progress_1.vehicleLevelForRoute(route));
                     const forcedDef = forcedVehicle ? stack_vehicles_1.vehicleByKey(forcedVehicle) : undefined;
                     this.vehicle = forcedDef ? { def: forcedDef, lap: 0, tint: null, displayName: forcedDef.name } : levelVehicle;
                     this.game = new stack_rules_1.StackGame(this.level, rng_1.createRng(`${this.level.seed}:runtime`), Date.now());
@@ -5015,7 +5917,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.remainingLabel = UIKit_1.label(this.hud, 'Remaining', '剩余 18 件', 24, 0, 0);
                     this.remainingLabel.color = paleGold;
                     UIKit_1.label(this.hud, 'ModeTitle', '年货三消', 38, 0, 0).color = gold;
-                    const subtitle = UIKit_1.label(this.hud, 'Subtitle', '点没被压住的年货 · 三件装一箱', 19, 0, 0);
+                    const headline = stack_progress_1.routeHeadline(route);
+                    const subtitle = UIKit_1.label(this.hud, 'Subtitle', (_b = headline.subtitle) !== null && _b !== void 0 ? _b : '点没被压住的年货 · 三件装一箱', headline.subtitle ? 22 : 19, 0, 0);
                     subtitle.color = cream;
                     this.soundButton = UIKit_1.uiNode('SoundToggle', this.hud, 86, 40);
                     this.soundButtonArt = this.soundButton.addComponent(cc_1.Graphics);
@@ -5153,7 +6056,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.safeBottom = Math.max(0, bottom);
                     this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
                     const base = stack_layout_1.createStackPageLayout(this.height, bottom);
-                    this.artRect = stack_vehicles_1.vehicleArtRect(this.vehicle.def, base.actionY);
+                    this.artRect = stack_vehicles_1.vehicleArtRect(this.vehicle.def, base.actionY, 750, stack_vehicles_1.vehicleScaleForPage(this.height));
                     const metrics = this.isSedan ? base : stack_layout_1.createStackPageLayout(this.height, bottom, this.artRect.y);
                     this.safeBottom = metrics.safeBottom;
                     this.board = stack_layout_1.fitStackBoard(stack_layout_1.stackContentBounds(this.level), metrics);
@@ -5350,7 +6253,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     if (this.introShown)
                         return;
                     this.introShown = true;
-                    const swap = this.level.stage >= 2;
+                    const swap = this.route !== 'daily' && this.route >= 2;
                     const banner = UIKit_1.uiNode('VehicleIntro', this.fxLayer, 520, 120);
                     const g = banner.addComponent(cc_1.Graphics);
                     const pal = this.vehicle.def.palette;
@@ -5489,7 +6392,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.reserveTitle.node.setPosition(shelfX + 70 - 375, this.height / 2 - (shelfY - 5));
                 }
                 updateHud() {
-                    this.stageLabel.string = `第 ${this.level.stage} 关`;
+                    this.stageLabel.string = stack_progress_1.routeHeadline(this.route).stage;
                     this.remainingLabel.string = `剩余 ${this.game.pileRemaining} 件`;
                 }
                 syncPile() {
@@ -5522,7 +6425,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         else if (!this.busy || card.source !== 'mom') {
                             view.node.setPosition(center);
                         }
-                        this.drawDim(view, stack_rules_1.isBlocked(card, this.game.cards));
+                        const blocked = stack_rules_1.isBlocked(card, this.game.cards);
+                        view.back.node.active = this.hideCovered && blocked;
+                        this.drawDim(view, blocked && !view.back.node.active);
                     }
                 }
                 /**
@@ -5592,8 +6497,10 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     fallback.color = ink;
                     fallback.overflow = cc_1.Label.Overflow.SHRINK;
                     fallback.node.getComponent(cc_1.UITransform).setContentSize(size * .86, size * .7);
+                    const back = UIKit_1.uiNode('CartonBack', node, size, size).addComponent(cc_1.Graphics);
+                    back.node.active = false;
                     const dim = UIKit_1.uiNode('PressedShade', node, size, size).addComponent(cc_1.Graphics);
-                    const view = { node, art, sprite, fallback, dim, size, kind: '', cardId: card.id, born: false };
+                    const view = { node, art, sprite, fallback, dim, back, size, kind: '', cardId: card.id, born: false };
                     this.configureCard(view, card, size);
                     return view;
                 }
@@ -5617,6 +6524,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     g.lineWidth = 1.3;
                     g.roundRect(-size / 2 + 5, -size / 2 + 5, size - 10, size - 10, radius - 3);
                     g.stroke();
+                    this.drawCartonBack(view.back, size);
                     view.fallback.string = card.name;
                     view.fallback.fontSize = Math.max(12, Math.min(18, size * .2));
                     view.fallback.lineHeight = view.fallback.fontSize + 3;
@@ -5640,6 +6548,29 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                                     this.showItemFrame(candidate, cropped);
                         });
                     }
+                }
+                get hideCovered() {
+                    return !!this.level.hideCovered;
+                }
+                /** Kraft carton with red tape and a 福 stamp: what a covered card looks like from level 4 on. */
+                drawCartonBack(g, size) {
+                    g.clear();
+                    const radius = Math.max(9, size * .14);
+                    UIKit_1.fill(g, new cc_1.Color(120, 78, 40), -size / 2, -size / 2, size, size, radius);
+                    UIKit_1.fill(g, new cc_1.Color(196, 142, 82), -size / 2 + 3, -size / 2 + 3, size - 6, size - 6, radius - 2);
+                    UIKit_1.fill(g, new cc_1.Color(214, 164, 104), -size / 2 + 6, -size / 2 + size * .52, size - 12, size * .4, radius - 4);
+                    // Packing tape across the flaps.
+                    UIKit_1.fill(g, new cc_1.Color(186, 38, 40, 235), -size * .12, -size / 2 + 3, size * .24, size - 6, 2);
+                    g.strokeColor = new cc_1.Color(120, 78, 40, 160);
+                    g.lineWidth = Math.max(1.5, size * .02);
+                    g.moveTo(-size / 2 + 6, size * .02);
+                    g.lineTo(size / 2 - 6, size * .02);
+                    g.stroke();
+                    UIKit_1.fill(g, new cc_1.Color(246, 195, 67, 230), -size * .13, size * .16, size * .26, size * .22, 3);
+                    g.strokeColor = new cc_1.Color(186, 38, 40);
+                    g.lineWidth = Math.max(1.5, size * .025);
+                    g.roundRect(-size / 2 + 1, -size / 2 + 1, size - 2, size - 2, radius);
+                    g.stroke();
                 }
                 showItemFrame(view, frame) {
                     if (!view.node.isValid)
@@ -6053,6 +6984,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.refresh();
                 }
                 beginFinish(instant = false) {
+                    var _a;
                     if (this.finish)
                         return;
                     this.busy = true;
@@ -6071,9 +7003,13 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                             catch ( /* Optional vibration: silent. */_a) { /* Optional vibration: silent. */ }
                         }
                     });
-                    const choices = this.level.stage === 1
-                        ? [{ title: '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }]
-                        : [{ title: '再来一次', action: 'replay' }, { title: '回第 1 关', action: 'first' }];
+                    if (this.route === 'daily')
+                        stack_progress_1.markDailyDone(stack_progress_1.browserStorage());
+                    const choices = this.route === 'daily'
+                        ? [{ title: '今日已塞满 · 回首页', action: 'first' }, { title: '再来一次', action: 'replay' }]
+                        : this.route === 1
+                            ? [{ title: '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }]
+                            : [{ title: (_a = stack_progress_1.nextRouteTitle(this.route)) !== null && _a !== void 0 ? _a : '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }];
                     const elapsedSec = instant ? Math.round(elapsedMs / 1000) : Math.max(1, Math.round(elapsedMs / 1000));
                     const totalBoxes = Math.floor(this.level.cards.length / 3);
                     this.finishStats = { elapsedSec, boxes: instant ? totalBoxes : this.game.clearedGroups };
@@ -6092,9 +7028,10 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         this.finishView.setRankStatus(rank_1.RANK_DEBUG_TEXT);
                         return;
                     }
-                    if (this.level.stage === 2)
+                    // Only the first two levels count for the province board; the endless road and the daily board never report.
+                    if (this.route === 2)
                         this.startRankReporting(elapsedMs);
-                    else
+                    else if (this.route === 1)
                         this.startStageOneReporting(elapsedMs);
                 }
                 startStageOneReporting(elapsedMs) {
@@ -6158,6 +7095,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     }
                     if (!this.node.isValid || stage !== 2)
                         return;
+                    if (outcome.ok)
+                        this.lastProvinceRank = outcome.result.rank;
                     (_b = this.finishView) === null || _b === void 0 ? void 0 : _b.setRankStatus(outcome.ok ? rank_1.formatContributionResult(province, outcome.result) : rank_1.formatContributionFailure());
                 }
                 openRankPage() {
@@ -6186,7 +7125,24 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                             boxes: (_d = (_c = this.finishStats) === null || _c === void 0 ? void 0 : _c.boxes) !== null && _d !== void 0 ? _d : this.game.clearedGroups,
                         }
                         : { victory: false, remaining: this.game.pileRemaining };
-                    void StackShareImage_1.showStackShareImage({ stage: this.level.stage, result });
+                    const def = this.vehicle.def;
+                    void StackShareImage_1.showStackShareImage({
+                        stage: this.level.stage,
+                        stageLabel: stack_progress_1.routeHeadline(this.route).stage,
+                        result,
+                        province: this.rankApi.province,
+                        rank: victory ? this.lastProvinceRank : null,
+                        counted: (this.route === 1 || this.route === 2) && !(typeof window !== 'undefined' && rank_1.isDebugRun(window.location.search)),
+                        ride: {
+                            name: this.vehicle.displayName,
+                            art: def.art,
+                            w: def.artSize.w,
+                            h: def.artSize.h,
+                            stretchX: def.stretchX,
+                            region: def.regions[0],
+                            tint: this.vehicle.tint,
+                        },
+                    });
                 }
                 onMomAdded(added) {
                     if (!added.length)
@@ -6294,6 +7250,11 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         kindCounts[card.kind] = ((_a = kindCounts[card.kind]) !== null && _a !== void 0 ? _a : 0) + 1;
                     return {
                         stage: this.level.stage,
+                        route: this.route,
+                        headline: stack_progress_1.routeHeadline(this.route),
+                        capacity: this.capacity,
+                        hideCovered: this.hideCovered,
+                        cartonBacks: [...this.cardViews.values()].filter(view => view.node.active && view.back.node.active).length,
                         status: this.game.status,
                         remaining: this.game.pileRemaining,
                         pileRemaining: this.game.pileRemaining,
@@ -6317,7 +7278,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         return [];
                     const screenWidth = typeof window === 'undefined' ? 750 : window.innerWidth;
                     const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
-                    return this.finishView.buttonPoints().map(button => this.debugRect(button.action, button.rect, screenWidth, screenHeight));
+                    return this.finishView.buttonPoints().map(button => (Object.assign(Object.assign({}, this.debugRect(button.action, button.rect, screenWidth, screenHeight)), { title: button.title })));
                 }
                 debugModalButtons() {
                     if (this.modal !== 'fail')
@@ -7489,12 +8450,15 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
     };
 });
 
-System.register("chunks:///_virtual/WebPlatform.ts", ["./route.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/WebPlatform.ts", ["./stack-progress.ts","./route.ts"], function (exports_1, context_1) {
     "use strict";
-    var route_1, WebPlatform;
+    var stack_progress_1, route_1, WebPlatform;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
+            function (stack_progress_1_1) {
+                stack_progress_1 = stack_progress_1_1;
+            },
             function (route_1_1) {
                 route_1 = route_1_1;
             }
@@ -7505,8 +8469,9 @@ System.register("chunks:///_virtual/WebPlatform.ts", ["./route.ts"], function (e
                 route() { return route_1.resolveRoute(window.location.search); }
                 isMomMode() { return this.route() === 'mom'; }
                 isStackMode() { return this.route() === 'stack'; }
+                /** ?stage=N (1 and up) or ?stage=daily. */
                 stackStage() {
-                    return new URLSearchParams(window.location.search).get('stage') === '2' ? 2 : 1;
+                    return stack_progress_1.normalizeRoute(new URLSearchParams(window.location.search).get('stage'));
                 }
                 hasLevelOverride() { return new URLSearchParams(window.location.search).has('level'); }
                 levelFilename() {
@@ -8067,6 +9032,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.stroke();
     }
     function drawTexts(context, scene) {
+        var _a;
         const copy = stack_share_1.createStackShareCopy(scene.stage, scene.result);
         context.textAlign = 'center';
         context.textBaseline = 'middle';
@@ -8085,7 +9051,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.stroke();
         context.font = `700 34px ${FONT}`;
         context.fillStyle = pale;
-        context.fillText(copy.stageText, 540, 256);
+        context.fillText((_a = scene.stageLabel) !== null && _a !== void 0 ? _a : copy.stageText, 540, 256);
         fitFont(context, copy.statsText, 900, 45, '800');
         context.fillStyle = pale;
         context.fillText(copy.statsText, 540, 346);
@@ -8144,6 +9110,69 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         roundedRect(context, hole.x - 2, hole.y - 2, hole.w + 4, hole.h + 4, 30);
         context.stroke();
     }
+    function drawPill(context, text, y, size, fillColor, textColor) {
+        context.font = `800 ${size}px ${FONT}`;
+        const width = Math.min(960, context.measureText(text).width + size * 1.6);
+        fillRounded(context, fillColor, 540 - width / 2, y - size * .85, width, size * 1.7, size * .85);
+        context.strokeStyle = 'rgba(255,225,157,.8)';
+        context.lineWidth = 3;
+        roundedRect(context, 540 - width / 2 + 2, y - size * .85 + 2, width - 4, size * 1.7 - 4, size * .85 - 2);
+        context.stroke();
+        fitFont(context, text, width - size, size, '800');
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = textColor;
+        context.fillText(text, 540, y + 1);
+    }
+    /** Non-sedan ride: its rear art, tinted for later laps, with the goods heaped on the load area. */
+    function drawRide(context, ride, art, items) {
+        var _a, _b, _c;
+        const maxH = 610, maxW = 900;
+        let h = maxH, w = h * ride.w / ride.h * ((_a = ride.stretchX) !== null && _a !== void 0 ? _a : 1);
+        if (w > maxW) {
+            w = maxW;
+            h = w / (ride.w / ride.h * ((_b = ride.stretchX) !== null && _b !== void 0 ? _b : 1));
+        }
+        const x = 540 - w / 2, y = 1080 - h;
+        if (art) {
+            context.save();
+            context.shadowColor = 'rgba(35,0,5,.55)';
+            context.shadowBlur = 30;
+            context.shadowOffsetY = 18;
+            drawFrame(context, art, x + w / 2, y + h / 2, w, h);
+            context.restore();
+            if (ride.tint) {
+                // Multiply the lap colour onto the art only (source-atop keeps the background untouched).
+                const layer = document.createElement('canvas');
+                layer.width = Math.ceil(w);
+                layer.height = Math.ceil(h);
+                const lc = layer.getContext('2d');
+                if (lc) {
+                    drawFrame(lc, art, w / 2, h / 2, w, h);
+                    lc.globalCompositeOperation = 'source-atop';
+                    lc.fillStyle = `rgba(${ride.tint[0]},${ride.tint[1]},${ride.tint[2]},.45)`;
+                    lc.fillRect(0, 0, w, h);
+                    context.drawImage(layer, x, y);
+                }
+            }
+        }
+        else {
+            drawFallbackCar(context);
+        }
+        const region = (_c = ride.region) !== null && _c !== void 0 ? _c : { x: .15, y: .35, w: .7, h: .3 };
+        const hole = { x: x + region.x * w, y: y + region.y * h, w: region.w * w, h: region.h * h };
+        for (let index = 0; index < stack_share_1.STACK_CARGO_POSITIONS.length && index < items.length; index++) {
+            const item = items[index];
+            if (!item)
+                continue;
+            const [px, py, angle] = stack_share_1.STACK_CARGO_POSITIONS[index];
+            const max = Math.min(hole.w * .3, hole.h * .7, 150);
+            const ratio = item.width / item.height;
+            const iw = ratio >= 1 ? max : max * ratio;
+            const ih = ratio >= 1 ? max / ratio : max;
+            drawFrame(context, item, hole.x + hole.w * px, hole.y + hole.h * (py * .9 - .1), iw, ih, angle);
+        }
+    }
     function drawCaption(context, caption) {
         context.save();
         context.shadowColor = 'rgba(71,5,12,.58)';
@@ -8163,18 +9192,20 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.fillText(caption, 540, 1282);
         context.font = `700 24px ${FONT}`;
         context.fillStyle = 'rgba(255,225,162,.82)';
-        context.fillText('把年货装进后备箱 · 把团圆带回家', 540, 1392);
+        context.fillText(`试玩：${stack_share_1.STACK_SHARE_LINK}`, 540, 1392);
     }
     async function renderShareCanvas(scene) {
+        var _a, _b, _c, _d, _e, _f;
         if (!canUseBrowserCanvas())
             return null;
         try {
+            const rideArt = (_b = (_a = scene.ride) === null || _a === void 0 ? void 0 : _a.art) !== null && _b !== void 0 ? _b : null;
             const [bodyFrame, trunkFrame, ...itemFrames] = await Promise.all([
-                OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
-                OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
+                OptionalResources_1.loadArt(rideArt !== null && rideArt !== void 0 ? rideArt : 'vehicles/sedan_v1_body'),
+                rideArt ? Promise.resolve(undefined) : OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
                 ...stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => OptionalResources_1.loadArt(`items/${key}`)),
             ]);
-            const paths = ['art/vehicles/sedan_v1_body', 'art/vehicles/sedan_v1_trunk', ...stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => `art/items/${key}`)];
+            const paths = [`art/${rideArt !== null && rideArt !== void 0 ? rideArt : 'vehicles/sedan_v1_body'}`, 'art/vehicles/sedan_v1_trunk', ...stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => `art/items/${key}`)];
             const [bodyArt, trunkArt, ...itemArt] = await Promise.all([bodyFrame, trunkFrame, ...itemFrames].map((frame, index) => freshDrawable(paths[index], frame)));
             const canvas = document.createElement('canvas');
             canvas.width = stack_share_1.STACK_SHARE_WIDTH;
@@ -8184,17 +9215,28 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
                 return null;
             drawBackground(context);
             const copy = drawTexts(context, scene);
-            const bodyX = 90, bodyY = 474, bodyWidth = 900, bodyHeight = 562;
-            const body = bodyArt;
-            if (body)
-                drawFrame(context, body, bodyX + bodyWidth / 2, bodyY + bodyHeight / 2, bodyWidth, bodyHeight);
-            else
-                drawFallbackCar(context);
-            drawCargo(context, trunkArt, itemArt, bodyX, bodyY, bodyWidth, bodyHeight);
+            if ((_c = scene.ride) === null || _c === void 0 ? void 0 : _c.art) {
+                drawRide(context, scene.ride, bodyArt, itemArt);
+            }
+            else {
+                const bodyX = 90, bodyY = 474, bodyWidth = 900, bodyHeight = 562;
+                const body = bodyArt;
+                if (body)
+                    drawFrame(context, body, bodyX + bodyWidth / 2, bodyY + bodyHeight / 2, bodyWidth, bodyHeight);
+                else
+                    drawFallbackCar(context);
+                drawCargo(context, trunkArt, itemArt, bodyX, bodyY, bodyWidth, bodyHeight);
+            }
+            const provinceLine = stack_share_1.formatStackShareProvince(scene.province, scene.result.victory, (_d = scene.rank) !== null && _d !== void 0 ? _d : null, Math.random, (_e = scene.counted) !== null && _e !== void 0 ? _e : true);
+            if (provinceLine)
+                drawPill(context, provinceLine, 422, 38, scene.result.victory ? 'rgba(120,12,22,.82)' : 'rgba(60,8,14,.82)', gold);
+            const rideLine = stack_share_1.formatStackShareVehicle((_f = scene.ride) === null || _f === void 0 ? void 0 : _f.name);
+            if (rideLine)
+                drawPill(context, rideLine, 1132, 30, 'rgba(93,9,16,.78)', pale);
             drawCaption(context, copy.caption);
             return canvas.toDataURL('image/png');
         }
-        catch (_a) {
+        catch (_g) {
             return null;
         }
     }
@@ -9630,7 +10672,14 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                 get rankStatusText() { return this.rankText; }
                 get statsLine() { return this.statsText(); }
                 buttonPoints() {
-                    return this.buttons.map(button => ({ action: button.action, rect: Object.assign({}, button.rect) }));
+                    return this.buttons.map(button => {
+                        var _a, _b;
+                        return ({
+                            action: button.action,
+                            title: (_b = (_a = button.label.getComponent(cc_1.Label)) === null || _a === void 0 ? void 0 : _a.string) !== null && _b !== void 0 ? _b : '',
+                            rect: Object.assign({}, button.rect),
+                        });
+                    });
                 }
                 imageNode(name, parent) {
                     const sprite = UIKit_1.uiNode(name, parent, 1, 1).addComponent(cc_1.Sprite);
@@ -10095,8 +11144,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stack-vehicles.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-daily.ts","./stack-endless.ts","./stack-generator.ts","./stack-layout.ts","./stack-progress.ts","./stack-rules.ts","./stack-share.ts","./stack-sim.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stack-vehicles.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
