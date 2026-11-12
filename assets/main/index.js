@@ -116,6 +116,8 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                             else
                                 this.showHome();
                         }
+                        else if (action === 'home')
+                            this.showHome();
                         else if (action === 'next')
                             this.startStack(route + 1);
                         else if (action === 'first')
@@ -686,6 +688,49 @@ System.register("chunks:///_virtual/stack-sfx.ts", ["./synth.ts"], function (exp
         }
         addFirecrackers(buffer, sampleRate);
     }
+    /** Finale at home: a long string of firecrackers, two gongs and a rising festive phrase. */
+    function addHome(buffer, sampleRate) {
+        const random = synth_1.createNoise(synth_1.seedFromString('sfx-home-firecracker-string-v1'));
+        for (let index = 0; index < 120; index++) {
+            // Denser in the middle, like a hanging string burning down.
+            const start = 0.05 + Math.pow(random(), 0.9) * 3.1;
+            const duration = 0.018 + random() * 0.04;
+            synth_1.addNoise(buffer, sampleRate, {
+                start, duration, gain: 0.08 + random() * 0.12, seed: Math.floor(random() * 0xffffffff),
+                attack: 0.001, decay: 0.008 + random() * 0.01, release: 0.006,
+                filter: { kind: 'bandpass', frequency: 1200 + random() * 4800, q: 0.7 + random() * 0.7, mix: 0.95 },
+            });
+            if (random() < 0.3) {
+                synth_1.addTone(buffer, sampleRate, {
+                    start, duration: 0.06, gain: 0.05 + random() * 0.04, frequency: 80 + random() * 110,
+                    wave: 'sine', attack: 0.001, decay: 0.02, release: 0.012,
+                });
+            }
+        }
+        for (const start of [0.0, 1.6]) {
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 1.4, gain: 0.16, frequency: 196, endFrequency: 185,
+                wave: 'triangle', attack: 0.004, decay: 0.6, release: 0.4,
+            });
+            synth_1.addTone(buffer, sampleRate, {
+                start, duration: 1.2, gain: 0.07, frequency: 523.25, endFrequency: 498,
+                wave: 'sine', attack: 0.003, decay: 0.5, release: 0.3,
+            });
+        }
+        const phrase = [587.33, 659.25, 783.99, 880, 1046.5, 880, 1174.66];
+        for (let index = 0; index < phrase.length; index++) {
+            synth_1.addTone(buffer, sampleRate, {
+                start: 0.45 + index * 0.17, duration: index === phrase.length - 1 ? 0.6 : 0.2, gain: 0.12,
+                frequency: phrase[index], wave: 'sawtooth', attack: 0.006, decay: 0.08, release: 0.06,
+                filter: { kind: 'bandpass', frequency: 1700, q: 0.9, mix: 0.7 },
+            });
+        }
+        synth_1.addNoise(buffer, sampleRate, {
+            start: 3.2, duration: 0.3, gain: 0.16, seed: synth_1.seedFromString('sfx-home-final-bang'),
+            attack: 0.001, decay: 0.09, release: 0.05,
+            filter: { kind: 'lowpass', frequency: 900, q: 0.8, mix: 1 },
+        });
+    }
     function addFail(buffer, sampleRate) {
         synth_1.addTone(buffer, sampleRate, {
             start: 0.0, duration: 0.58, gain: 0.16, frequency: 392, endFrequency: 196,
@@ -766,8 +811,11 @@ System.register("chunks:///_virtual/stack-sfx.ts", ["./synth.ts"], function (exp
             case 'prop':
                 addProp(buffer, sampleRate);
                 break;
+            case 'home':
+                addHome(buffer, sampleRate);
+                break;
         }
-        synth_1.fadeEdges(buffer, sampleRate, 0.0015, event === 'win' ? 0.03 : 0.012);
+        synth_1.fadeEdges(buffer, sampleRate, 0.0015, event === 'win' || event === 'home' ? 0.03 : 0.012);
         synth_1.normalizePeak(buffer, SFX_PEAKS[event]);
         return buffer;
     }
@@ -780,7 +828,7 @@ System.register("chunks:///_virtual/stack-sfx.ts", ["./synth.ts"], function (exp
         ],
         execute: function () {
             exports_1("STACK_SFX_EVENTS", STACK_SFX_EVENTS = [
-                'tap', 'fly', 'pack', 'combo', 'warn', 'mom', 'swap', 'win', 'fail', 'prop',
+                'tap', 'fly', 'pack', 'combo', 'warn', 'mom', 'swap', 'win', 'fail', 'prop', 'home',
             ]);
             exports_1("SFX_DURATIONS", SFX_DURATIONS = {
                 tap: 0.12,
@@ -793,6 +841,7 @@ System.register("chunks:///_virtual/stack-sfx.ts", ["./synth.ts"], function (exp
                 win: 2.3,
                 fail: 0.9,
                 prop: 0.6,
+                home: 3.6,
             });
             SFX_PEAKS = {
                 tap: 0.38,
@@ -805,6 +854,7 @@ System.register("chunks:///_virtual/stack-sfx.ts", ["./synth.ts"], function (exp
                 win: 0.58,
                 fail: 0.52,
                 prop: 0.46,
+                home: 0.58,
             };
         }
     };
@@ -2451,9 +2501,33 @@ System.register("chunks:///_virtual/stack-daily.ts", ["./rng.ts","./stack-catalo
     };
 });
 
-System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-solver.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/stack-endless-table.ts", [], function (exports_1, context_1) {
     "use strict";
-    var rng_1, stack_catalog_1, stack_generator_1, stack_layout_1, stack_solver_1, ENDLESS_MIN_STAGE, ENDLESS_MAX_CARDS, ENDLESS_BASE_CARDS, ENDLESS_CARDS_PER_STAGE, ENDLESS_MAX_LAYERS, ENDLESS_BASE_LAYERS, ROUTE_TITLES, MOUND_TEMPLATES, MOUND_STEP_X, MOUND_STEP_Y, MOUND_CENTER_Y, MOUND_LIFT_X, MOUND_LIFT_Y, ENDLESS_TUNING, ENDLESS_TUNED_UNTIL, ENDLESS_REMIX_POOL;
+    var ENDLESS_TUNING;
+    var __moduleName = context_1 && context_1.id;
+    return {
+        setters: [],
+        execute: function () {
+            /**
+             * Fixed per-level generator seeds for road levels 3–9 (offline calibration, tools/calibrate-endless.ts).
+             * Rates: greedy look-ahead bot with every prop + one revive, 400 runs (seed confirm-n) / 600 runs (seed verify-n).
+             */
+            exports_1("ENDLESS_TUNING", ENDLESS_TUNING = {
+                3: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 0 }, // 26.00% / 20.67% (target ~25%)
+                4: { rushRate: .85, minGap: 6, maxOpenGroups: 3, attempt: 5, kindDelta: 2 }, // 21.50% / 21.50% (~20%)
+                5: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 4, kindDelta: 4 }, // 13.75% / 15.50% (~15%)
+                6: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 20 }, // 13.25% / 13.83% (~12%)
+                7: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 1 }, // 8.25% / 7.17% (~9%)
+                8: { rushRate: .5, minGap: 6, maxOpenGroups: 3, attempt: 5 }, // 6.00% / 6.83% (~7%)
+                9: { rushRate: .7, minGap: 6, maxOpenGroups: 3, attempt: 4 }, // 7.25% / 7.00% (~5%, floor 5%)
+            });
+        }
+    };
+});
+
+System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-solver.ts","./stack-endless-table.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rng_1, stack_catalog_1, stack_generator_1, stack_layout_1, stack_rules_1, stack_solver_1, stack_endless_table_1, ENDLESS_MIN_STAGE, ENDLESS_MAX_CARDS, ENDLESS_BASE_CARDS, ENDLESS_CARDS_PER_STAGE, ENDLESS_MAX_LAYERS, ENDLESS_BASE_LAYERS, ENDLESS_MAX_KINDS, ROUTE_TITLES, ROAD_FINAL_STAGE, MOUND_TEMPLATES, MOUND_STEP_X, MOUND_STEP_Y, MOUND_CENTER_Y, MOUND_LIFT_X, MOUND_LIFT_Y, ENDLESS_OPEN_RANGE, MOUND_ALIGNS, DEFAULT_TUNING;
     var __moduleName = context_1 && context_1.id;
     function capacityForLevel(n) {
         if (!Number.isInteger(n) || n < 1)
@@ -2466,7 +2540,7 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
     }
     exports_1("capacityForLevel", capacityForLevel);
     function routeTitleForLevel(n) {
-        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE || n > ROAD_FINAL_STAGE)
             throw new Error('invalid endless route level');
         return `第 ${n} 关 · ${ROUTE_TITLES[(n - ENDLESS_MIN_STAGE) % ROUTE_TITLES.length]}`;
     }
@@ -2480,12 +2554,18 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
     function endlessKindCount(n, available = stack_catalog_1.ENDLESS_ITEMS.length) {
         if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
             throw new Error('invalid endless level');
-        return Math.min(available, 14 + (n - ENDLESS_MIN_STAGE));
+        return Math.min(available, ENDLESS_MAX_KINDS, 14 + (n - ENDLESS_MIN_STAGE));
     }
     exports_1("endlessKindCount", endlessKindCount);
     function card(id, x, y, layer, source) {
         return { id, kind: '', name: '', x, y, w: stack_layout_1.STACK_CARD_SIZE, h: stack_layout_1.STACK_CARD_SIZE, layer, source };
     }
+    /** Pile count for a mound of `count` cards: 10 piles at 20 cards, 18 at 100 (one open card each). */
+    function moundPiles(count) {
+        return Math.round(8 + count / 10);
+    }
+    exports_1("moundPiles", moundPiles);
+    /** Levels 4–9 each get their own outline (lantern, ingot, 福 square, fish, knot, gourd). */
     function moundTemplateFor(n) {
         return MOUND_TEMPLATES[((n - ENDLESS_MIN_STAGE - 1) % MOUND_TEMPLATES.length + MOUND_TEMPLATES.length) % MOUND_TEMPLATES.length];
     }
@@ -2494,13 +2574,12 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
      * Per-spot pile heights for `count` cards: the centre of the outline rises highest and the
      * edges stay one card tall, so the mound has visible high and low parts instead of a flat grid.
      */
-    function moundHeights(spots, distances, count) {
+    function moundHeights(spots, distances, count, piles = moundPiles(count)) {
         if (count <= 0)
             return distances.map(() => 0);
         const order = distances.map((distance, index) => ({ distance, index })).sort((a, b) => a.distance - b.distance || a.index - b.index);
         const heights = new Array(spots).fill(0);
-        // Use fewer spots when there are few cards so even level 4 gets two- and three-high piles.
-        const used = Math.min(spots, Math.max(1, Math.ceil(count / 1.6)));
+        const used = Math.min(spots, count, Math.max(1, piles));
         const chosen = order.slice(0, used);
         const far = Math.max(1e-6, ...chosen.map(spot => spot.distance));
         let peak = 1;
@@ -2521,7 +2600,7 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
         return heights;
     }
     exports_1("moundHeights", moundHeights);
-    function addMound(cards, n, count, random) {
+    function addMound(cards, n, count, random, piles, align) {
         if (count <= 0)
             return;
         const template = moundTemplateFor(n);
@@ -2539,7 +2618,7 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
                 spots.push({ x, y, d: Math.hypot((col - midCol) * 1.1, row - midRow) + random() * .3 });
             }
         });
-        const heights = moundHeights(spots.length, spots.map(spot => spot.d), count);
+        const heights = moundHeights(spots.length, spots.map(spot => spot.d), count, piles);
         let id = Math.max(...cards.map(item => item.id));
         // Lay level by level so ids stay ordered bottom-up like the rest of the pile.
         const tallest = Math.max(...heights);
@@ -2549,7 +2628,10 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
                     return;
                 const jitterX = Math.round((random() - .5) * 6);
                 const jitterY = Math.round((random() - .5) * 6);
-                cards.push(card(++id, Math.round(spot.x + level * MOUND_LIFT_X + jitterX), Math.round(spot.y + level * MOUND_LIFT_Y + jitterY), ENDLESS_BASE_LAYERS + level, 'pile'));
+                cards.push(card(++id, Math.round(spot.x + level * MOUND_LIFT_X + jitterX), Math.round(spot.y + level * MOUND_LIFT_Y + jitterY), 
+                // `align` lifts shorter piles toward the tallest one: at 1 every pile top shares the top
+                // layer (all open), at 0 only local peaks are open. layoutEndless tunes it for 6–8 openers.
+                ENDLESS_BASE_LAYERS + Math.round(align * (tallest - heights[index])) + level, 'pile'));
             });
         }
     }
@@ -2572,28 +2654,81 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
         const target = endlessCardCount(n);
         const extraCards = Math.max(0, Math.min(5, n - ENDLESS_MIN_STAGE)) * 20;
         const main = stack_generator_1.layoutStageTwo(random).filter(item => item.source === 'pile');
-        const cards = main.map(item => (Object.assign({}, item)));
-        addMound(cards, n, extraCards, random);
-        const sideCount = target - cards.length;
-        if (sideCount < 0)
-            throw new Error('endless layout exceeds target');
-        addSideFan(cards, sideCount);
-        if (cards.length !== target)
-            throw new Error('endless layout card count mismatch');
-        return cards;
+        const moundSeed = Math.floor(random() * 1e9);
+        const build = (piles, align) => {
+            const cards = main.map(item => (Object.assign({}, item)));
+            addMound(cards, n, extraCards, rng_1.createRng(`mound-${moundSeed}-${piles}-${align}`), piles, align);
+            const sideCount = target - cards.length;
+            if (sideCount < 0)
+                throw new Error('endless layout exceeds target');
+            addSideFan(cards, sideCount);
+            if (cards.length !== target)
+                throw new Error('endless layout card count mismatch');
+            return cards;
+        };
+        if (!extraCards)
+            return build(0, 0);
+        // Piles about four cards tall, then the nearest pile count / top alignment that opens with
+        // ENDLESS_OPEN_RANGE tappable cards (pile tops + the two side fans).
+        const preferred = Math.max(6, Math.min(25, Math.round(extraCards / 4)));
+        let fallback;
+        for (let offset = 0; offset <= 20; offset++) {
+            for (const piles of offset ? [preferred - offset, preferred + offset] : [preferred]) {
+                if (piles < 3 || piles > extraCards)
+                    continue;
+                for (const align of MOUND_ALIGNS) {
+                    const cards = build(piles, align);
+                    const open = stack_rules_1.freeCards(cards).length;
+                    if (open >= ENDLESS_OPEN_RANGE[0] && open <= ENDLESS_OPEN_RANGE[1])
+                        return cards;
+                    const miss = Math.max(ENDLESS_OPEN_RANGE[0] - open, open - ENDLESS_OPEN_RANGE[1]);
+                    if (!fallback || miss < fallback.miss)
+                        fallback = { cards, miss };
+                }
+            }
+        }
+        return fallback.cards;
     }
     exports_1("layoutEndless", layoutEndless);
-    function endlessTuning(n) {
+    /** Share of all cards that start as closed cartons: 15% on level 4, +3 points a level, capped at 30%. */
+    function cartonRate(n) {
         if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
             throw new Error('invalid endless level');
-        return ENDLESS_TUNING[Math.min(n, ENDLESS_TUNED_UNTIL)];
+        if (n < 4)
+            return 0;
+        return Math.min(.30, .15 + .03 * (n - 4));
+    }
+    exports_1("cartonRate", cartonRate);
+    /**
+     * Marks covered cards as cartons, lowest layers first (side fans count as low), so the visible
+     * top of the board stays mostly real cargo with dimmed faces underneath.
+     */
+    function markCartons(cards, n, random) {
+        const wanted = Math.round(cartonRate(n) * cards.length);
+        if (!wanted)
+            return cards.map(item => (Object.assign({}, item)));
+        const depth = (item) => item.source === 'pile' ? item.layer : (item.layer - 40) / 4;
+        const covered = cards.filter(item => stack_rules_1.isBlocked(item, cards))
+            .map(item => ({ item, key: depth(item) + random() * .9 }))
+            .sort((a, b) => a.key - b.key)
+            .slice(0, wanted);
+        const ids = new Set(covered.map(entry => entry.item.id));
+        return cards.map(item => ids.has(item.id) ? Object.assign(Object.assign({}, item), { carton: true }) : Object.assign({}, item));
+    }
+    exports_1("markCartons", markCartons);
+    function endlessTuning(n) {
+        var _a;
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE || n > ROAD_FINAL_STAGE)
+            throw new Error('invalid endless level');
+        return (_a = stack_endless_table_1.ENDLESS_TUNING[n]) !== null && _a !== void 0 ? _a : DEFAULT_TUNING;
     }
     exports_1("endlessTuning", endlessTuning);
     function attemptEndless(n, baseSeed, attempt, tuning) {
+        var _a;
         const seed = attempt === 0 ? baseSeed : `${baseSeed}#retry-${attempt}`;
         const random = rng_1.createRng(seed);
         const cards = layoutEndless(n, random);
-        const items = stack_catalog_1.ENDLESS_ITEMS.slice(0, endlessKindCount(n));
+        const items = stack_catalog_1.ENDLESS_ITEMS.slice(0, endlessKindCount(n) - ((_a = tuning.kindDelta) !== null && _a !== void 0 ? _a : 0));
         const capacity = capacityForLevel(n);
         const assigned = stack_generator_1.assignTriples(cards, items, random, {
             capacity,
@@ -2609,31 +2744,17 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
             cardW: stack_layout_1.STACK_CARD_SIZE,
             cardH: stack_layout_1.STACK_CARD_SIZE,
             items,
-            cards: assigned.cards,
+            cards: markCartons(assigned.cards, n, rng_1.createRng(`${seed}:carton`)),
             reservePositions: stack_generator_1.stackReservePositions(stack_layout_1.STACK_CARD_SIZE, stack_layout_1.STACK_CARD_SIZE, 12, stack_generator_1.STACK_SHELF_Y),
             momPositions: stack_generator_1.stackMomPositions(stack_layout_1.STACK_CARD_SIZE),
             solution: assigned.solution,
             slotCapacity: capacity,
-            hideCovered: n >= 4,
         };
         return stack_solver_1.solveStackLevel(level, { maxNodes: 240000 }).solvable ? level : undefined;
     }
-    /**
-     * Past the calibrated range a level replays one of the late calibrated boards (new title, ride and
-     * seed label). Mirroring or re-skinning the items was tried, but both changed the measured bot win
-     * rate by several points, so the board is reused as-is to keep every level at or above ~2.5%.
-     */
-    function remixEndlessLevel(base, n) {
-        return Object.assign(Object.assign({}, base), { stage: n, seed: `trunk-road-${n}` });
-    }
-    exports_1("remixEndlessLevel", remixEndlessLevel);
     function generateEndlessLevel(n, maxAttempts = 8, tuning = endlessTuning(n)) {
-        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE)
+        if (!Number.isInteger(n) || n < ENDLESS_MIN_STAGE || n > ROAD_FINAL_STAGE)
             throw new Error('invalid endless level');
-        if (n > ENDLESS_TUNED_UNTIL) {
-            const source = ENDLESS_REMIX_POOL[(n - ENDLESS_TUNED_UNTIL - 1) % ENDLESS_REMIX_POOL.length];
-            return remixEndlessLevel(generateEndlessLevel(source, maxAttempts), n);
-        }
         if (!Number.isInteger(maxAttempts) || maxAttempts < 1)
             throw new Error('invalid endless generator attempts');
         const seed = `trunk-road-${n}`;
@@ -2665,23 +2786,28 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
             function (stack_layout_1_1) {
                 stack_layout_1 = stack_layout_1_1;
             },
+            function (stack_rules_1_1) {
+                stack_rules_1 = stack_rules_1_1;
+            },
             function (stack_solver_1_1) {
                 stack_solver_1 = stack_solver_1_1;
+            },
+            function (stack_endless_table_1_1) {
+                stack_endless_table_1 = stack_endless_table_1_1;
             }
         ],
         execute: function () {
+            exports_1("ENDLESS_TUNING", stack_endless_table_1.ENDLESS_TUNING);
             exports_1("ENDLESS_MIN_STAGE", ENDLESS_MIN_STAGE = 3);
             exports_1("ENDLESS_MAX_CARDS", ENDLESS_MAX_CARDS = 240);
             exports_1("ENDLESS_BASE_CARDS", ENDLESS_BASE_CARDS = 165);
             exports_1("ENDLESS_CARDS_PER_STAGE", ENDLESS_CARDS_PER_STAGE = 15);
             exports_1("ENDLESS_MAX_LAYERS", ENDLESS_MAX_LAYERS = 11);
             exports_1("ENDLESS_BASE_LAYERS", ENDLESS_BASE_LAYERS = 6);
-            exports_1("ROUTE_TITLES", ROUTE_TITLES = [
-                '出城收费站', '高速服务区', '跨江大桥', '山区隧道', '县城环岛', '老街牌坊',
-                '河堤长坡', '稻田岔路', '石桥驿站', '竹林弯道', '水库大坝', '省道加油站',
-                '集市路口', '火车涵洞', '山顶垭口', '松林慢坡', '渡口码头', '新村广场',
-                '学校后门', '果园岔口', '窑厂小路', '铁路道口', '祠堂前街', '入镇牌楼',
-            ]);
+            exports_1("ENDLESS_MAX_KINDS", ENDLESS_MAX_KINDS = 30);
+            /** One place per road level 3–9; level 9 is the finale at home. */
+            exports_1("ROUTE_TITLES", ROUTE_TITLES = ['出城收费站', '高速服务区', '跨江大桥', '山区隧道', '县城环岛', '进村牌楼', '到家了']);
+            exports_1("ROAD_FINAL_STAGE", ROAD_FINAL_STAGE = 9);
             /** Mound outlines on a staggered lattice ('#' = a pile spot). Rotated level by level. */
             exports_1("MOUND_TEMPLATES", MOUND_TEMPLATES = [
                 { key: 'lantern', name: '灯笼', rows: [
@@ -2710,6 +2836,23 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
                         '..###..',
                         '...#...',
                     ] },
+                { key: 'fish', name: '年年有鱼', rows: [
+                        '..##...',
+                        '.####.#',
+                        '#######',
+                        '#######',
+                        '.####.#',
+                        '..##...',
+                    ] },
+                { key: 'knot', name: '中国结', rows: [
+                        '.#...#.',
+                        '###.###',
+                        '.#####.',
+                        '..###..',
+                        '.#####.',
+                        '###.###',
+                        '.#...#.',
+                    ] },
                 { key: 'gourd', name: '葫芦', rows: [
                         '...#...',
                         '..###..',
@@ -2726,29 +2869,10 @@ System.register("chunks:///_virtual/stack-endless.ts", ["./rng.ts","./stack-cata
             /** Each card higher in one spot sits a little up-left so the pile reads as a stack. */
             MOUND_LIFT_X = -5;
             MOUND_LIFT_Y = -9;
-            /**
-             * Calibrated with tools/sim-endless-curve.ts (400 runs, greedy look-ahead bot, every prop + one revive;
-             * the comment on each row is the measured rate):
-             * level 3 ≈ 20%, 4 ≈ 15%, 5 ≈ 12%, easing down to ≈ 5% around level 10 and never under 2% after.
-             */
-            exports_1("ENDLESS_TUNING", ENDLESS_TUNING = {
-                3: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 6 }, // 21.8%
-                4: { rushRate: .8, minGap: 6, maxOpenGroups: 3, attempt: 1 }, // 18.2%
-                5: { rushRate: .5, minGap: 6, maxOpenGroups: 3, attempt: 2 }, // 13.8%
-                6: { rushRate: .7, minGap: 6, maxOpenGroups: 3, attempt: 1 }, // 10.8%
-                7: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 6 }, // 10.2%
-                8: { rushRate: .8, minGap: 6, maxOpenGroups: 3, attempt: 3 }, // 6.5%
-                9: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 2 }, // 6.5%
-                10: { rushRate: .7, minGap: 6, maxOpenGroups: 3, attempt: 2 }, // 4.5%
-                11: { rushRate: .7, minGap: 6, maxOpenGroups: 3, attempt: 1 }, // 4.5%
-                12: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 9 }, // 4.0%
-                13: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 0 }, // 3.0%
-                14: { rushRate: .9, minGap: 6, maxOpenGroups: 3, attempt: 5 }, // 2.8%
-                15: { rushRate: 1, minGap: 6, maxOpenGroups: 3, attempt: 3 }, // 3.0%
-            });
-            exports_1("ENDLESS_TUNED_UNTIL", ENDLESS_TUNED_UNTIL = 15);
-            /** Calibrated boards that later levels loop over. */
-            exports_1("ENDLESS_REMIX_POOL", ENDLESS_REMIX_POOL = [13, 14, 15]);
+            /** Opening tappable cards (pile tops + the two side-fan tops) every road board starts with. */
+            exports_1("ENDLESS_OPEN_RANGE", ENDLESS_OPEN_RANGE = [6, 8]);
+            MOUND_ALIGNS = [0, .25, .5, .75, 1];
+            DEFAULT_TUNING = { rushRate: .85, minGap: 6, maxOpenGroups: 3, attempt: 0 };
         }
     };
 });
@@ -3212,13 +3336,15 @@ System.register("chunks:///_virtual/stack-layout.ts", [], function (exports_1, c
 
 System.register("chunks:///_virtual/stack-progress.ts", ["./stack-daily.ts","./stack-endless.ts","./stack-generator.ts"], function (exports_1, context_1) {
     "use strict";
-    var stack_daily_1, stack_endless_1, stack_generator_1, STACK_BEST_LEVEL_KEY, STACK_DAILY_DONE_KEY;
+    var stack_daily_1, stack_endless_1, stack_generator_1, STACK_BEST_LEVEL_KEY, STACK_DAILY_DONE_KEY, STACK_HOME_DONE_KEY;
     var __moduleName = context_1 && context_1.id;
     function normalizeRoute(value) {
         if (value === 'daily')
             return 'daily';
         const n = Number(value);
-        return Number.isInteger(n) && n >= 1 && n <= 999 ? n : 1;
+        if (!Number.isInteger(n) || n < 1)
+            return 1;
+        return Math.min(stack_endless_1.ROAD_FINAL_STAGE, n);
     }
     exports_1("normalizeRoute", normalizeRoute);
     function levelForRoute(route, now = new Date()) {
@@ -3264,7 +3390,7 @@ System.register("chunks:///_virtual/stack-progress.ts", ["./stack-daily.ts","./s
     exports_1("readBestLevel", readBestLevel);
     /** Remembers the farthest level the player has reached (started). Returns the new best. */
     function recordLevelReached(storage, level) {
-        const best = Math.max(readBestLevel(storage), Math.floor(level));
+        const best = Math.min(stack_endless_1.ROAD_FINAL_STAGE, Math.max(readBestLevel(storage), Math.floor(level)));
         try {
             storage === null || storage === void 0 ? void 0 : storage.setItem(STACK_BEST_LEVEL_KEY, String(best));
         }
@@ -3289,11 +3415,36 @@ System.register("chunks:///_virtual/stack-progress.ts", ["./stack-daily.ts","./s
     }
     exports_1("markDailyDone", markDailyDone);
     function nextRouteTitle(route) {
-        if (route === 'daily')
+        if (route === 'daily' || route >= stack_endless_1.ROAD_FINAL_STAGE)
             return null;
         return `继续回家路 · 第 ${route + 1} 关`;
     }
     exports_1("nextRouteTitle", nextRouteTitle);
+    /** Whether the level-9 finale has been cleared at least once. */
+    function isHomeDone(storage) {
+        try {
+            return (storage === null || storage === void 0 ? void 0 : storage.getItem(STACK_HOME_DONE_KEY)) === '1';
+        }
+        catch (_a) {
+            return false;
+        }
+    }
+    exports_1("isHomeDone", isHomeDone);
+    function markHomeDone(storage) {
+        try {
+            storage === null || storage === void 0 ? void 0 : storage.setItem(STACK_HOME_DONE_KEY, '1');
+        }
+        catch ( /* storage optional */_a) { /* storage optional */ }
+    }
+    exports_1("markHomeDone", markHomeDone);
+    /** Home-screen progress: “回家进度 N/9”, or “已到家” once the finale is cleared. */
+    function homeProgressLabel(storage) {
+        if (isHomeDone(storage))
+            return '已到家';
+        const best = readBestLevel(storage);
+        return best >= 2 ? `回家进度 ${best}/${stack_endless_1.ROAD_FINAL_STAGE}` : '';
+    }
+    exports_1("homeProgressLabel", homeProgressLabel);
     function browserStorage() {
         try {
             return typeof localStorage === 'undefined' ? undefined : localStorage;
@@ -3316,8 +3467,10 @@ System.register("chunks:///_virtual/stack-progress.ts", ["./stack-daily.ts","./s
             }
         ],
         execute: function () {
+            exports_1("ROAD_FINAL_STAGE", stack_endless_1.ROAD_FINAL_STAGE);
             exports_1("STACK_BEST_LEVEL_KEY", STACK_BEST_LEVEL_KEY = 'smhj.bestLevel');
             exports_1("STACK_DAILY_DONE_KEY", STACK_DAILY_DONE_KEY = 'smhj.dailyDone');
+            exports_1("STACK_HOME_DONE_KEY", STACK_HOME_DONE_KEY = 'smhj.homeDone');
         }
     };
 });
@@ -3597,7 +3750,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
 
 System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts","./rank.ts"], function (exports_1, context_1) {
     "use strict";
-    var brand_1, rank_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_BACKLOG_THRESHOLD, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS, STACK_SHARE_LINK, FAIL_TAUNTS;
+    var brand_1, rank_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_BACKLOG_THRESHOLD, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS, HOMECOMING_CAPTIONS, STACK_SHARE_LINK, FAIL_TAUNTS;
     var __moduleName = context_1 && context_1.id;
     function safeInteger(value, minimum = 0) {
         if (!Number.isFinite(value))
@@ -3633,6 +3786,16 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts","./rank.ts"],
         };
     }
     exports_1("createStackShareCopy", createStackShareCopy);
+    /** Copy for the level-9 finale card: “到家了！” instead of the usual title, plus a homecoming line. */
+    function createStackHomecomingCopy(result, random = Math.random) {
+        return {
+            title: '到家了！',
+            stageText: '第 9 关 · 到家了',
+            statsText: formatStackShareStats(result),
+            caption: HOMECOMING_CAPTIONS[Math.min(HOMECOMING_CAPTIONS.length - 1, Math.floor(random() * HOMECOMING_CAPTIONS.length))],
+        };
+    }
+    exports_1("createStackHomecomingCopy", createStackHomecomingCopy);
     function stackShareFileName(stage, victory) {
         return `${brand_1.GAME_TITLE}-第${safeInteger(stage, 1)}关-${victory ? '胜利' : '差一点'}.png`;
     }
@@ -3691,6 +3854,11 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts","./rank.ts"],
                 '车尾装不下，家里的牵挂装得下',
                 '一路顺风，回家过年',
             ]);
+            HOMECOMING_CAPTIONS = [
+                '9 关回家路走完了，爸妈就在门口',
+                '一车年货塞满到家，过年好！',
+                '拖拉机开到家门口，鞭炮已经响了',
+            ];
             /** Trial-site address printed on every share card. */
             exports_1("STACK_SHARE_LINK", STACK_SHARE_LINK = 'feyakit.github.io/smhj-play');
             FAIL_TAUNTS = [
@@ -3749,6 +3917,9 @@ System.register("chunks:///_virtual/stack-sim.ts", ["./rng.ts","./stack-rules.ts
             if (stillCovered)
                 continue;
             newlyFree++;
+            // A covered carton hides its kind; dimmed faces are readable like on the real board.
+            if (below.carton)
+                continue;
             if (((_a = slot.get(below.kind)) !== null && _a !== void 0 ? _a : 0) > 0)
                 matchingSlot++;
             if (below.kind === card.kind)
@@ -4231,20 +4402,17 @@ System.register("chunks:///_virtual/stack-types.ts", [], function (exports_1, co
 
 System.register("chunks:///_virtual/stack-vehicles.ts", [], function (exports_1, context_1) {
     "use strict";
-    var RED_GOLD, VEHICLES, LAP_TINTS, LAP_NAMES, SLOT_GAP, MAX_CELL;
+    var RED_GOLD, VEHICLES, SLOT_GAP, MAX_CELL;
     var __moduleName = context_1 && context_1.id;
     function vehicleByKey(key) {
         return VEHICLES.find(vehicle => vehicle.key === key);
     }
     exports_1("vehicleByKey", vehicleByKey);
-    /** Level 1 starts on the motorcycle; after the list runs out it repeats with a new colour. */
+    /** One ride per level on the 9-level road home: level 1 the motorcycle … level 9 the tractor. */
     function vehicleForLevel(level) {
-        const index = Math.max(0, Math.floor(level) - 1);
-        const def = VEHICLES[index % VEHICLES.length];
-        const lap = Math.floor(index / VEHICLES.length);
-        const tint = def.art ? LAP_TINTS[lap % LAP_TINTS.length] : null;
-        const colour = def.art ? LAP_NAMES[lap % LAP_NAMES.length] : '';
-        return { def, lap, tint, displayName: `${colour}${def.name}` };
+        const index = Math.max(0, Math.min(VEHICLES.length - 1, Math.floor(level) - 1));
+        const def = VEHICLES[index];
+        return { def, displayName: def.name };
     }
     exports_1("vehicleForLevel", vehicleForLevel);
     /** Short phones (page under 1450 design units tall) shrink the ride so the board keeps ~44px cards. */
@@ -4372,7 +4540,7 @@ System.register("chunks:///_virtual/stack-vehicles.ts", [], function (exports_1,
                     palette: { panel: [126, 26, 30], accent: [255, 206, 92], text: [255, 236, 190], well: [36, 32, 34] },
                 },
                 {
-                    key: 'sedan', name: '红色轿车', container: '轿车后备箱', art: null, artSize: { w: 1024, h: 640 }, height: 0,
+                    key: 'sedan', name: '红轿车', container: '轿车后备箱', art: null, artSize: { w: 1024, h: 640 }, height: 0,
                     regions: [],
                     palette: RED_GOLD,
                 },
@@ -4407,9 +4575,6 @@ System.register("chunks:///_virtual/stack-vehicles.ts", [], function (exports_1,
                     palette: { panel: [44, 88, 48], accent: [244, 198, 74], text: [240, 255, 228], well: [40, 30, 26] },
                 },
             ]);
-            /** Later laps through the garage repaint the same rides (tint multiplies the red-gold art). */
-            LAP_TINTS = [null, [255, 226, 160], [196, 214, 255], [214, 255, 214]];
-            LAP_NAMES = ['', '金色', '蓝色', '青色'];
             SLOT_GAP = 4;
             MAX_CELL = 96;
         }
@@ -5169,20 +5334,23 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     const storage = stack_progress_1.browserStorage();
                     this.dailyLabel = UIKit_1.label(this.node, 'HomeDailyText', stack_progress_1.isDailyDone(storage) ? '每日一关 · 今日已塞满' : '每日一关', 24, 0, 0);
                     this.dailyLabel.color = paleGold;
-                    const best = stack_progress_1.readBestLevel(storage);
-                    this.bestLabel = UIKit_1.label(this.startNode, 'HomeBestText', best >= 2 ? `最远到过第 ${best} 关` : '', 19, 0, -26);
+                    this.bestLabel = UIKit_1.label(this.startNode, 'HomeBestText', stack_progress_1.homeProgressLabel(storage), 19, 0, -26);
                     this.bestLabel.color = new cc_1.Color(110, 40, 20);
-                    if (best >= 2)
+                    if (this.bestLabel.string)
                         this.startLabel.node.setPosition(0, 10);
                     this.refreshProvinceLabel();
                     this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
                     this.debugHook = Object.freeze({
                         getButtons: () => this.debugButtons(),
                         getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height }),
-                        getState: () => ({
-                            province: this.rankApi.province,
-                            overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : null,
-                        }),
+                        getState: () => {
+                            var _a, _b;
+                            return ({
+                                province: this.rankApi.province,
+                                overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : null,
+                                progress: (_b = (_a = this.bestLabel) === null || _a === void 0 ? void 0 : _a.string) !== null && _b !== void 0 ? _b : '',
+                            });
+                        },
                     });
                     if (typeof window !== 'undefined') {
                         window.__home = this.debugHook;
@@ -5930,9 +6098,9 @@ System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./OptionalR
     };
 });
 
-System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","./stack-layout.ts","./stack-rules.ts","./stack-vehicles.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./RankPage.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","./stack-layout.ts","./stack-rules.ts","./stack-vehicles.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./StackHomecomingView.ts","./RankPage.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_progress_1, stack_layout_1, stack_rules_1, stack_vehicles_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
+    var cc_1, stack_progress_1, stack_layout_1, stack_rules_1, stack_vehicles_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, StackHomecomingView_1, RankPage_1, STACK_COMBO_WINDOW_MS, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage, safeProbe;
     var __moduleName = context_1 && context_1.id;
     /** CSS env(safe-area-inset-bottom) in CSS pixels (iOS home indicator, Android gesture bar). */
     function cssSafeBottomPx() {
@@ -6009,6 +6177,9 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
             },
             function (StackFinishView_1_1) {
                 StackFinishView_1 = StackFinishView_1_1;
+            },
+            function (StackHomecomingView_1_1) {
+                StackHomecomingView_1 = StackHomecomingView_1_1;
             },
             function (RankPage_1_1) {
                 RankPage_1 = RankPage_1_1;
@@ -6102,7 +6273,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     const forcedVehicle = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('vehicle');
                     const levelVehicle = stack_vehicles_1.vehicleForLevel(stack_progress_1.vehicleLevelForRoute(route));
                     const forcedDef = forcedVehicle ? stack_vehicles_1.vehicleByKey(forcedVehicle) : undefined;
-                    this.vehicle = forcedDef ? { def: forcedDef, lap: 0, tint: null, displayName: forcedDef.name } : levelVehicle;
+                    this.vehicle = forcedDef ? { def: forcedDef, displayName: forcedDef.name } : levelVehicle;
                     this.game = new stack_rules_1.StackGame(this.level, rng_1.createRng(`${this.level.seed}:runtime`), Date.now());
                     this.node = UIKit_1.uiNode('StackPage', parent, 750, 1334);
                     this.sounds = new StackSound_1.StackSound();
@@ -6420,8 +6591,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     this.rect(g, new cc_1.Color(8, 4, 8, 90), art.x + art.w * .08, art.y + art.h * .9, art.w * .84, art.h * .08, art.h * .04);
                     if (this.vehicleFrame) {
                         this.showImage(this.vehicleImage, this.vehicleFrame, art.x + art.w / 2, art.y + art.h / 2, art.w, art.h);
-                        const tint = this.vehicle.tint;
-                        this.vehicleImage.color = tint ? new cc_1.Color(tint[0], tint[1], tint[2], 255) : cc_1.Color.WHITE;
+                        this.vehicleImage.color = cc_1.Color.WHITE;
                     }
                     else {
                         this.vehicleImage.enabled = false;
@@ -6670,7 +6840,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                             view.node.setPosition(center);
                         }
                         const blocked = stack_rules_1.isBlocked(card, this.game.cards);
-                        view.back.node.active = this.hideCovered && blocked;
+                        view.back.node.active = !!card.carton && blocked;
                         this.drawDim(view, blocked && !view.back.node.active);
                     }
                 }
@@ -6794,7 +6964,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     }
                 }
                 get hideCovered() {
-                    return !!this.level.hideCovered;
+                    return this.level.cards.some(card => card.carton);
                 }
                 /** Kraft carton with red tape and a 福 stamp: what a covered card looks like from level 4 on. */
                 drawCartonBack(g, size) {
@@ -7138,9 +7308,6 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                             const h = 196, w = h * this.vehicle.def.artSize.w / this.vehicle.def.artSize.h * ((_b = this.vehicle.def.stretchX) !== null && _b !== void 0 ? _b : 1);
                             body.node.getComponent(cc_1.UITransform).setContentSize(Math.min(290, w), h);
                             body.node.setPosition(0, -6);
-                            const tint = this.vehicle.tint;
-                            if (tint)
-                                body.color = new cc_1.Color(tint[0], tint[1], tint[2], 255);
                         }
                     }
                     else if (this.carFrames.body) {
@@ -7249,6 +7416,27 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                     });
                     if (this.route === 'daily')
                         stack_progress_1.markDailyDone(stack_progress_1.browserStorage());
+                    const finale = this.route === stack_progress_1.ROAD_FINAL_STAGE;
+                    const elapsedSecFinale = instant ? Math.round(elapsedMs / 1000) : Math.max(1, Math.round(elapsedMs / 1000));
+                    if (finale) {
+                        // Level 9 is the end of the road: the homecoming scene replaces the usual finish screen.
+                        stack_progress_1.markHomeDone(stack_progress_1.browserStorage());
+                        this.sounds.play('home');
+                        this.finishStats = { elapsedSec: elapsedSecFinale, boxes: instant ? Math.floor(this.level.cards.length / 3) : this.game.clearedGroups };
+                        this.finishView = new StackHomecomingView_1.StackHomecomingView(this.node, this.finishStats, action => {
+                            if (action === 'share')
+                                this.openShare(true);
+                            else if (action === 'road')
+                                this.onAction('first');
+                            else
+                                this.onAction('home');
+                        });
+                        this.finishView.layout(this.height);
+                        this.finishView.render(instant ? this.finish.advance(FinishTimeline_1.FINISH_DURATION) : this.finish.state);
+                        if (typeof window !== 'undefined' && rank_1.isDebugRun(window.location.search))
+                            this.finishView.setRankStatus(rank_1.RANK_DEBUG_TEXT);
+                        return;
+                    }
                     const choices = this.route === 'daily'
                         ? [{ title: '今日已塞满 · 回首页', action: 'first' }, { title: '再来一次', action: 'replay' }]
                         : this.route === 1
@@ -7263,7 +7451,6 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                         h: this.vehicle.def.artSize.h,
                         stretchX: this.vehicle.def.stretchX,
                         region: this.vehicle.def.regions[0],
-                        tint: this.vehicle.tint,
                     } : undefined);
                     this.finishView.layout(this.height);
                     this.finishView.render(instant ? this.finish.advance(FinishTimeline_1.FINISH_DURATION) : this.finish.state);
@@ -7377,6 +7564,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                         province: this.rankApi.province,
                         rank: victory ? this.lastProvinceRank : null,
                         counted: (this.route === 1 || this.route === 2) && !(typeof window !== 'undefined' && rank_1.isDebugRun(window.location.search)),
+                        ending: victory && this.route === stack_progress_1.ROAD_FINAL_STAGE,
                         ride: {
                             name: this.vehicle.displayName,
                             art: def.art,
@@ -7384,7 +7572,6 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                             h: def.artSize.h,
                             stretchX: def.stretchX,
                             region: def.regions[0],
-                            tint: this.vehicle.tint,
                         },
                     });
                 }
@@ -7494,10 +7681,12 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-progress.ts","
                         kindCounts[card.kind] = ((_a = kindCounts[card.kind]) !== null && _a !== void 0 ? _a : 0) + 1;
                     return {
                         stage: this.level.stage,
+                        finale: this.finishView instanceof StackHomecomingView_1.StackHomecomingView,
                         route: this.route,
                         headline: stack_progress_1.routeHeadline(this.route),
                         capacity: this.capacity,
                         hideCovered: this.hideCovered,
+                        cartonCards: this.game.cards.filter(card => card.carton).length,
                         cartonBacks: [...this.cardViews.values()].filter(view => view.node.active && view.back.node.active).length,
                         status: this.game.status,
                         remaining: this.game.pileRemaining,
@@ -9277,7 +9466,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
     }
     function drawTexts(context, scene) {
         var _a;
-        const copy = stack_share_1.createStackShareCopy(scene.stage, scene.result);
+        const copy = scene.ending ? stack_share_1.createStackHomecomingCopy(scene.result) : stack_share_1.createStackShareCopy(scene.stage, scene.result);
         context.textAlign = 'center';
         context.textBaseline = 'middle';
         context.save();
@@ -9288,14 +9477,15 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.fillStyle = gold;
         context.fillText(copy.title, 540, 156);
         context.restore();
-        fillRounded(context, 'rgba(93,9,16,.42)', 395, 224, 290, 64, 32);
+        const pillW = scene.ending ? 380 : 290;
+        fillRounded(context, 'rgba(93,9,16,.42)', 540 - pillW / 2, 224, pillW, 64, 32);
         context.strokeStyle = 'rgba(255,225,157,.72)';
         context.lineWidth = 3;
-        roundedRect(context, 397, 226, 286, 60, 30);
+        roundedRect(context, 542 - pillW / 2, 226, pillW - 4, 60, 30);
         context.stroke();
         context.font = `700 34px ${FONT}`;
         context.fillStyle = pale;
-        context.fillText((_a = scene.stageLabel) !== null && _a !== void 0 ? _a : copy.stageText, 540, 256);
+        context.fillText(scene.ending ? copy.stageText : (_a = scene.stageLabel) !== null && _a !== void 0 ? _a : copy.stageText, 540, 256);
         fitFont(context, copy.statsText, 900, 45, '800');
         context.fillStyle = pale;
         context.fillText(copy.statsText, 540, 346);
@@ -9368,7 +9558,7 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.fillStyle = textColor;
         context.fillText(text, 540, y + 1);
     }
-    /** Non-sedan ride: its rear art, tinted for later laps, with the goods heaped on the load area. */
+    /** Non-sedan ride: its rear art with the goods heaped on the load area. */
     function drawRide(context, ride, art, items) {
         var _a, _b, _c;
         const maxH = 610, maxW = 900;
@@ -9385,20 +9575,6 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
             context.shadowOffsetY = 18;
             drawFrame(context, art, x + w / 2, y + h / 2, w, h);
             context.restore();
-            if (ride.tint) {
-                // Multiply the lap colour onto the art only (source-atop keeps the background untouched).
-                const layer = document.createElement('canvas');
-                layer.width = Math.ceil(w);
-                layer.height = Math.ceil(h);
-                const lc = layer.getContext('2d');
-                if (lc) {
-                    drawFrame(lc, art, w / 2, h / 2, w, h);
-                    lc.globalCompositeOperation = 'source-atop';
-                    lc.fillStyle = `rgba(${ride.tint[0]},${ride.tint[1]},${ride.tint[2]},.45)`;
-                    lc.fillRect(0, 0, w, h);
-                    context.drawImage(layer, x, y);
-                }
-            }
         }
         else {
             drawFallbackCar(context);
@@ -9438,11 +9614,54 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./s
         context.fillStyle = 'rgba(255,225,162,.82)';
         context.fillText(`试玩：${stack_share_1.STACK_SHARE_LINK}`, 540, 1392);
     }
+    /** Finale card: bg_home (gate, parents, couplets, lanterns, firecrackers) with the tractor parked. */
+    async function renderHomecomingCanvas(scene) {
+        var _a, _b;
+        const [homeFrame, tractorFrame] = await Promise.all([OptionalResources_1.loadArt('ui/bg_home'), OptionalResources_1.loadArt('vehicles/tractor')]);
+        const [home, tractor] = await Promise.all([
+            freshDrawable('art/ui/bg_home', homeFrame),
+            freshDrawable('art/vehicles/tractor', tractorFrame),
+        ]);
+        const canvas = document.createElement('canvas');
+        canvas.width = stack_share_1.STACK_SHARE_WIDTH;
+        canvas.height = stack_share_1.STACK_SHARE_HEIGHT;
+        const context = canvas.getContext('2d');
+        if (!context)
+            return null;
+        drawBackground(context);
+        if (home) {
+            // Width-fit the 750×1334 art and crop so the gate and the parents sit mid-card.
+            const h = stack_share_1.STACK_SHARE_WIDTH * home.height / home.width;
+            drawFrame(context, home, 540, h / 2 - 300, stack_share_1.STACK_SHARE_WIDTH, h);
+            const shade = context.createLinearGradient(0, 0, 0, 420);
+            shade.addColorStop(0, 'rgba(20,6,20,.75)');
+            shade.addColorStop(1, 'rgba(20,6,20,0)');
+            context.fillStyle = shade;
+            context.fillRect(0, 0, stack_share_1.STACK_SHARE_WIDTH, 420);
+        }
+        if (tractor) {
+            const h = 380, w = h * tractor.width / tractor.height;
+            context.save();
+            context.shadowColor = 'rgba(20,0,5,.55)';
+            context.shadowBlur = 24;
+            context.shadowOffsetY = 14;
+            drawFrame(context, tractor, 840, 1180 - h / 2, w, h);
+            context.restore();
+        }
+        const copy = drawTexts(context, scene);
+        const provinceLine = stack_share_1.formatStackShareProvince(scene.province, scene.result.victory, (_a = scene.rank) !== null && _a !== void 0 ? _a : null, Math.random, (_b = scene.counted) !== null && _b !== void 0 ? _b : true);
+        if (provinceLine)
+            drawPill(context, provinceLine, 422, 38, 'rgba(120,12,22,.82)', gold);
+        drawCaption(context, copy.caption);
+        return canvas.toDataURL('image/png');
+    }
     async function renderShareCanvas(scene) {
         var _a, _b, _c, _d, _e, _f;
         if (!canUseBrowserCanvas())
             return null;
         try {
+            if (scene.ending)
+                return await renderHomecomingCanvas(scene);
             const rideArt = (_b = (_a = scene.ride) === null || _a === void 0 ? void 0 : _a.art) !== null && _b !== void 0 ? _b : null;
             const [bodyFrame, trunkFrame, ...itemFrames] = await Promise.all([
                 OptionalResources_1.loadArt(rideArt !== null && rideArt !== void 0 ? rideArt : 'vehicles/sedan_v1_body'),
@@ -9680,7 +9899,7 @@ System.register("chunks:///_virtual/StackSound.ts", ["./stack-music.ts","./stack
             exports_1("STACK_SOUND_STORAGE_KEY", STACK_SOUND_STORAGE_KEY = 'stack-sound-enabled');
             exports_1("STACK_MUSIC_STORAGE_KEY", STACK_MUSIC_STORAGE_KEY = 'stack-music-enabled');
             exports_1("STACK_SOUND_EVENTS", STACK_SOUND_EVENTS = [
-                'tap', 'fly', 'pack', 'combo', 'warn', 'mom', 'swap', 'win', 'fail', 'prop',
+                'tap', 'fly', 'pack', 'combo', 'warn', 'mom', 'swap', 'win', 'fail', 'prop', 'home',
             ]);
             exports_1("STACK_SOUND_PROFILES", STACK_SOUND_PROFILES = {
                 tap: { label: '短哒木鱼', layers: 1 },
@@ -9693,6 +9912,7 @@ System.register("chunks:///_virtual/StackSound.ts", ["./stack-music.ts","./stack
                 win: { label: '通关唢呐与鞭炮', layers: 5 },
                 fail: { label: '下行低音', layers: 3 },
                 prop: { label: '道具闪光铃', layers: 3 },
+                home: { label: '到家鞭炮与锣', layers: 4 },
             });
             SFX_MASTER_LEVEL = 0.65;
             MUSIC_MASTER_LEVEL = 0.58;
@@ -10771,8 +10991,6 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     if (ride) {
                         // Cargo rides on top of the load area, so it must draw above the vehicle art.
                         this.cargo.setSiblingIndex(this.car.children.length - 1);
-                        if (ride.tint)
-                            this.bodyImage.color = new cc_1.Color(ride.tint[0], ride.tint[1], ride.tint[2], 255);
                     }
                     void Promise.all(ride ? [OptionalResources_1.loadArt(ride.art), Promise.resolve(null)] : [
                         OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
@@ -11002,6 +11220,223 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
             };
             exports_1("StackFinishView", StackFinishView);
             BODY_HOLE = { left: 159, right: 878, top: 104, bottom: 425 };
+        }
+    };
+});
+
+System.register("chunks:///_virtual/StackHomecomingView.ts", ["cc","./InteractionGeometry.ts","./rng.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, InteractionGeometry_1, rng_1, OptionalResources_1, UIKit_1, gold, pale, ink, darkRed, STRINGS, HOMECOMING_ARRIVE_MS, StackHomecomingView;
+    var __moduleName = context_1 && context_1.id;
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (InteractionGeometry_1_1) {
+                InteractionGeometry_1 = InteractionGeometry_1_1;
+            },
+            function (rng_1_1) {
+                rng_1 = rng_1_1;
+            },
+            function (OptionalResources_1_1) {
+                OptionalResources_1 = OptionalResources_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            }
+        ],
+        execute: function () {
+            gold = new cc_1.Color(255, 207, 111);
+            pale = new cc_1.Color(255, 242, 208);
+            ink = new cc_1.Color(63, 29, 24);
+            darkRed = new cc_1.Color(83, 22, 29);
+            /** Firecracker strings painted in bg_home (design units at 750×1334, before cover scaling). */
+            STRINGS = [{ x: 45, top: 470, bottom: 790 }, { x: 705, top: 470, bottom: 790 }];
+            /** Time for the tractor to roll up the lane to the gate. */
+            exports_1("HOMECOMING_ARRIVE_MS", HOMECOMING_ARRIVE_MS = 1800);
+            /**
+             * Level-9 finale: the family gate at night with parents waving, couplets and lanterns. The tractor
+             * rolls up the lane and stops at the door, firecrackers keep popping, and the only ways on are
+             * “再走一遍回家路”, the homecoming share image or the home screen — never a next level.
+             */
+            StackHomecomingView = class StackHomecomingView {
+                constructor(parent, stats, onAction, tractorArt = 'vehicles/tractor', tractorSize = { w: 457, h: 647 }) {
+                    this.stats = stats;
+                    this.onAction = onAction;
+                    this.tractorArt = tractorArt;
+                    this.tractorSize = tractorSize;
+                    this.buttons = [];
+                    this.started = Date.now();
+                    this.height = 1334;
+                    this.rankText = null;
+                    this.node = UIKit_1.uiNode('StackHomecoming', parent, 750, 1334);
+                    const shade = UIKit_1.uiNode('HomeShade', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    UIKit_1.fill(shade, new cc_1.Color(10, 6, 18, 255), -375, -1000, 750, 2000, 0);
+                    this.backdrop = this.image('HomeBackdrop');
+                    this.tractor = this.image('HomeTractor');
+                    this.sparks = UIKit_1.uiNode('HomeFirecrackers', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    void OptionalResources_1.loadArt('ui/bg_home').then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        this.backdrop.spriteFrame = frame;
+                        this.layout(this.height);
+                    });
+                    void OptionalResources_1.loadArt(this.tractorArt).then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        this.tractor.spriteFrame = frame;
+                        this.layout(this.height);
+                    });
+                    this.title = UIKit_1.label(this.node, 'HomeTitle', '到家了！', 92, 0, 0).node;
+                    this.title.getComponent(cc_1.Label).color = gold;
+                    this.subtitle = UIKit_1.label(this.node, 'HomeSubtitle', '爸妈在门口等你 · 新年快乐', 30, 0, 0).node;
+                    this.subtitle.getComponent(cc_1.Label).color = pale;
+                    this.statsLabel = UIKit_1.label(this.node, 'HomeStats', this.statsText(), 25, 0, 0).node;
+                    this.statsLabel.getComponent(cc_1.Label).color = pale;
+                    this.actions = UIKit_1.uiNode('HomeActions', this.node, 750, 320);
+                    this.actionArt = this.actions.addComponent(cc_1.Graphics);
+                    const choices = [
+                        { title: '再走一遍回家路', action: 'road' },
+                        { title: '到家分享图', action: 'share' },
+                        { title: '回首页', action: 'home' },
+                    ];
+                    choices.forEach((choice, index) => {
+                        const text = UIKit_1.label(this.actions, `HomeButton${index}`, choice.title, 30, 0, 0);
+                        text.color = index === 0 ? ink : gold;
+                        this.buttons.push({ action: choice.action, rect: { x: 125, y: 0, w: 500, h: 74 }, label: text.node });
+                    });
+                    this.layout(this.height);
+                }
+                layout(height) {
+                    this.height = height;
+                    this.node.getComponent(cc_1.UITransform).setContentSize(750, height);
+                    const scale = this.coverScale();
+                    this.show(this.backdrop, 0, 0, 750 * scale, 1334 * scale);
+                    this.title.setPosition(0, height / 2 - 150);
+                    this.subtitle.setPosition(0, height / 2 - 228);
+                    this.statsLabel.setPosition(0, height / 2 - 276);
+                    // Primary button on its own row, share + home side by side below it; all under the tractor.
+                    const actionsY = -height / 2 + 175;
+                    this.actions.setPosition(0, actionsY);
+                    this.actionArt.clear();
+                    const slots = [{ x: -250, w: 500, y: 46 }, { x: -250, w: 240, y: -46 }, { x: 10, w: 240, y: -46 }];
+                    this.buttons.forEach((button, index) => {
+                        const slot = slots[index];
+                        button.rect.x = 375 + slot.x;
+                        button.rect.w = slot.w;
+                        button.rect.y = height / 2 - (actionsY + slot.y) - 37;
+                        button.label.setPosition(slot.x + slot.w / 2, slot.y);
+                        UIKit_1.fill(this.actionArt, index === 0 ? gold : darkRed, slot.x, slot.y - 37, slot.w, 74, 22);
+                        if (index) {
+                            this.actionArt.strokeColor = gold;
+                            this.actionArt.lineWidth = 2;
+                            this.actionArt.roundRect(slot.x + 2, slot.y - 35, slot.w - 4, 70, 20);
+                            this.actionArt.stroke();
+                        }
+                    });
+                    if (this.state)
+                        this.render(this.state);
+                }
+                render(state) {
+                    this.state = state;
+                    const now = Date.now() - this.started;
+                    const arrive = Math.min(1, now / HOMECOMING_ARRIVE_MS);
+                    const ease = 1 - Math.pow(1 - arrive, 3);
+                    // Rear view: the tractor rolls in big from the bottom edge and parks small beside the door,
+                    // leaving the waving parents in the doorway visible.
+                    const scale = this.coverScale();
+                    const h = (560 - 300 * ease) * scale;
+                    const w = h * this.tractorSize.w / this.tractorSize.h;
+                    const parkY = this.toLocal(830 * scale);
+                    const startY = -this.height / 2 + h * .2;
+                    // Tall screens crop the cover-scaled backdrop's sides; keep the parked tractor fully on screen.
+                    const x = Math.min(235 * scale, 375 - 14 - w / 2) * ease;
+                    this.show(this.tractor, x, startY + (parkY - startY) * ease + Math.sin(now / 90) * (1 - ease) * 4, w, h);
+                    this.title.active = arrive >= .7;
+                    this.subtitle.active = arrive >= .8;
+                    this.statsLabel.active = arrive >= .8;
+                    this.actions.active = arrive >= 1;
+                    this.drawFirecrackers(now, scale);
+                }
+                press(x, y) {
+                    if (!this.actions.active)
+                        return;
+                    for (const button of this.buttons) {
+                        if (InteractionGeometry_1.inRect({ x, y }, button.rect)) {
+                            this.onAction(button.action);
+                            return;
+                        }
+                    }
+                }
+                setRankStatus(text) { this.rankText = text; }
+                get rankStatusText() { return this.rankText; }
+                get statsLine() { return this.statsText(); }
+                buttonPoints() {
+                    return this.buttons.map(button => {
+                        var _a, _b;
+                        return ({
+                            action: button.action,
+                            title: (_b = (_a = button.label.getComponent(cc_1.Label)) === null || _a === void 0 ? void 0 : _a.string) !== null && _b !== void 0 ? _b : '',
+                            rect: Object.assign({}, button.rect),
+                        });
+                    });
+                }
+                /** Bursts of sparks and red paper bits at the foot of both painted firecracker strings. */
+                drawFirecrackers(now, scale) {
+                    const g = this.sparks;
+                    g.clear();
+                    const frame = Math.floor(now / 70);
+                    for (const string of STRINGS) {
+                        const random = rng_1.createRng(`home-spark-${string.x}-${frame}`);
+                        // Clamp into the visible 750-wide column when tall screens crop the painted strings.
+                        const x = Math.max(-345, Math.min(345, (string.x - 375) * scale));
+                        // The burning point creeps up the string, then the string starts again.
+                        const burn = (now / 2600) % 1;
+                        const y = this.toLocal((string.bottom - (string.bottom - string.top) * burn) * scale);
+                        for (let index = 0; index < 14; index++) {
+                            const angle = random() * Math.PI * 2;
+                            const distance = (10 + random() * 46) * scale;
+                            const size = (2 + random() * 4) * scale;
+                            const hot = random();
+                            g.fillColor = hot > .6 ? new cc_1.Color(255, 244, 170, 255) : hot > .25 ? new cc_1.Color(255, 170, 60, 235) : new cc_1.Color(230, 40, 40, 220);
+                            g.circle(x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, size);
+                            g.fill();
+                        }
+                        g.fillColor = new cc_1.Color(255, 255, 220, 200);
+                        g.circle(x, y, 9 * scale);
+                        g.fill();
+                        for (let index = 0; index < 6; index++) {
+                            const fall = ((now / 1000 + index * .37) % 1.6) / 1.6;
+                            g.fillColor = new cc_1.Color(214, 30, 36, Math.round(230 * (1 - fall)));
+                            g.rect(x + (random() - .5) * 120 * scale, y - fall * 260 * scale, 7 * scale, 4 * scale);
+                            g.fill();
+                        }
+                    }
+                }
+                coverScale() { return Math.max(1, this.height / 1334); }
+                /** Converts a y measured from the top of the cover-scaled backdrop into node-local y. */
+                toLocal(fromTop) { return 1334 * this.coverScale() / 2 - fromTop; }
+                image(name) {
+                    const sprite = UIKit_1.uiNode(name, this.node, 1, 1).addComponent(cc_1.Sprite);
+                    sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    sprite.trim = false;
+                    sprite.enabled = false;
+                    return sprite;
+                }
+                show(sprite, x, y, width, height) {
+                    sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
+                    sprite.node.setPosition(x, y);
+                    sprite.enabled = !!sprite.spriteFrame;
+                }
+                statsText() {
+                    const minutes = Math.floor(this.stats.elapsedSec / 60);
+                    const seconds = this.stats.elapsedSec % 60;
+                    const time = minutes > 0 ? `${minutes} 分 ${String(seconds).padStart(2, '0')} 秒` : `${seconds} 秒`;
+                    return `第 9 关 · 用时 ${time} · 打包 ${this.stats.boxes} 箱`;
+                }
+            };
+            exports_1("StackHomecomingView", StackHomecomingView);
         }
     };
 });
@@ -11388,8 +11823,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-daily-table.ts","./stack-daily.ts","./stack-endless.ts","./stack-generator.ts","./stack-layout.ts","./stack-progress.ts","./stack-rules.ts","./stack-share.ts","./stack-sim.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stack-vehicles.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./stack-music.ts","./stack-sfx.ts","./synth.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-constants.ts","./stack-daily-table.ts","./stack-daily.ts","./stack-endless-table.ts","./stack-endless.ts","./stack-generator.ts","./stack-layout.ts","./stack-progress.ts","./stack-rules.ts","./stack-share.ts","./stack-sim.ts","./stack-solver.ts","./stack-state-solver.ts","./stack-types.ts","./stack-vehicles.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StackHomecomingView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {

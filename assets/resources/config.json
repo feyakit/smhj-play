@@ -175,6 +175,9 @@
     "f332d726-3c9e-429e-d632-62514a89306f",
     "f332d726-3c9e-429e-d632-62514a89306f@6c48a",
     "f332d726-3c9e-429e-d632-62514a89306f@f9941",
+    "80adee3a-2daa-eed7-98d2-cd955080873f",
+    "80adee3a-2daa-eed7-98d2-cd955080873f@6c48a",
+    "80adee3a-2daa-eed7-98d2-cd955080873f@f9941",
     "5efb5d48-66fd-d9c6-244f-95dc3590c891",
     "5efb5d48-66fd-d9c6-244f-95dc3590c891@6c48a",
     "5efb5d48-66fd-d9c6-244f-95dc3590c891@f9941",
@@ -1027,6 +1030,20 @@
     ],
     "f332d726-3c9e-429e-d632-62514a89306f@f9941": [
       "art/items/woven/spriteFrame",
+      "cc.SpriteFrame",
+      1
+    ],
+    "80adee3a-2daa-eed7-98d2-cd955080873f": [
+      "art/ui/bg_home",
+      "cc.ImageAsset"
+    ],
+    "80adee3a-2daa-eed7-98d2-cd955080873f@6c48a": [
+      "art/ui/bg_home/texture",
+      "cc.Texture2D",
+      1
+    ],
+    "80adee3a-2daa-eed7-98d2-cd955080873f@f9941": [
+      "art/ui/bg_home/spriteFrame",
       "cc.SpriteFrame",
       1
     ],
