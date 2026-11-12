@@ -1,4 +1,4 @@
-System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./brand.ts","./date.ts","./stage1.ts","./StagePage.ts","./StackPage.ts","./WebPlatform.ts","./Api.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./brand.ts","./date.ts","./stage1.ts","./HomePage.ts","./StagePage.ts","./StackPage.ts","./WebPlatform.ts","./Api.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
     "use strict";
     var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
         var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -6,7 +6,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
         else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
         return c > 3 && r && Object.defineProperty(target, key, r), r;
     };
-    var cc_1, env_1, brand_1, date_1, stage1_1, StagePage_1, StackPage_1, WebPlatform_1, Api_1, UIKit_1, JourneyArt_1, ccclass, Bootstrap;
+    var cc_1, env_1, brand_1, date_1, stage1_1, HomePage_1, StagePage_1, StackPage_1, WebPlatform_1, Api_1, UIKit_1, JourneyArt_1, ccclass, Bootstrap;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -24,6 +24,9 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
             },
             function (stage1_1_1) {
                 stage1_1 = stage1_1_1;
+            },
+            function (HomePage_1_1) {
+                HomePage_1 = HomePage_1_1;
             },
             function (StagePage_1_1) {
                 StagePage_1 = StagePage_1_1;
@@ -53,19 +56,38 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     this.api = new Api_1.Api(this.platform);
                 }
                 start() {
-                    if (this.platform.isStackMode())
+                    const route = this.platform.route();
+                    if (route === 'stack')
                         this.startStack(this.platform.stackStage());
-                    else if (this.platform.isMomMode())
+                    else if (route === 'mom')
                         void this.startMomMode();
-                    else if (this.platform.hasLevelOverride())
+                    else if (route === 'pack')
+                        this.startPack();
+                    else if (route === 'level')
+                        void this.challenge();
+                    else
+                        this.showHome();
+                }
+                update() { var _a, _b, _c; (_a = this.stage) === null || _a === void 0 ? void 0 : _a.tick(); (_b = this.stack) === null || _b === void 0 ? void 0 : _b.tick(); (_c = this.home) === null || _c === void 0 ? void 0 : _c.tick(); }
+                showHome() {
+                    this.node.destroyAllChildren();
+                    this.stage = undefined;
+                    this.stack = undefined;
+                    this.home = new HomePage_1.HomePage(this.node, {
+                        onStart: () => this.startStack(1),
+                        onClassic: () => this.startPack(),
+                    });
+                }
+                startPack() {
+                    if (this.platform.hasLevelOverride())
                         void this.challenge();
                     else
                         this.show(stage1_1.stage1(date_1.shanghaiDate()));
                 }
-                update() { var _a, _b; (_a = this.stage) === null || _a === void 0 ? void 0 : _a.tick(); (_b = this.stack) === null || _b === void 0 ? void 0 : _b.tick(); }
                 show(level) {
                     this.node.destroyAllChildren();
                     this.stack = undefined;
+                    this.home = undefined;
                     this.stage = new StagePage_1.StagePage(this.node, level, () => this.platform.now(), action => {
                         if (action === 'next')
                             void this.challenge();
@@ -80,6 +102,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                 startStack(stage) {
                     this.node.destroyAllChildren();
                     this.stage = undefined;
+                    this.home = undefined;
                     this.stack = new StackPage_1.StackPage(this.node, stage, (action) => {
                         if (action === 'next')
                             this.startStack(2);
@@ -90,6 +113,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     });
                 }
                 async startMomMode() {
+                    this.home = undefined;
                     try {
                         const level = await this.api.loadMom();
                         if (this.node.isValid)
@@ -101,6 +125,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     }
                 }
                 async challenge() {
+                    this.home = undefined;
                     this.message('年货装上车，准备跑最后一程');
                     try {
                         const level = await this.api.loadChallenge();
@@ -115,6 +140,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                 message(text, onTap) {
                     this.stage = undefined;
                     this.stack = undefined;
+                    this.home = undefined;
                     this.node.destroyAllChildren();
                     const size = cc_1.view.getVisibleSize();
                     const width = 750;
@@ -942,12 +968,13 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             var _a;
             const offset = layer.half ? HALF : 0;
             for (let row = layer.rows[0]; row <= layer.rows[1]; row++) {
+                const wave = layer.wave ? (row % 2 ? layer.wave : -layer.wave) : 0;
                 for (let col = layer.cols[0]; col <= layer.cols[1]; col++) {
                     if ((_a = layer.skip) === null || _a === void 0 ? void 0 : _a.includes(`${col},${row}`))
                         continue;
                     const jitterX = Math.round((random() - .5) * 4);
                     const jitterY = Math.round((random() - .5) * 4);
-                    cards.push(pileCard(++id, GRID_X0 + offset + col * GRID + jitterX, GRID_Y0 + offset + row * GRID + jitterY, STAGE2_CARD, STAGE2_CARD, index, 'pile'));
+                    cards.push(pileCard(++id, GRID_X0 + offset + wave + col * GRID + jitterX, GRID_Y0 + offset + row * GRID + jitterY, STAGE2_CARD, STAGE2_CARD, index, 'pile'));
                 }
             }
         });
@@ -1078,15 +1105,16 @@ System.register("chunks:///_virtual/stack-generator.ts", ["./rng.ts","./stack-ca
             /**
              * Bottom-to-top layers of the hard mound. Odd layers sit half a card right and down, so every
              * card is pinned by up to four cards above; upper layers shrink towards the centre and the
-             * base loses its top corners, giving a hill silhouette instead of a wall.
+             * base loses its top corners, giving a hill silhouette instead of a wall. The cap zig-zags six
+             * reachable cards across the crown so the opening choices are broader without flattening the pile.
              */
             MAIN_LAYERS = [
-                { cols: [0, 5], rows: [0, 6], half: false, skip: ['0,0', '5,0', '0,1', '5,1'] },
+                { cols: [0, 5], rows: [0, 6], half: false, skip: ['0,0', '5,0', '0,1', '5,1', '2,6', '3,6'] },
                 { cols: [0, 4], rows: [0, 5], half: true, skip: ['0,0', '4,0'] },
                 { cols: [1, 4], rows: [0, 6], half: false },
                 { cols: [1, 3], rows: [0, 5], half: true },
                 { cols: [2, 3], rows: [1, 5], half: false },
-                { cols: [2, 2], rows: [1, 4], half: true },
+                { cols: [2, 2], rows: [0, 5], half: true, wave: 40 },
             ];
             SIDE_STACKS = [
                 { source: 'side-left', x: 36, y: 1006, count: 12, step: 13 },
@@ -1381,7 +1409,7 @@ System.register("chunks:///_virtual/stack-rules.ts", ["./rng.ts","./stack-catalo
 
 System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (exports_1, context_1) {
     "use strict";
-    var brand_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS;
+    var brand_1, STACK_SHARE_WIDTH, STACK_SHARE_HEIGHT, STACK_SHARE_TITLE, STACK_SHARE_BACKLOG_THRESHOLD, STACK_SHARE_ITEM_KEYS, STACK_CARGO_POSITIONS, STACK_SHARE_CAPTIONS;
     var __moduleName = context_1 && context_1.id;
     function safeInteger(value, minimum = 0) {
         if (!Number.isFinite(value))
@@ -1392,7 +1420,10 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (e
         if (result.victory) {
             return `用时 ${safeInteger(result.elapsedSec, 1)} 秒 · 打包 ${safeInteger(result.boxes)} 箱`;
         }
-        return `差 ${safeInteger(result.remaining)} 件就塞满`;
+        const remaining = safeInteger(result.remaining);
+        if (remaining > STACK_SHARE_BACKLOG_THRESHOLD)
+            return '后备箱塞爆了，年货还剩一大堆';
+        return `差 ${remaining} 件就塞满`;
     }
     exports_1("formatStackShareStats", formatStackShareStats);
     function formatStackShareStage(stage) {
@@ -1428,6 +1459,8 @@ System.register("chunks:///_virtual/stack-share.ts", ["./brand.ts"], function (e
             exports_1("STACK_SHARE_WIDTH", STACK_SHARE_WIDTH = 1080);
             exports_1("STACK_SHARE_HEIGHT", STACK_SHARE_HEIGHT = 1440);
             exports_1("STACK_SHARE_TITLE", STACK_SHARE_TITLE = `《${brand_1.GAME_TITLE}》`);
+            /** Above this many unpacked goods the share card calls the trunk overloaded instead of counting down. */
+            exports_1("STACK_SHARE_BACKLOG_THRESHOLD", STACK_SHARE_BACKLOG_THRESHOLD = 30);
             /** Goods visible in both the generated share card and the finish-screen trunk. */
             exports_1("STACK_SHARE_ITEM_KEYS", STACK_SHARE_ITEM_KEYS = [
                 'mandarin', 'duck', 'fruitbasket', 'milk', 'suitcase_l', 'toycar', 'oven',
@@ -2207,9 +2240,327 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
+System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, UIKit_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, HomePage;
+    var __moduleName = context_1 && context_1.id;
+    function contains(rect, x, y) {
+        return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (brand_1_1) {
+                brand_1 = brand_1_1;
+            },
+            function (stack_layout_1_1) {
+                stack_layout_1 = stack_layout_1_1;
+            },
+            function (stack_share_1_1) {
+                stack_share_1 = stack_share_1_1;
+            },
+            function (OptionalResources_1_1) {
+                OptionalResources_1 = OptionalResources_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            }
+        ],
+        execute: function () {
+            red = new cc_1.Color(184, 29, 42);
+            deepRed = new cc_1.Color(84, 18, 27);
+            wine = new cc_1.Color(57, 12, 22, 232);
+            gold = new cc_1.Color(255, 205, 105);
+            paleGold = new cc_1.Color(255, 232, 177);
+            cream = new cc_1.Color(255, 246, 229);
+            ink = new cc_1.Color(75, 28, 20);
+            shadowInk = new cc_1.Color(49, 8, 14, 180);
+            CAR_WIDTH = 700;
+            CAR_HEIGHT = 438;
+            START_WIDTH = 600;
+            START_HEIGHT = 88;
+            CLASSIC_WIDTH = 360;
+            CLASSIC_HEIGHT = 66;
+            /** Code-built title screen. The night scene, red-gold chrome and packed car preview the match-three game. */
+            HomePage = class HomePage {
+                constructor(parent, actions) {
+                    this.actions = actions;
+                    this.cargoSprites = [];
+                    this.touchWorld = new cc_1.Vec3();
+                    this.touchLocal = new cc_1.Vec3();
+                    this.startRect = { x: 75, y: 0, w: START_WIDTH, h: START_HEIGHT };
+                    this.classicRect = { x: 195, y: 0, w: CLASSIC_WIDTH, h: CLASSIC_HEIGHT };
+                    this.width = 750;
+                    this.height = 1334;
+                    this.layoutWidth = -1;
+                    this.layoutHeight = -1;
+                    this.hole = { x: 0, y: 0, w: CAR_WIDTH, h: CAR_HEIGHT };
+                    this.carTop = 400;
+                    this.node = UIKit_1.uiNode('HomePage', parent, 750, 1334);
+                    this.background = UIKit_1.uiNode('HomeNight', this.node, 750, 1334).addComponent(cc_1.Sprite);
+                    this.background.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    this.background.trim = false;
+                    this.background.enabled = false;
+                    void OptionalResources_1.loadArt('ui/bg_night').then(frame => {
+                        if (!frame || !this.node.isValid)
+                            return;
+                        this.background.spriteFrame = frame;
+                        this.background.enabled = true;
+                        this.layoutBackground();
+                    });
+                    this.chrome = UIKit_1.uiNode('HomeChrome', this.node, 750, 1334).addComponent(cc_1.Graphics);
+                    this.car = UIKit_1.uiNode('PackedCar', this.node, CAR_WIDTH, CAR_HEIGHT);
+                    this.carFallback = UIKit_1.uiNode('CarFallback', this.car, CAR_WIDTH, CAR_HEIGHT).addComponent(cc_1.Graphics);
+                    this.trunkImage = this.imageNode('TrunkWell', this.car);
+                    this.cargo = UIKit_1.uiNode('HomeCargo', this.car, CAR_WIDTH, CAR_HEIGHT);
+                    for (let index = 0; index < stack_share_1.STACK_SHARE_ITEM_KEYS.length; index++) {
+                        this.cargoSprites.push(this.imageNode(`CargoItem${index}`, this.cargo));
+                    }
+                    this.bodyImage = this.imageNode('CarBody', this.car);
+                    void Promise.all([
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
+                        OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
+                    ]).then(([body, trunk]) => {
+                        if (!this.node.isValid)
+                            return;
+                        if (trunk) {
+                            this.trunkImage.spriteFrame = trunk;
+                            this.trunkImage.enabled = true;
+                        }
+                        if (body) {
+                            this.bodyImage.spriteFrame = body;
+                            this.bodyImage.enabled = true;
+                            this.carFallback.enabled = false;
+                        }
+                        this.layoutCar();
+                    });
+                    void Promise.all(stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => OptionalResources_1.loadArt(`items/${key}`))).then(frames => {
+                        if (!this.node.isValid)
+                            return;
+                        for (let index = 0; index < frames.length && index < this.cargoSprites.length; index++) {
+                            const frame = frames[index];
+                            if (!frame)
+                                continue;
+                            this.cargoSprites[index].spriteFrame = frame;
+                            this.cargoSprites[index].enabled = true;
+                        }
+                        this.layoutCar();
+                    });
+                    this.eyebrow = UIKit_1.label(this.node, 'Eyebrow', '春运 · 年货专列', 22, 0, 0);
+                    this.eyebrow.color = paleGold;
+                    this.titleShadow = UIKit_1.label(this.node, 'TitleShadow', `《${brand_1.GAME_TITLE}》`, 82, 0, 0);
+                    this.titleShadow.color = shadowInk;
+                    this.title = UIKit_1.label(this.node, 'Title', `《${brand_1.GAME_TITLE}》`, 82, 0, 0);
+                    this.title.color = gold;
+                    this.subtitle = UIKit_1.label(this.node, 'Subtitle', brand_1.GAME_SUBTITLE, 28, 0, 0);
+                    this.subtitle.color = cream;
+                    this.cargoTag = UIKit_1.label(this.node, 'CargoTag', '妈妈备好了一车年货，等你装车回家', 23, 0, 0);
+                    this.cargoTag.color = paleGold;
+                    this.ruleLineOne = UIKit_1.label(this.node, 'RuleOne', '点没被压住的年货，凑齐 3 件同款就打包装车', 22, 0, 0);
+                    this.ruleLineOne.color = cream;
+                    this.ruleLineTwo = UIKit_1.label(this.node, 'RuleTwo', '7 格塞满就失败', 20, 0, 0);
+                    this.ruleLineTwo.color = paleGold;
+                    this.startNode = UIKit_1.uiNode('HomeStart', this.node, START_WIDTH, START_HEIGHT);
+                    this.startLabel = UIKit_1.label(this.startNode, 'HomeStartText', '开始装车', 34, 0, 0);
+                    this.startLabel.color = ink;
+                    this.classicNode = UIKit_1.uiNode('HomeClassic', this.node, CLASSIC_WIDTH, CLASSIC_HEIGHT);
+                    this.classicLabel = UIKit_1.label(this.classicNode, 'HomeClassicText', '经典装箱玩法', 24, 0, 0);
+                    this.classicLabel.color = paleGold;
+                    this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
+                    this.debugHook = Object.freeze({
+                        getButtons: () => this.debugButtons(),
+                        getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height }),
+                    });
+                    if (typeof window !== 'undefined') {
+                        window.__home = this.debugHook;
+                    }
+                    this.node.once(cc_1.Node.EventType.NODE_DESTROYED, () => {
+                        if (typeof window !== 'undefined' && window.__home === this.debugHook) {
+                            delete window.__home;
+                        }
+                    });
+                    this.tick();
+                }
+                tick() {
+                    const size = cc_1.view.getVisibleSize();
+                    if (size.width !== this.layoutWidth || size.height !== this.layoutHeight) {
+                        this.layoutWidth = size.width;
+                        this.layoutHeight = size.height;
+                        this.height = size.height > 0 && size.width > 0
+                            ? Math.max(1334, size.height / size.width * 750)
+                            : 1334;
+                        const scale = Math.min(size.width / 750, size.height / this.height);
+                        this.node.setScale(scale, scale, 1);
+                        this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
+                        this.layout();
+                    }
+                }
+                layout() {
+                    this.layoutBackground();
+                    this.eyebrow.node.setPosition(0, this.height / 2 - 80);
+                    this.titleShadow.node.setPosition(4, this.height / 2 - 165);
+                    this.title.node.setPosition(0, this.height / 2 - 160);
+                    this.subtitle.node.setPosition(0, this.height / 2 - 296);
+                    this.carTop = Math.round(Math.max(398, Math.min(this.height - 842, this.height * .30)));
+                    this.car.setPosition(0, this.height / 2 - (this.carTop + CAR_HEIGHT / 2));
+                    this.cargoTag.node.setPosition(0, this.height / 2 - (this.carTop + CAR_HEIGHT + 56));
+                    this.layoutCar();
+                    const rulesY = Math.round(this.height * .70);
+                    this.ruleLineOne.node.setPosition(0, this.height / 2 - rulesY);
+                    this.ruleLineTwo.node.setPosition(0, this.height / 2 - rulesY - 42);
+                    const startY = this.height - 272;
+                    this.startRect = { x: (750 - START_WIDTH) / 2, y: startY, w: START_WIDTH, h: START_HEIGHT };
+                    this.startNode.setPosition(0, this.height / 2 - (startY + START_HEIGHT / 2));
+                    const classicY = this.height - 158;
+                    this.classicRect = { x: (750 - CLASSIC_WIDTH) / 2, y: classicY, w: CLASSIC_WIDTH, h: CLASSIC_HEIGHT };
+                    this.classicNode.setPosition(0, this.height / 2 - (classicY + CLASSIC_HEIGHT / 2));
+                    this.drawChrome(rulesY);
+                }
+                layoutBackground() {
+                    const scale = Math.max(1, this.height / 1334);
+                    this.background.node.getComponent(cc_1.UITransform).setContentSize(750 * scale, 1334 * scale);
+                    this.background.node.setPosition(0, 0);
+                }
+                drawChrome(rulesY) {
+                    const g = this.chrome;
+                    g.clear();
+                    const top = this.height / 2;
+                    const left = -375;
+                    const rect = (color, x, y, w, h, radius = 0) => {
+                        UIKit_1.fill(g, color, left + x, top - y - h, w, h, radius);
+                    };
+                    rect(new cc_1.Color(10, 8, 22, 84), 0, 0, 750, this.height);
+                    rect(new cc_1.Color(28, 10, 20, 64), 0, this.height - 410, 750, 410, 0);
+                    rect(new cc_1.Color(28, 7, 13, 150), 34, 40, 682, 310, 34);
+                    rect(new cc_1.Color(94, 22, 29, 238), 40, 44, 670, 304, 32);
+                    rect(gold, 48, 52, 654, 288, 27);
+                    rect(red, 56, 60, 638, 272, 22);
+                    rect(new cc_1.Color(224, 56, 48), 68, 72, 614, 248, 18);
+                    rect(new cc_1.Color(255, 229, 164, 150), 126, 224, 498, 2, 1);
+                    rect(gold, 292, 250, 166, 3, 1);
+                    rect(new cc_1.Color(48, 12, 23, 186), 54, rulesY - 34, 642, 106, 26);
+                    rect(new cc_1.Color(255, 211, 117, 42), 62, rulesY - 26, 626, 90, 22);
+                    g.strokeColor = new cc_1.Color(255, 205, 105, 130);
+                    g.lineWidth = 2;
+                    g.roundRect(left + 56, top - (rulesY - 32) - 102, 638, 102, 24);
+                    g.stroke();
+                    const start = this.startRect;
+                    rect(new cc_1.Color(26, 8, 13, 150), start.x + 5, start.y + 10, start.w, start.h, 28);
+                    rect(new cc_1.Color(111, 45, 18), start.x, start.y, start.w, start.h, 28);
+                    rect(gold, start.x + 4, start.y + 4, start.w - 8, start.h - 8, 24);
+                    rect(new cc_1.Color(255, 193, 72), start.x + 12, start.y + 12, start.w - 24, start.h - 24, 19);
+                    rect(new cc_1.Color(255, 227, 143, 150), start.x + 28, start.y + 18, start.w - 56, 8, 4);
+                    const classic = this.classicRect;
+                    rect(new cc_1.Color(53, 10, 19, 196), classic.x, classic.y, classic.w, classic.h, 22);
+                    g.strokeColor = gold;
+                    g.lineWidth = 2;
+                    g.roundRect(left + classic.x + 2, top - (classic.y + classic.h) + 2, classic.w - 4, classic.h - 4, 20);
+                    g.stroke();
+                    rect(new cc_1.Color(255, 214, 126, 160), classic.x + 92, classic.y + classic.h - 11, classic.w - 184, 2, 1);
+                    this.drawCarFallback();
+                }
+                layoutCar() {
+                    const trunkW = CAR_WIDTH;
+                    const trunkH = CAR_HEIGHT;
+                    const holeX = Math.round((stack_layout_1.STACK_BODY_HOLE.left + stack_layout_1.STACK_BODY_HOLE.right) / 2 / 1024 * trunkW - trunkW / 2);
+                    const holeY = Math.round((stack_layout_1.STACK_BODY_HOLE.top + stack_layout_1.STACK_BODY_HOLE.bottom) / 2 / 640 * trunkH - trunkH / 2);
+                    const holeW = Math.round((stack_layout_1.STACK_BODY_HOLE.right - stack_layout_1.STACK_BODY_HOLE.left) / 1024 * trunkW);
+                    const holeH = Math.round((stack_layout_1.STACK_BODY_HOLE.bottom - stack_layout_1.STACK_BODY_HOLE.top) / 640 * trunkH);
+                    this.hole = { x: holeX, y: holeY, w: holeW, h: holeH };
+                    this.show(this.bodyImage, 0, 0, CAR_WIDTH, CAR_HEIGHT);
+                    this.show(this.trunkImage, 0, holeY, holeW, holeH);
+                    const max = Math.min(holeW * .26, holeH * .55, 168);
+                    for (let index = 0; index < this.cargoSprites.length && index < stack_share_1.STACK_CARGO_POSITIONS.length; index++) {
+                        const sprite = this.cargoSprites[index];
+                        const frame = sprite.spriteFrame;
+                        if (!frame)
+                            continue;
+                        const [px, py, angle] = stack_share_1.STACK_CARGO_POSITIONS[index];
+                        const ratio = frame.rect.width / Math.max(1, frame.rect.height);
+                        const width = ratio >= 1 ? max : max * ratio;
+                        const height = ratio >= 1 ? max / ratio : max;
+                        sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
+                        sprite.node.setPosition(holeX + (px - .5) * holeW, holeY + (.45 - py * .64) * holeH);
+                        sprite.node.angle = -angle * 180 / Math.PI;
+                        sprite.enabled = true;
+                    }
+                }
+                drawCarFallback() {
+                    const g = this.carFallback;
+                    g.clear();
+                    UIKit_1.fill(g, new cc_1.Color(16, 10, 21, 105), -340, -230, 680, 460, 56);
+                    UIKit_1.fill(g, new cc_1.Color(111, 18, 30), -350, -216, 700, 438, 62);
+                    UIKit_1.fill(g, red, -337, -205, 674, 418, 56);
+                    UIKit_1.fill(g, new cc_1.Color(42, 18, 25), -270, -100, 540, 248, 40);
+                    UIKit_1.fill(g, deepRed, -278, -214, 556, 92, 24);
+                    UIKit_1.fill(g, new cc_1.Color(255, 206, 112), -102, -186, 204, 44, 12);
+                    UIKit_1.fill(g, new cc_1.Color(255, 139, 58, 210), -300, -126, 74, 44, 14);
+                    UIKit_1.fill(g, new cc_1.Color(255, 139, 58, 210), 226, -126, 74, 44, 14);
+                    UIKit_1.fill(g, new cc_1.Color(20, 15, 20), -295, -222, 590, 28, 12);
+                }
+                touch(event) {
+                    const point = this.point(event);
+                    if (contains(this.startRect, point.x, point.y)) {
+                        this.actions.onStart();
+                        return;
+                    }
+                    if (contains(this.classicRect, point.x, point.y)) {
+                        this.actions.onClassic();
+                    }
+                }
+                point(event) {
+                    const p = event.getUILocation();
+                    this.touchWorld.set(p.x, p.y, 0);
+                    const local = this.node.getComponent(cc_1.UITransform).convertToNodeSpaceAR(this.touchWorld, this.touchLocal);
+                    return { x: local.x + 375, y: this.height / 2 - local.y };
+                }
+                debugButtons() {
+                    const screenWidth = this.screenWidth();
+                    const screenHeight = this.screenHeight();
+                    return ['start', 'classic'].map(key => {
+                        const rect = key === 'start' ? this.startRect : this.classicRect;
+                        return {
+                            key,
+                            screenX: (rect.x + rect.w / 2) / 750 * screenWidth,
+                            screenY: (rect.y + rect.h / 2) / this.height * screenHeight,
+                            screenLeft: rect.x / 750 * screenWidth,
+                            screenRight: (rect.x + rect.w) / 750 * screenWidth,
+                            screenTop: rect.y / this.height * screenHeight,
+                            screenBottom: (rect.y + rect.h) / this.height * screenHeight,
+                            screenW: rect.w / 750 * screenWidth,
+                            screenH: rect.h / this.height * screenHeight,
+                        };
+                    });
+                }
+                screenWidth() {
+                    return typeof window === 'undefined' ? 750 : window.innerWidth;
+                }
+                screenHeight() {
+                    return typeof window === 'undefined' ? this.height : window.innerHeight;
+                }
+                imageNode(name, parent) {
+                    const sprite = UIKit_1.uiNode(name, parent, 1, 1).addComponent(cc_1.Sprite);
+                    sprite.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
+                    sprite.trim = false;
+                    sprite.enabled = false;
+                    return sprite;
+                }
+                show(sprite, x, y, width, height) {
+                    sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
+                    sprite.node.setPosition(x, y);
+                    sprite.enabled = true;
+                }
+            };
+            exports_1("HomePage", HomePage);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./StackSound.ts","./StackShareImage.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, StackSound_1, StackShareImage_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, deep, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage;
+    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, StackSound_1, StackShareImage_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -2267,7 +2618,6 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             cream = new cc_1.Color(255, 246, 229);
             gold = new cc_1.Color(246, 195, 67);
             paleGold = new cc_1.Color(255, 219, 145);
-            deep = new cc_1.Color(61, 24, 32);
             shadow = new cc_1.Color(27, 14, 18, 95);
             blockedShade = new cc_1.Color(30, 22, 28, 102);
             dimText = new cc_1.Color(91, 74, 62);
@@ -2997,15 +3347,14 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     UIKit_1.fill(g, new cc_1.Color(61, 18, 26, 245), -300, -320, 600, 640, 34);
                     UIKit_1.fill(g, gold, -292, -312, 584, 624, 29);
                     UIKit_1.fill(g, new cc_1.Color(176, 34, 42), -284, -304, 568, 608, 24);
-                    UIKit_1.fill(g, new cc_1.Color(199, 48, 47, 170), -260, -238, 520, 170, 22);
                     const title = UIKit_1.label(layer, 'OverflowTitle', '后备箱塞爆了', 46, 0, 236);
                     title.color = gold;
                     const hint = UIKit_1.label(layer, 'OverflowHint', '7 格全满，还差一件同款年货', 22, 0, 190);
                     hint.color = cream;
                     this.drawOverflowCar(layer);
-                    const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -100);
+                    const revive = this.failButton(layer, 'revive', '复活 · 移出 3 件', -98);
                     const share = this.failButton(layer, 'share', '生成分享图', -180);
-                    const restart = this.failButton(layer, 'restart', '重来', -260);
+                    const restart = this.failButton(layer, 'restart', '重来', -262);
                     this.failButtons.push(revive, share, restart);
                     this.sounds.play('fail');
                     this.refreshFailButtons();
@@ -3073,7 +3422,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                 failButton(parent, action, title, localY) {
                     const rect = { x: 150, y: this.height / 2 - localY - 35, w: 450, h: 70 };
                     const text = UIKit_1.label(parent, `Fail-${action}`, title, 29, 0, localY);
-                    text.color = action === 'revive' ? ink : paleGold;
+                    text.color = ink;
                     return { action, title, rect, label: text };
                 }
                 refreshFailButtons() {
@@ -3082,13 +3431,11 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         return;
                     const g = this.failLayer.getComponent(cc_1.Graphics);
                     for (const button of this.failButtons) {
-                        UIKit_1.fill(g, button.action === 'revive' ? gold : deep, button.rect.x - 375, this.height / 2 - button.rect.y - button.rect.h, button.rect.w, button.rect.h, 20);
-                        if (button.action !== 'revive') {
-                            g.strokeColor = gold;
-                            g.lineWidth = 2;
-                            g.roundRect(button.rect.x - 375 + 2, this.height / 2 - button.rect.y - button.rect.h + 2, button.rect.w - 4, button.rect.h - 4, 18);
-                            g.stroke();
-                        }
+                        UIKit_1.fill(g, gold, button.rect.x - 375, this.height / 2 - button.rect.y - button.rect.h, button.rect.w, button.rect.h, 20);
+                        g.strokeColor = new cc_1.Color(120, 52, 19);
+                        g.lineWidth = 2;
+                        g.roundRect(button.rect.x - 375 + 2, this.height / 2 - button.rect.y - button.rect.h + 2, button.rect.w - 4, button.rect.h - 4, 18);
+                        g.stroke();
                     }
                 }
                 drawFailButtons() {
@@ -4421,17 +4768,22 @@ System.register("chunks:///_virtual/StagePage.ts", ["cc","./brand.ts","./items.t
     };
 });
 
-System.register("chunks:///_virtual/WebPlatform.ts", [], function (exports_1, context_1) {
+System.register("chunks:///_virtual/WebPlatform.ts", ["./route.ts"], function (exports_1, context_1) {
     "use strict";
-    var WebPlatform;
+    var route_1, WebPlatform;
     var __moduleName = context_1 && context_1.id;
     return {
-        setters: [],
+        setters: [
+            function (route_1_1) {
+                route_1 = route_1_1;
+            }
+        ],
         execute: function () {
             WebPlatform = class WebPlatform {
                 now() { return Date.now(); }
-                isMomMode() { return new URLSearchParams(window.location.search).get('mode') === 'mom'; }
-                isStackMode() { return new URLSearchParams(window.location.search).get('mode') === 'stack'; }
+                route() { return route_1.resolveRoute(window.location.search); }
+                isMomMode() { return this.route() === 'mom'; }
+                isStackMode() { return this.route() === 'stack'; }
                 stackStage() {
                     return new URLSearchParams(window.location.search).get('stage') === '2' ? 2 : 1;
                 }
@@ -4445,6 +4797,31 @@ System.register("chunks:///_virtual/WebPlatform.ts", [], function (exports_1, co
                 }
             };
             exports_1("WebPlatform", WebPlatform);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/route.ts", [], function (exports_1, context_1) {
+    "use strict";
+    var __moduleName = context_1 && context_1.id;
+    /** Maps a URL query string to the page shell, without touching browser globals. */
+    function resolveRoute(search) {
+        const params = new URLSearchParams(search);
+        const mode = params.get('mode');
+        if (mode === 'mom')
+            return 'mom';
+        if (mode === 'stack')
+            return 'stack';
+        if (mode === 'pack')
+            return 'pack';
+        if (params.has('level'))
+            return 'level';
+        return 'home';
+    }
+    exports_1("resolveRoute", resolveRoute);
+    return {
+        setters: [],
+        execute: function () {
         }
     };
 });
@@ -4508,7 +4885,13 @@ System.register("chunks:///_virtual/OptionalResources.ts", ["cc"], function (exp
                         resolve(undefined);
                         return;
                     }
-                    cc_1.resources.load(path, cc_1.SpriteFrame, (error, frame) => resolve(error ? undefined : frame));
+                    cc_1.resources.load(path, cc_1.SpriteFrame, (error, frame) => {
+                        // Keep goods out of the dynamic atlas: cropped clones share the packed region, and
+                        // destroying a page freed it, so replays showed the wrong goods and a missing car body.
+                        if (!error && frame)
+                            frame.packable = false;
+                        resolve(error ? undefined : frame);
+                    });
                 }
                 catch (_a) {
                     resolve(undefined);
@@ -4601,9 +4984,9 @@ System.register("chunks:///_virtual/SoundEffects.ts", ["cc","./OptionalResources
     };
 });
 
-System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/StackShareImage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts"], function (exports_1, context_1) {
     "use strict";
-    var brand_1, stack_layout_1, stack_share_1, OptionalResources_1, FONT, gold, pale;
+    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, FONT, gold, pale;
     var __moduleName = context_1 && context_1.id;
     function canUseBrowserCanvas() {
         return typeof document !== 'undefined' && typeof HTMLCanvasElement !== 'undefined';
@@ -4630,6 +5013,33 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-
         catch (_d) {
             return null;
         }
+    }
+    /**
+     * Cocos may drop an image's DOM element after uploading it to the GPU (for example once the finish
+     * view has drawn the same goods), so reload the original file from its URL and only fall back to
+     * the cached element when that is impossible.
+     */
+    async function freshDrawable(path, frame) {
+        var _a, _b;
+        try {
+            const info = cc_1.resources.getInfoWithPath(path, cc_1.ImageAsset);
+            const url = info
+                ? cc_1.assetManager.utils.getUrlWithUuid(info.uuid, { isNative: true, nativeExt: '.png', bundle: 'resources' })
+                : (_b = (_a = frame === null || frame === void 0 ? void 0 : frame.texture) === null || _a === void 0 ? void 0 : _a.image) === null || _b === void 0 ? void 0 : _b.nativeUrl;
+            if (url && typeof Image !== 'undefined') {
+                const image = await new Promise(resolve => {
+                    const element = new Image();
+                    element.onload = () => resolve(element);
+                    element.onerror = () => resolve(null);
+                    element.src = url;
+                });
+                if (image && image.naturalWidth > 0) {
+                    return { image, width: image.naturalWidth, height: image.naturalHeight };
+                }
+            }
+        }
+        catch ( /* fall back to the cached element */_c) { /* fall back to the cached element */ }
+        return frameDrawable(frame);
     }
     function roundedRect(context, x, y, width, height, radius) {
         const r = Math.max(0, Math.min(radius, width / 2, height / 2));
@@ -4686,7 +5096,6 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-
         context.ellipse(0, 0, 54, 67, 0, 0, Math.PI * 2);
         context.stroke();
         context.fillStyle = '#ffd77f';
-        fillRounded(context, '#ffd77f', -43, -7, 86, 14, 7);
         fillRounded(context, '#ffd77f', -36, -86, 72, 13, 6);
         context.fillStyle = '#a81b23';
         fillRounded(context, '#a81b23', -30, -79, 60, 11, 5);
@@ -4850,6 +5259,8 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-
                 OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
                 ...stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => OptionalResources_1.loadArt(`items/${key}`)),
             ]);
+            const paths = ['art/vehicles/sedan_v1_body', 'art/vehicles/sedan_v1_trunk', ...stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => `art/items/${key}`)];
+            const [bodyArt, trunkArt, ...itemArt] = await Promise.all([bodyFrame, trunkFrame, ...itemFrames].map((frame, index) => freshDrawable(paths[index], frame)));
             const canvas = document.createElement('canvas');
             canvas.width = stack_share_1.STACK_SHARE_WIDTH;
             canvas.height = stack_share_1.STACK_SHARE_HEIGHT;
@@ -4859,12 +5270,12 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-
             drawBackground(context);
             const copy = drawTexts(context, scene);
             const bodyX = 90, bodyY = 474, bodyWidth = 900, bodyHeight = 562;
-            const body = frameDrawable(bodyFrame);
+            const body = bodyArt;
             if (body)
                 drawFrame(context, body, bodyX + bodyWidth / 2, bodyY + bodyHeight / 2, bodyWidth, bodyHeight);
             else
                 drawFallbackCar(context);
-            drawCargo(context, frameDrawable(trunkFrame), itemFrames.map(frameDrawable), bodyX, bodyY, bodyWidth, bodyHeight);
+            drawCargo(context, trunkArt, itemArt, bodyX, bodyY, bodyWidth, bodyHeight);
             drawCaption(context, copy.caption);
             return canvas.toDataURL('image/png');
         }
@@ -4949,6 +5360,9 @@ System.register("chunks:///_virtual/StackShareImage.ts", ["./brand.ts","./stack-
     exports_1("showStackShareImage", showStackShareImage);
     return {
         setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
             function (brand_1_1) {
                 brand_1 = brand_1_1;
             },
@@ -6355,8 +6769,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
