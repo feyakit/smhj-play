@@ -1,4 +1,4 @@
-System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./brand.ts","./date.ts","./stage1.ts","./HomePage.ts","./StagePage.ts","./StackPage.ts","./WebPlatform.ts","./Api.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./brand.ts","./date.ts","./stage1.ts","./HomePage.ts","./StagePage.ts","./StackPage.ts","./WebPlatform.ts","./Api.ts","./RankApi.ts","./UIKit.ts","./JourneyArt.ts"], function (exports_1, context_1) {
     "use strict";
     var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
         var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -6,7 +6,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
         else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
         return c > 3 && r && Object.defineProperty(target, key, r), r;
     };
-    var cc_1, env_1, brand_1, date_1, stage1_1, HomePage_1, StagePage_1, StackPage_1, WebPlatform_1, Api_1, UIKit_1, JourneyArt_1, ccclass, Bootstrap;
+    var cc_1, env_1, brand_1, date_1, stage1_1, HomePage_1, StagePage_1, StackPage_1, WebPlatform_1, Api_1, RankApi_1, UIKit_1, JourneyArt_1, ccclass, Bootstrap;
     var __moduleName = context_1 && context_1.id;
     return {
         setters: [
@@ -40,6 +40,9 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
             function (Api_1_1) {
                 Api_1 = Api_1_1;
             },
+            function (RankApi_1_1) {
+                RankApi_1 = RankApi_1_1;
+            },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
             },
@@ -54,8 +57,10 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     super(...arguments);
                     this.platform = new WebPlatform_1.WebPlatform();
                     this.api = new Api_1.Api(this.platform);
+                    this.rankApi = new RankApi_1.RankApi();
                 }
                 start() {
+                    void this.rankApi.flushPending().catch(() => undefined);
                     const route = this.platform.route();
                     if (route === 'stack')
                         this.startStack(this.platform.stackStage());
@@ -779,6 +784,305 @@ System.register("chunks:///_virtual/provinces.ts", [], function (exports_1, cont
         setters: [],
         execute: function () {
             exports_1("PROVINCES", PROVINCES = ['北京', '天津', '河北', '山西', '内蒙古', '辽宁', '吉林', '黑龙江', '上海', '江苏', '浙江', '安徽', '福建', '江西', '山东', '河南', '湖北', '湖南', '广东', '广西', '海南', '重庆', '四川', '贵州', '云南', '西藏', '陕西', '甘肃', '青海', '宁夏', '新疆', '香港', '澳门', '台湾']);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/rank.ts", ["./brand.ts","./provinces.ts"], function (exports_1, context_1) {
+    "use strict";
+    var brand_1, provinces_1, RANK_DEFAULT_API_BASE, RANK_PROVINCE_STORAGE_KEY, RANK_DEVICE_STORAGE_KEY, RANK_PENDING_STORAGE_KEY, RANK_REQUEST_TIMEOUT_MS, RANK_MAX_REPORT_ATTEMPTS, RANK_MAX_PENDING_CLEARS, RANK_MIN_CLEAR_MS, RANK_TITLE, RANK_EMPTY_TEXT, RANK_LOADING_TEXT, RANK_ERROR_TEXT, RANK_RETRY_TEXT, SESSION_ID_PATTERN, DEVICE_ALPHABET, MUNICIPALITIES, BARE_NAMES;
+    var __moduleName = context_1 && context_1.id;
+    /** Resolves the API base from `?api=`; `off` disables every rank request. */
+    function resolveRankApi(search) {
+        var _a;
+        const raw = new URLSearchParams(search).get('api');
+        if (raw === null)
+            return { enabled: true, base: RANK_DEFAULT_API_BASE };
+        const value = raw.trim();
+        if (!value || value.toLowerCase() === 'off')
+            return { enabled: false, base: null };
+        return { enabled: true, base: (_a = normalizeApiBase(value)) !== null && _a !== void 0 ? _a : RANK_DEFAULT_API_BASE };
+    }
+    exports_1("resolveRankApi", resolveRankApi);
+    function isProvince(value) {
+        return typeof value === 'string' && provinces_1.PROVINCES.includes(value);
+    }
+    exports_1("isProvince", isProvince);
+    function isRankStage(value) {
+        return value === 1 || value === 2;
+    }
+    exports_1("isRankStage", isRankStage);
+    function isValidSessionId(value) {
+        return typeof value === 'string' && SESSION_ID_PATTERN.test(value);
+    }
+    exports_1("isValidSessionId", isValidSessionId);
+    function isValidClearMs(stage, ms) {
+        return typeof ms === 'number' && Number.isFinite(ms) && ms >= RANK_MIN_CLEAR_MS[stage];
+    }
+    exports_1("isValidClearMs", isValidClearMs);
+    function isValidClearReport(value) {
+        if (!value || typeof value !== 'object')
+            return false;
+        const report = value;
+        return isProvince(report.province)
+            && isRankStage(report.stage)
+            && isPositiveFinite(report.ms)
+            && isValidSessionId(report.sessionId);
+    }
+    exports_1("isValidClearReport", isValidClearReport);
+    /** Creates a device id that satisfies the server's 8–64 character session rule. */
+    function createDeviceId(source = globalThis.crypto) {
+        var _a, _b;
+        try {
+            const uuid = (_a = source === null || source === void 0 ? void 0 : source.randomUUID) === null || _a === void 0 ? void 0 : _a.call(source);
+            if (isValidSessionId(uuid))
+                return uuid;
+        }
+        catch ( /* Fall through to a generated id. */_c) { /* Fall through to a generated id. */ }
+        const length = 24;
+        const buffer = new Uint8Array(length);
+        try {
+            (_b = source === null || source === void 0 ? void 0 : source.getRandomValues) === null || _b === void 0 ? void 0 : _b.call(source, buffer);
+            if (buffer.some(byte => byte !== 0))
+                return `smhj-${fromBytes(buffer)}`;
+        }
+        catch ( /* Fall through to Math.random. */_d) { /* Fall through to Math.random. */ }
+        let fallback = 'smhj-';
+        for (let index = 0; index < length; index++) {
+            fallback += DEVICE_ALPHABET[Math.floor(Math.random() * DEVICE_ALPHABET.length)];
+        }
+        return fallback;
+    }
+    exports_1("createDeviceId", createDeviceId);
+    function readStoredProvince(storage) {
+        try {
+            const value = storage === null || storage === void 0 ? void 0 : storage.getItem(RANK_PROVINCE_STORAGE_KEY);
+            return isProvince(value) ? value : null;
+        }
+        catch (_a) {
+            return null;
+        }
+    }
+    exports_1("readStoredProvince", readStoredProvince);
+    function writeStoredProvince(storage, province) {
+        try {
+            storage === null || storage === void 0 ? void 0 : storage.setItem(RANK_PROVINCE_STORAGE_KEY, province);
+        }
+        catch ( /* Storage is optional. */_a) { /* Storage is optional. */ }
+    }
+    exports_1("writeStoredProvince", writeStoredProvince);
+    function parsePendingClears(raw) {
+        if (!raw)
+            return [];
+        let value;
+        try {
+            value = JSON.parse(raw);
+        }
+        catch (_a) {
+            return [];
+        }
+        if (!Array.isArray(value))
+            return [];
+        const result = [];
+        for (const item of value) {
+            if (!isValidClearReport(item))
+                continue;
+            const queuedAt = item.queuedAt;
+            if (typeof queuedAt !== 'number' || !Number.isFinite(queuedAt) || queuedAt < 0)
+                continue;
+            result.push(Object.assign(Object.assign({}, item), { queuedAt }));
+        }
+        return result.slice(0, RANK_MAX_PENDING_CLEARS);
+    }
+    exports_1("parsePendingClears", parsePendingClears);
+    function serializePendingClears(items) {
+        return JSON.stringify(items.slice(0, RANK_MAX_PENDING_CLEARS));
+    }
+    exports_1("serializePendingClears", serializePendingClears);
+    function readPendingClears(storage) {
+        var _a;
+        try {
+            return parsePendingClears((_a = storage === null || storage === void 0 ? void 0 : storage.getItem(RANK_PENDING_STORAGE_KEY)) !== null && _a !== void 0 ? _a : null);
+        }
+        catch (_b) {
+            return [];
+        }
+    }
+    exports_1("readPendingClears", readPendingClears);
+    function writePendingClears(storage, items) {
+        try {
+            if (!storage)
+                return;
+            if (!items.length) {
+                if (storage.removeItem)
+                    storage.removeItem(RANK_PENDING_STORAGE_KEY);
+                else
+                    storage.setItem(RANK_PENDING_STORAGE_KEY, '[]');
+                return;
+            }
+            storage.setItem(RANK_PENDING_STORAGE_KEY, serializePendingClears(items));
+        }
+        catch ( /* Storage is optional. */_a) { /* Storage is optional. */ }
+    }
+    exports_1("writePendingClears", writePendingClears);
+    /** Keeps one pending report per device/stage because the server de-duplicates it anyway. */
+    function enqueuePendingClear(items, report, queuedAt = Date.now()) {
+        const next = items.filter(item => !(item.sessionId === report.sessionId && item.stage === report.stage));
+        next.push(Object.assign(Object.assign({}, report), { queuedAt }));
+        return next.slice(-RANK_MAX_PENDING_CLEARS);
+    }
+    exports_1("enqueuePendingClear", enqueuePendingClear);
+    function removePendingClear(items, report) {
+        return items.filter(item => !(item.sessionId === report.sessionId && item.stage === report.stage));
+    }
+    exports_1("removePendingClear", removePendingClear);
+    function parseRankSnapshot(value) {
+        if (!value || typeof value !== 'object')
+            return null;
+        const data = value;
+        if (data.ok !== true || !Array.isArray(data.provinces))
+            return null;
+        if (!isNonNegativeFinite(data.totalClears) || !isNonNegativeFinite(data.todayClears) || !isNonNegativeFinite(data.updatedAt)) {
+            return null;
+        }
+        const provinces = [];
+        for (const item of data.provinces) {
+            if (!item || typeof item !== 'object')
+                continue;
+            const entry = item;
+            if (!isProvince(entry.province) || !isNonNegativeFinite(entry.total) || !isNonNegativeFinite(entry.today))
+                continue;
+            provinces.push({ province: entry.province, total: entry.total, today: entry.today });
+        }
+        return {
+            provinces,
+            totalClears: data.totalClears,
+            todayClears: data.todayClears,
+            updatedAt: data.updatedAt,
+        };
+    }
+    exports_1("parseRankSnapshot", parseRankSnapshot);
+    function parseClearResult(value) {
+        if (!value || typeof value !== 'object')
+            return null;
+        const data = value;
+        if (data.ok !== true || typeof data.duplicate !== 'boolean')
+            return null;
+        if (!isProvince(data.province) || !isNonNegativeFinite(data.total))
+            return null;
+        if (data.rank !== null && (!isPositiveFinite(data.rank)))
+            return null;
+        return {
+            duplicate: data.duplicate,
+            province: data.province,
+            rank: data.rank === null ? null : data.rank,
+            total: data.total,
+        };
+    }
+    exports_1("parseClearResult", parseClearResult);
+    function findRankEntry(snapshot, province) {
+        return snapshot.provinces.find(entry => entry.province === province);
+    }
+    exports_1("findRankEntry", findRankEntry);
+    function formatRankSummary(snapshot) {
+        return `全国累计 ${snapshot.totalClears} 次 · 今日 ${snapshot.todayClears} 次`;
+    }
+    exports_1("formatRankSummary", formatRankSummary);
+    function formatRankToday(today) {
+        return `今日 +${Math.max(0, Math.floor(today))}`;
+    }
+    exports_1("formatRankToday", formatRankToday);
+    function formatRankProgress(province) {
+        return `正在为${provinceLabel(province)}加油…`;
+    }
+    exports_1("formatRankProgress", formatRankProgress);
+    function formatContributionResult(province, result) {
+        const head = result.duplicate ? `你已为${provinceLabel(province)}贡献过` : `你为${provinceLabel(province)} +1`;
+        return result.rank === null ? head : `${head}，${provinceLabel(province)}排第 ${result.rank}`;
+    }
+    exports_1("formatContributionResult", formatContributionResult);
+    function formatContributionFailure() {
+        return RANK_ERROR_TEXT;
+    }
+    exports_1("formatContributionFailure", formatContributionFailure);
+    function formatYourProvince(province, entry, rank) {
+        if (!province)
+            return '你的省份：未选择';
+        if (!entry)
+            return `你的省份：${province} 暂无人通关`;
+        if (rank !== undefined)
+            return `你的省份：${province} · 排第 ${entryRank(rank)} 名 · ${entry.total} 人通关`;
+        return `你的省份：${province} · ${entry.total} 人通关`;
+    }
+    exports_1("formatYourProvince", formatYourProvince);
+    /** Waits 700ms, 1.4s, 2.8s… between transient report failures. */
+    function retryDelayMs(retryIndex) {
+        const index = Number.isFinite(retryIndex) ? Math.max(0, Math.floor(retryIndex)) : 0;
+        return 700 * 2 ** index;
+    }
+    exports_1("retryDelayMs", retryDelayMs);
+    function entryRank(rank) {
+        return Math.max(1, Math.floor(rank));
+    }
+    function normalizeApiBase(raw) {
+        try {
+            const url = new URL(raw);
+            if (url.protocol !== 'http:' && url.protocol !== 'https:')
+                return undefined;
+            return url.href.replace(/\/+$/, '');
+        }
+        catch (_a) {
+            return undefined;
+        }
+    }
+    function isPositiveFinite(value) {
+        return typeof value === 'number' && Number.isFinite(value) && value > 0;
+    }
+    function isNonNegativeFinite(value) {
+        return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+    }
+    function fromBytes(bytes) {
+        let result = '';
+        for (const byte of bytes)
+            result += DEVICE_ALPHABET[byte % DEVICE_ALPHABET.length];
+        return result;
+    }
+    /** “广东省”“北京市”“新疆”: municipalities, autonomous regions and SARs are not 省. */
+    function provinceLabel(province) {
+        if (MUNICIPALITIES.includes(province))
+            return `${province}市`;
+        if (BARE_NAMES.includes(province))
+            return province;
+        return `${province}省`;
+    }
+    exports_1("provinceLabel", provinceLabel);
+    return {
+        setters: [
+            function (brand_1_1) {
+                brand_1 = brand_1_1;
+            },
+            function (provinces_1_1) {
+                provinces_1 = provinces_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("RANK_DEFAULT_API_BASE", RANK_DEFAULT_API_BASE = 'https://smhj-api.feyakit.workers.dev');
+            exports_1("RANK_PROVINCE_STORAGE_KEY", RANK_PROVINCE_STORAGE_KEY = 'smhj.province');
+            exports_1("RANK_DEVICE_STORAGE_KEY", RANK_DEVICE_STORAGE_KEY = 'smhj.deviceId');
+            exports_1("RANK_PENDING_STORAGE_KEY", RANK_PENDING_STORAGE_KEY = 'smhj.pendingClears');
+            exports_1("RANK_REQUEST_TIMEOUT_MS", RANK_REQUEST_TIMEOUT_MS = 5000);
+            exports_1("RANK_MAX_REPORT_ATTEMPTS", RANK_MAX_REPORT_ATTEMPTS = 3);
+            exports_1("RANK_MAX_PENDING_CLEARS", RANK_MAX_PENDING_CLEARS = 80);
+            exports_1("RANK_MIN_CLEAR_MS", RANK_MIN_CLEAR_MS = Object.freeze({ 1: 4000, 2: 45000 }));
+            exports_1("RANK_TITLE", RANK_TITLE = '为家乡而战 · 省份排行');
+            exports_1("RANK_EMPTY_TEXT", RANK_EMPTY_TEXT = `还没有人${brand_1.GAME_TITLE}，你来当第一个`);
+            exports_1("RANK_LOADING_TEXT", RANK_LOADING_TEXT = '排行加载中…');
+            exports_1("RANK_ERROR_TEXT", RANK_ERROR_TEXT = '排行暂时连不上');
+            exports_1("RANK_RETRY_TEXT", RANK_RETRY_TEXT = '重试');
+            SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+            DEVICE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+            MUNICIPALITIES = ['北京', '天津', '上海', '重庆'];
+            BARE_NAMES = ['内蒙古', '广西', '西藏', '宁夏', '新疆', '香港', '澳门'];
         }
     };
 });
@@ -2240,9 +2544,9 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./UIKit.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./RankPage.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, UIKit_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, HomePage;
+    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, RankPage_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, HomePage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -2264,8 +2568,17 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
             function (OptionalResources_1_1) {
                 OptionalResources_1 = OptionalResources_1_1;
             },
+            function (RankApi_1_1) {
+                RankApi_1 = RankApi_1_1;
+            },
+            function (ProvincePicker_1_1) {
+                ProvincePicker_1 = ProvincePicker_1_1;
+            },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
+            },
+            function (RankPage_1_1) {
+                RankPage_1 = RankPage_1_1;
             }
         ],
         execute: function () {
@@ -2287,11 +2600,14 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
             HomePage = class HomePage {
                 constructor(parent, actions) {
                     this.actions = actions;
+                    this.rankApi = new RankApi_1.RankApi();
                     this.cargoSprites = [];
                     this.touchWorld = new cc_1.Vec3();
                     this.touchLocal = new cc_1.Vec3();
                     this.startRect = { x: 75, y: 0, w: START_WIDTH, h: START_HEIGHT };
                     this.classicRect = { x: 195, y: 0, w: CLASSIC_WIDTH, h: CLASSIC_HEIGHT };
+                    this.provinceRect = { x: 185, y: 0, w: 380, h: 56 };
+                    this.rankRect = { x: 225, y: 0, w: 300, h: 58 };
                     this.width = 750;
                     this.height = 1334;
                     this.layoutWidth = -1;
@@ -2368,10 +2684,19 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     this.classicNode = UIKit_1.uiNode('HomeClassic', this.node, CLASSIC_WIDTH, CLASSIC_HEIGHT);
                     this.classicLabel = UIKit_1.label(this.classicNode, 'HomeClassicText', '经典装箱玩法', 24, 0, 0);
                     this.classicLabel.color = paleGold;
+                    this.provinceLabel = UIKit_1.label(this.node, 'HomeProvinceText', '选择你的省份', 25, 0, 0);
+                    this.provinceLabel.color = paleGold;
+                    this.rankLabel = UIKit_1.label(this.node, 'HomeRankText', '省份排行', 24, 0, 0);
+                    this.rankLabel.color = paleGold;
+                    this.refreshProvinceLabel();
                     this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
                     this.debugHook = Object.freeze({
                         getButtons: () => this.debugButtons(),
                         getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height }),
+                        getState: () => ({
+                            province: this.rankApi.province,
+                            overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : null,
+                        }),
                     });
                     if (typeof window !== 'undefined') {
                         window.__home = this.debugHook;
@@ -2410,6 +2735,12 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     const rulesY = Math.round(this.height * .70);
                     this.ruleLineOne.node.setPosition(0, this.height / 2 - rulesY);
                     this.ruleLineTwo.node.setPosition(0, this.height / 2 - rulesY - 42);
+                    const provinceY = Math.max(340, this.carTop - 112);
+                    this.provinceRect = { x: (750 - 380) / 2, y: provinceY, w: 380, h: 56 };
+                    this.provinceLabel.node.setPosition(0, this.height / 2 - (provinceY + 28));
+                    const rankY = this.height - 382;
+                    this.rankRect = { x: (750 - 300) / 2, y: rankY, w: 300, h: 58 };
+                    this.rankLabel.node.setPosition(0, this.height / 2 - (rankY + 29));
                     const startY = this.height - 272;
                     this.startRect = { x: (750 - START_WIDTH) / 2, y: startY, w: START_WIDTH, h: START_HEIGHT };
                     this.startNode.setPosition(0, this.height / 2 - (startY + START_HEIGHT / 2));
@@ -2459,6 +2790,21 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     g.roundRect(left + classic.x + 2, top - (classic.y + classic.h) + 2, classic.w - 4, classic.h - 4, 20);
                     g.stroke();
                     rect(new cc_1.Color(255, 214, 126, 160), classic.x + 92, classic.y + classic.h - 11, classic.w - 184, 2, 1);
+                    const province = this.provinceRect;
+                    rect(new cc_1.Color(25, 8, 15, 180), province.x, province.y, province.w, province.h, 22);
+                    rect(new cc_1.Color(84, 19, 31, 232), province.x + 3, province.y + 3, province.w - 6, province.h - 6, 19);
+                    g.strokeColor = new cc_1.Color(255, 207, 111, 175);
+                    g.lineWidth = 1.5;
+                    g.roundRect(left + province.x + 2, top - (province.y + province.h) + 2, province.w - 4, province.h - 4, 20);
+                    g.stroke();
+                    rect(new cc_1.Color(255, 219, 145, 58), province.x + 22, province.y + 8, province.w - 44, 2, 1);
+                    const rank = this.rankRect;
+                    rect(new cc_1.Color(45, 10, 20, 214), rank.x, rank.y, rank.w, rank.h, 20);
+                    g.strokeColor = new cc_1.Color(255, 207, 111, 196);
+                    g.lineWidth = 2;
+                    g.roundRect(left + rank.x + 2, top - (rank.y + rank.h) + 2, rank.w - 4, rank.h - 4, 18);
+                    g.stroke();
+                    rect(new cc_1.Color(255, 213, 132, 52), rank.x + 44, rank.y + 10, rank.w - 88, 2, 1);
                     this.drawCarFallback();
                 }
                 layoutCar() {
@@ -2502,6 +2848,22 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                 }
                 touch(event) {
                     const point = this.point(event);
+                    if (this.provincePicker) {
+                        this.provincePicker.press(point.x, point.y);
+                        return;
+                    }
+                    if (this.rankPage) {
+                        this.rankPage.press(point.x, point.y);
+                        return;
+                    }
+                    if (contains(this.provinceRect, point.x, point.y)) {
+                        this.openProvincePicker();
+                        return;
+                    }
+                    if (contains(this.rankRect, point.x, point.y)) {
+                        this.openRankPage();
+                        return;
+                    }
                     if (contains(this.startRect, point.x, point.y)) {
                         this.actions.onStart();
                         return;
@@ -2519,8 +2881,11 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                 debugButtons() {
                     const screenWidth = this.screenWidth();
                     const screenHeight = this.screenHeight();
-                    return ['start', 'classic'].map(key => {
-                        const rect = key === 'start' ? this.startRect : this.classicRect;
+                    return ['start', 'classic', 'province', 'rank'].map(key => {
+                        const rect = key === 'start' ? this.startRect
+                            : key === 'classic' ? this.classicRect
+                                : key === 'province' ? this.provinceRect
+                                    : this.rankRect;
                         return {
                             key,
                             screenX: (rect.x + rect.w / 2) / 750 * screenWidth,
@@ -2533,6 +2898,31 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                             screenH: rect.h / this.height * screenHeight,
                         };
                     });
+                }
+                openProvincePicker() {
+                    if (this.provincePicker)
+                        return;
+                    this.provincePicker = new ProvincePicker_1.ProvincePicker(this.node, this.height, this.rankApi.province, {
+                        onSelect: province => {
+                            this.rankApi.setProvince(province);
+                            this.provincePicker = undefined;
+                            this.refreshProvinceLabel();
+                        },
+                        onCancel: () => { this.provincePicker = undefined; },
+                    });
+                }
+                openRankPage() {
+                    if (this.rankPage)
+                        return;
+                    this.rankPage = new RankPage_1.RankPage(this.node, this.height, () => {
+                        var _a;
+                        (_a = this.rankPage) === null || _a === void 0 ? void 0 : _a.node.destroy();
+                        this.rankPage = undefined;
+                    });
+                }
+                refreshProvinceLabel() {
+                    const province = this.rankApi.province;
+                    this.provinceLabel.string = province ? `你的省份 · ${province}` : '选择你的省份';
                 }
                 screenWidth() {
                     return typeof window === 'undefined' ? 750 : window.innerWidth;
@@ -2558,9 +2948,278 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
     };
 });
 
-System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./rng.ts","./FinishTimeline.ts","./OptionalResources.ts","./StackSound.ts","./StackShareImage.ts","./UIKit.ts","./StackFinishView.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/RankPage.ts", ["cc","./rank.ts","./RankApi.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, FinishTimeline_1, OptionalResources_1, StackSound_1, StackShareImage_1, UIKit_1, StackFinishView_1, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage;
+    var cc_1, rank_1, RankApi_1, UIKit_1, gold, paleGold, cream, ink, deep, panel, rowDark, rowLight, ownRow, muted, RankPage;
+    var __moduleName = context_1 && context_1.id;
+    function contains(rect, x, y) {
+        return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (rank_1_1) {
+                rank_1 = rank_1_1;
+            },
+            function (RankApi_1_1) {
+                RankApi_1 = RankApi_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            }
+        ],
+        execute: function () {
+            gold = new cc_1.Color(255, 207, 111);
+            paleGold = new cc_1.Color(255, 231, 173);
+            cream = new cc_1.Color(255, 246, 229);
+            ink = new cc_1.Color(51, 22, 19);
+            deep = new cc_1.Color(22, 9, 22, 246);
+            panel = new cc_1.Color(84, 19, 30, 235);
+            rowDark = new cc_1.Color(52, 14, 27, 228);
+            rowLight = new cc_1.Color(94, 24, 34, 232);
+            ownRow = new cc_1.Color(255, 207, 111, 44);
+            muted = new cc_1.Color(222, 190, 164);
+            /** Full-page leaderboard overlay with real API data only. */
+            RankPage = class RankPage {
+                constructor(parent, height, onBack, api = new RankApi_1.RankApi()) {
+                    this.onBack = onBack;
+                    this.width = 750;
+                    this.backRect = { x: 30, y: 34, w: 126, h: 54 };
+                    this.retryRect = { x: 225, y: 0, w: 300, h: 60 };
+                    this.status = 'loading';
+                    this.destroyed = false;
+                    this.api = api;
+                    this.height = Math.max(1334, height);
+                    this.node = UIKit_1.uiNode('RankPage', parent, this.width, this.height);
+                    this.chrome = UIKit_1.uiNode('RankChrome', this.node, this.width, this.height).addComponent(cc_1.Graphics);
+                    this.listArt = UIKit_1.uiNode('RankListArt', this.node, this.width, this.height).addComponent(cc_1.Graphics);
+                    this.listLayer = UIKit_1.uiNode('RankList', this.node, this.width, this.height);
+                    this.statusLabel = UIKit_1.label(this.node, 'RankStatus', rank_1.RANK_LOADING_TEXT, 28, 0, 0);
+                    this.statusLabel.color = paleGold;
+                    this.summary = UIKit_1.label(this.node, 'RankSummary', '', 19, 0, this.height / 2 - 174);
+                    this.summary.color = cream;
+                    this.drawChrome();
+                    this.debugHook = Object.freeze({
+                        getState: () => this.debugState(),
+                        press: (x, y) => this.press(x, y),
+                        retry: () => void this.load(),
+                    });
+                    if (typeof window !== 'undefined') {
+                        window.__rank = this.debugHook;
+                    }
+                    this.node.once(cc_1.Node.EventType.NODE_DESTROYED, () => {
+                        this.destroyed = true;
+                        if (typeof window !== 'undefined' && window.__rank === this.debugHook) {
+                            delete window.__rank;
+                        }
+                    });
+                    this.renderLoading();
+                    void this.load();
+                }
+                press(x, y) {
+                    if (this.destroyed)
+                        return false;
+                    if (contains(this.backRect, x, y)) {
+                        this.onBack();
+                        return true;
+                    }
+                    if (this.status === 'error' && contains(this.retryRect, x, y)) {
+                        void this.load();
+                    }
+                    return true;
+                }
+                get snapshotData() { return this.snapshot; }
+                async load() {
+                    this.renderLoading();
+                    try {
+                        const snapshot = await this.api.fetchRank();
+                        if (this.destroyed || !this.node.isValid)
+                            return;
+                        this.snapshot = snapshot;
+                        this.status = 'ready';
+                        this.renderReady(snapshot);
+                    }
+                    catch (_a) {
+                        if (this.destroyed || !this.node.isValid)
+                            return;
+                        this.snapshot = undefined;
+                        this.status = 'error';
+                        this.renderError();
+                    }
+                }
+                drawChrome() {
+                    const g = this.chrome;
+                    const box = (color, x, y, w, h, radius = 0) => {
+                        UIKit_1.fill(g, color, x - 375, this.height / 2 - y - h, w, h, radius);
+                    };
+                    const strokeBox = (x, y, w, h, radius) => {
+                        g.roundRect(x - 375, this.height / 2 - y - h, w, h, radius);
+                        g.stroke();
+                    };
+                    UIKit_1.fill(g, new cc_1.Color(3, 4, 14, 255), -375, -this.height / 2, 750, this.height);
+                    UIKit_1.fill(g, new cc_1.Color(31, 9, 26, 200), -375, this.height / 2 - 260, 750, 260);
+                    UIKit_1.fill(g, new cc_1.Color(64, 12, 28, 150), -375, -this.height / 2, 750, 220);
+                    UIKit_1.fill(g, new cc_1.Color(255, 207, 111, 34), -375, this.height / 2 - 250, 750, 2);
+                    UIKit_1.fill(g, new cc_1.Color(255, 207, 111, 24), -375, -this.height / 2 + 150, 750, 2);
+                    const back = this.backRect;
+                    box(new cc_1.Color(70, 18, 29, 238), back.x, back.y, back.w, back.h, 18);
+                    g.strokeColor = new cc_1.Color(255, 207, 111, 175);
+                    g.lineWidth = 1.5;
+                    strokeBox(back.x, back.y, back.w, back.h, 18);
+                    const backLabel = UIKit_1.label(this.node, 'RankBack', '返回', 22, back.x + back.w / 2 - 375, this.height / 2 - (back.y + back.h / 2));
+                    backLabel.color = paleGold;
+                    UIKit_1.label(this.node, 'RankBackArrow', '‹', 34, back.x + 23 - 375, this.height / 2 - (back.y + back.h / 2)).color = gold;
+                    const title = UIKit_1.label(this.node, 'RankTitle', rank_1.RANK_TITLE, 34, 0, this.height / 2 - 103);
+                    title.color = gold;
+                    UIKit_1.label(this.node, 'RankKicker', '乡亲们的年货，都装到哪一步了？', 18, 0, this.height / 2 - 142).color = muted;
+                }
+                renderLoading() {
+                    this.status = 'loading';
+                    this.clearList();
+                    this.summary.string = '';
+                    this.statusLabel.node.active = true;
+                    this.statusLabel.string = rank_1.RANK_LOADING_TEXT;
+                    this.statusLabel.color = paleGold;
+                    this.statusLabel.node.setPosition(0, 0);
+                    this.statusLabel.fontSize = 28;
+                    this.statusLabel.lineHeight = 34;
+                }
+                renderError() {
+                    this.clearList();
+                    this.summary.string = '';
+                    this.statusLabel.node.active = true;
+                    this.statusLabel.string = rank_1.RANK_ERROR_TEXT;
+                    this.statusLabel.color = paleGold;
+                    this.statusLabel.node.setPosition(0, 60);
+                    this.statusLabel.fontSize = 28;
+                    this.statusLabel.lineHeight = 34;
+                    this.retryRect.y = Math.round(this.height / 2 + 20);
+                    UIKit_1.fill(this.listArt, new cc_1.Color(98, 24, 34, 230), this.retryRect.x - 375, this.height / 2 - this.retryRect.y - this.retryRect.h, this.retryRect.w, this.retryRect.h, 20);
+                    this.listArt.strokeColor = gold;
+                    this.listArt.lineWidth = 2;
+                    this.listArt.roundRect(this.retryRect.x + 2 - 375, this.height / 2 - this.retryRect.y - this.retryRect.h + 2, this.retryRect.w - 4, this.retryRect.h - 4, 18);
+                    this.listArt.stroke();
+                    const retry = UIKit_1.label(this.listLayer, 'RankRetry', rank_1.RANK_RETRY_TEXT, 24, 0, this.height / 2 - (this.retryRect.y + this.retryRect.h / 2));
+                    retry.color = cream;
+                }
+                renderReady(snapshot) {
+                    this.statusLabel.node.active = false;
+                    this.summary.string = rank_1.formatRankSummary(snapshot);
+                    this.clearList();
+                    const entries = snapshot.provinces;
+                    if (!entries.length) {
+                        const empty = UIKit_1.label(this.node, 'RankEmpty', rank_1.RANK_EMPTY_TEXT, 26, 0, this.height / 2 - this.height * .47);
+                        empty.color = paleGold;
+                        this.listLayer.addChild(empty.node);
+                    }
+                    else {
+                        this.drawEntries(entries);
+                    }
+                    this.drawOwnProvince(snapshot, entries);
+                }
+                drawEntries(entries) {
+                    const listTop = 242;
+                    const footerTop = this.height - 126;
+                    const available = Math.max(180, footerTop - listTop - 20);
+                    const rowH = Math.max(28, Math.min(60, Math.floor(available / entries.length)));
+                    const rowW = 678;
+                    const rowX = 36;
+                    const fontSize = rowH >= 50 ? 24 : rowH >= 40 ? 22 : rowH >= 34 ? 19 : 17;
+                    const headerY = 210;
+                    const headerSize = 17;
+                    const columns = [
+                        { x: 72, label: '名次' },
+                        { x: 214, label: '省份' },
+                        { x: 516, label: '通关' },
+                        { x: 634, label: '今日' },
+                    ];
+                    for (const column of columns) {
+                        const text = UIKit_1.label(this.listLayer, `RankHead-${column.label}`, column.label, headerSize, 0, this.height / 2 - headerY);
+                        text.node.getComponent(cc_1.UITransform).setContentSize(150, 24);
+                        text.node.setPosition(column.x - 375, this.height / 2 - headerY);
+                        text.color = muted;
+                        text.overflow = cc_1.Label.Overflow.SHRINK;
+                    }
+                    const own = this.api.province;
+                    for (let index = 0; index < entries.length; index++) {
+                        const entry = entries[index];
+                        const y = listTop + index * rowH;
+                        const isOwn = entry.province === own;
+                        UIKit_1.fill(this.listArt, isOwn ? ownRow : index % 2 === 0 ? rowDark : rowLight, rowX - 375, this.height / 2 - y - (rowH - 4), rowW, rowH - 4, Math.min(18, Math.round(rowH / 2) - 2));
+                        if (isOwn) {
+                            this.listArt.strokeColor = gold;
+                            this.listArt.lineWidth = 2;
+                            this.listArt.roundRect(rowX + 1 - 375, this.height / 2 - y - (rowH - 4) + 1, rowW - 2, rowH - 6, Math.min(17, Math.round(rowH / 2) - 3));
+                            this.listArt.stroke();
+                        }
+                        const values = [
+                            { x: columns[0].x, text: `${index + 1}`, width: 80 },
+                            { x: columns[1].x, text: entry.province, width: 220 },
+                            { x: columns[2].x, text: `${entry.total}`, width: 150 },
+                            { x: columns[3].x, text: rank_1.formatRankToday(entry.today), width: 170 },
+                        ];
+                        for (let column = 0; column < values.length; column++) {
+                            const item = values[column];
+                            const text = UIKit_1.label(this.listLayer, `Rank-${index}-${column}`, item.text, fontSize, 0, 0);
+                            text.node.getComponent(cc_1.UITransform).setContentSize(item.width, rowH);
+                            text.node.setPosition(item.x - 375, this.height / 2 - (y + (rowH - 4) / 2));
+                            text.color = isOwn ? paleGold : column === 0 ? gold : cream;
+                            text.isBold = column === 0 || isOwn;
+                            text.overflow = cc_1.Label.Overflow.SHRINK;
+                        }
+                    }
+                }
+                drawOwnProvince(snapshot, entries) {
+                    const own = this.api.province;
+                    const entry = own ? rank_1.findRankEntry(snapshot, own) : undefined;
+                    const rank = entry ? entries.findIndex(item => item.province === entry.province) + 1 : undefined;
+                    const footerY = this.height - 112;
+                    UIKit_1.fill(this.listArt, new cc_1.Color(58, 14, 27, 242), 36 - 375, this.height / 2 - footerY - 78, 678, 78, 24);
+                    this.listArt.strokeColor = new cc_1.Color(255, 207, 111, 160);
+                    this.listArt.lineWidth = 1.5;
+                    this.listArt.roundRect(38 - 375, this.height / 2 - footerY - 78 + 2, 674, 74, 22);
+                    this.listArt.stroke();
+                    const text = UIKit_1.label(this.listLayer, 'RankOwnProvince', rank_1.formatYourProvince(own, entry, rank), 21, 0, this.height / 2 - (footerY + 39));
+                    text.node.getComponent(cc_1.UITransform).setContentSize(646, 60);
+                    text.overflow = cc_1.Label.Overflow.SHRINK;
+                    text.color = own ? paleGold : muted;
+                }
+                clearList() {
+                    for (const child of [...this.listLayer.children])
+                        child.destroy();
+                    this.listArt.clear();
+                }
+                debugState() {
+                    var _a, _b, _c, _d, _e, _f;
+                    const screenWidth = typeof window === 'undefined' ? this.width : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    return {
+                        status: this.status,
+                        title: rank_1.RANK_TITLE,
+                        province: this.api.province,
+                        provinces: (_b = (_a = this.snapshot) === null || _a === void 0 ? void 0 : _a.provinces) !== null && _b !== void 0 ? _b : [],
+                        totalClears: (_d = (_c = this.snapshot) === null || _c === void 0 ? void 0 : _c.totalClears) !== null && _d !== void 0 ? _d : null,
+                        todayClears: (_f = (_e = this.snapshot) === null || _e === void 0 ? void 0 : _e.todayClears) !== null && _f !== void 0 ? _f : null,
+                        errorText: this.status === 'error' ? rank_1.RANK_ERROR_TEXT : null,
+                        buttons: {
+                            back: { screenX: (this.backRect.x + this.backRect.w / 2) / this.width * screenWidth, screenY: (this.backRect.y + this.backRect.h / 2) / this.height * screenHeight },
+                            retry: this.status === 'error'
+                                ? { screenX: (this.retryRect.x + this.retryRect.w / 2) / this.width * screenWidth, screenY: (this.retryRect.y + this.retryRect.h / 2) / this.height * screenHeight }
+                                : null,
+                        },
+                    };
+                }
+            };
+            exports_1("RankPage", RankPage);
+        }
+    };
+});
+
+System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./rng.ts","./rank.ts","./FinishTimeline.ts","./OptionalResources.ts","./RankApi.ts","./StackSound.ts","./StackShareImage.ts","./ProvincePicker.ts","./UIKit.ts","./StackFinishView.ts","./RankPage.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, stack_generator_1, stack_layout_1, stack_rules_1, rng_1, rank_1, FinishTimeline_1, OptionalResources_1, RankApi_1, StackSound_1, StackShareImage_1, ProvincePicker_1, UIKit_1, StackFinishView_1, RankPage_1, ink, red, brightRed, cream, gold, paleGold, shadow, blockedShade, dimText, gray, ITEM_CROPS, StackPage;
     var __moduleName = context_1 && context_1.id;
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
@@ -2592,11 +3251,17 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             function (rng_1_1) {
                 rng_1 = rng_1_1;
             },
+            function (rank_1_1) {
+                rank_1 = rank_1_1;
+            },
             function (FinishTimeline_1_1) {
                 FinishTimeline_1 = FinishTimeline_1_1;
             },
             function (OptionalResources_1_1) {
                 OptionalResources_1 = OptionalResources_1_1;
+            },
+            function (RankApi_1_1) {
+                RankApi_1 = RankApi_1_1;
             },
             function (StackSound_1_1) {
                 StackSound_1 = StackSound_1_1;
@@ -2604,11 +3269,17 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
             function (StackShareImage_1_1) {
                 StackShareImage_1 = StackShareImage_1_1;
             },
+            function (ProvincePicker_1_1) {
+                ProvincePicker_1 = ProvincePicker_1_1;
+            },
             function (UIKit_1_1) {
                 UIKit_1 = UIKit_1_1;
             },
             function (StackFinishView_1_1) {
                 StackFinishView_1 = StackFinishView_1_1;
+            },
+            function (RankPage_1_1) {
+                RankPage_1 = RankPage_1_1;
             }
         ],
         execute: function () {
@@ -2657,6 +3328,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.touchLocal = new cc_1.Vec3();
                     this.touchPoint = { x: 0, y: 0 };
                     this.onHide = () => { this.busy = false; };
+                    this.rankApi = new RankApi_1.RankApi();
                     this.finishStarted = 0;
                     this.startedAt = Date.now();
                     this.debugMomPending = false;
@@ -2765,6 +3437,7 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         getModalButtons: () => this.debugModalButtons(),
                         getActions: () => this.debugActions(),
                         getFinishButtons: () => this.debugFinishButtons(),
+                        getFinishRank: () => { var _a, _b; return (_b = (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.rankStatusText) !== null && _b !== void 0 ? _b : null; },
                         getBoard: () => this.game.cards.map(card => ({
                             id: card.id, kind: card.kind, source: card.source, layer: card.layer,
                             x: card.x, y: card.y, w: card.w, h: card.h,
@@ -2791,6 +3464,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         if (this.game.status === 'lost')
                             this.openFail();
                     }
+                    if (debug === 'win' && this.level.stage === 2)
+                        this.beginFinish(true);
                 }
                 tick() {
                     const size = cc_1.view.getVisibleSize();
@@ -3165,6 +3840,14 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     var _a;
                     this.sounds.unlock();
                     const p = this.point(event);
+                    if (this.rankPage) {
+                        this.rankPage.press(p.x, p.y);
+                        return;
+                    }
+                    if (this.provincePicker) {
+                        this.provincePicker.press(p.x, p.y);
+                        return;
+                    }
                     if (this.finish) {
                         (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.press(p.x, p.y);
                         return;
@@ -3454,12 +4137,13 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     this.sounds.play('tap');
                     this.refresh();
                 }
-                beginFinish() {
+                beginFinish(instant = false) {
                     if (this.finish)
                         return;
                     this.busy = true;
                     this.sounds.play('win');
-                    this.finishStarted = Date.now();
+                    const elapsedMs = instant ? Math.max(Date.now() - this.startedAt, 60000) : Math.max(0, Date.now() - this.startedAt);
+                    this.finishStarted = instant ? Date.now() - FinishTimeline_1.FINISH_DURATION : Date.now();
                     this.finish = new FinishTimeline_1.FinishPlayback(cue => {
                         if (cue.sound === 'trunk_slam')
                             this.sounds.play('pack');
@@ -3475,11 +4159,85 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                     const choices = this.level.stage === 1
                         ? [{ title: '下一关', action: 'next' }, { title: '再来一次', action: 'replay' }]
                         : [{ title: '再来一次', action: 'replay' }, { title: '回第 1 关', action: 'first' }];
-                    const elapsedSec = Math.max(1, Math.round((Date.now() - this.startedAt) / 1000));
+                    const elapsedSec = instant ? Math.round(elapsedMs / 1000) : Math.max(1, Math.round(elapsedMs / 1000));
                     this.finishStats = { elapsedSec, boxes: this.game.clearedGroups };
-                    this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, this.finishStats, action => this.mapFinish(action), () => this.openShare(true));
+                    this.finishView = new StackFinishView_1.StackFinishView(this.node, choices, this.finishStats, action => this.mapFinish(action), () => this.openShare(true), () => this.openRankPage());
                     this.finishView.layout(this.height);
-                    this.finishView.render(this.finish.state);
+                    this.finishView.render(instant ? this.finish.advance(FinishTimeline_1.FINISH_DURATION) : this.finish.state);
+                    if (this.level.stage === 2)
+                        this.startRankReporting(elapsedMs);
+                    else
+                        this.startStageOneReporting(elapsedMs);
+                }
+                startStageOneReporting(elapsedMs) {
+                    if (!this.rankApi.enabled)
+                        return;
+                    const province = this.rankApi.province;
+                    if (!province) {
+                        this.provincePicker = new ProvincePicker_1.ProvincePicker(this.node, this.height, null, {
+                            onSelect: selected => {
+                                this.rankApi.setProvince(selected);
+                                this.provincePicker = undefined;
+                                void this.sendClear(1, selected, elapsedMs);
+                            },
+                            onCancel: () => { this.provincePicker = undefined; },
+                        });
+                        return;
+                    }
+                    void this.sendClear(1, province, elapsedMs);
+                }
+                startRankReporting(elapsedMs) {
+                    var _a;
+                    if (!this.rankApi.enabled) {
+                        (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.setRankStatus(rank_1.formatContributionFailure());
+                        return;
+                    }
+                    const province = this.rankApi.province;
+                    if (!province) {
+                        this.provincePicker = new ProvincePicker_1.ProvincePicker(this.node, this.height, null, {
+                            onSelect: selected => {
+                                this.rankApi.setProvince(selected);
+                                this.provincePicker = undefined;
+                                this.sendClear(2, selected, elapsedMs);
+                            },
+                            onCancel: () => {
+                                var _a;
+                                this.provincePicker = undefined;
+                                (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.setRankStatus('未选择省份，排行未上报');
+                            },
+                        });
+                        return;
+                    }
+                    this.sendClear(2, province, elapsedMs);
+                }
+                async sendClear(stage, province, ms) {
+                    var _a, _b;
+                    if (stage === 2)
+                        (_a = this.finishView) === null || _a === void 0 ? void 0 : _a.setRankStatus(rank_1.formatRankProgress(province));
+                    let outcome;
+                    try {
+                        outcome = await this.rankApi.submitClear({
+                            province,
+                            stage,
+                            ms,
+                            sessionId: this.rankApi.deviceId,
+                        });
+                    }
+                    catch (_c) {
+                        outcome = { ok: false, reason: 'network' };
+                    }
+                    if (!this.node.isValid || stage !== 2)
+                        return;
+                    (_b = this.finishView) === null || _b === void 0 ? void 0 : _b.setRankStatus(outcome.ok ? rank_1.formatContributionResult(province, outcome.result) : rank_1.formatContributionFailure());
+                }
+                openRankPage() {
+                    if (this.rankPage)
+                        return;
+                    this.rankPage = new RankPage_1.RankPage(this.node, this.height, () => {
+                        var _a;
+                        (_a = this.rankPage) === null || _a === void 0 ? void 0 : _a.node.destroy();
+                        this.rankPage = undefined;
+                    });
                 }
                 mapFinish(action) {
                     if (action === 'next')
@@ -3595,6 +4353,8 @@ System.register("chunks:///_virtual/StackPage.ts", ["cc","./stack-generator.ts",
                         props: this.game.props,
                         kindCounts,
                         clickable: this.debugClickable(),
+                        province: this.rankApi.province,
+                        overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : null,
                     };
                 }
                 debugFinishButtons() {
@@ -4939,6 +5699,198 @@ System.register("chunks:///_virtual/OptionalResources.ts", ["cc"], function (exp
     };
 });
 
+System.register("chunks:///_virtual/RankApi.ts", ["./rank.ts"], function (exports_1, context_1) {
+    "use strict";
+    var rank_1, RankApi;
+    var __moduleName = context_1 && context_1.id;
+    function currentSearch() {
+        try {
+            return typeof window === 'undefined' ? '' : window.location.search;
+        }
+        catch (_a) {
+            return '';
+        }
+    }
+    function browserStorage() {
+        try {
+            return typeof localStorage === 'undefined' ? undefined : localStorage;
+        }
+        catch (_a) {
+            return undefined;
+        }
+    }
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    return {
+        setters: [
+            function (rank_1_1) {
+                rank_1 = rank_1_1;
+            }
+        ],
+        execute: function () {
+            exports_1("RANK_PENDING_STORAGE_KEY", rank_1.RANK_PENDING_STORAGE_KEY);
+            /** Thin, failure-tolerant HTTP client for the provincial leaderboard. */
+            RankApi = class RankApi {
+                constructor(config = rank_1.resolveRankApi(currentSearch()), storage = browserStorage(), fetcher = globalThis.fetch) {
+                    this.config = config;
+                    this.storage = storage;
+                    this.fetcher = fetcher;
+                }
+                get enabled() { return this.config.enabled; }
+                get deviceId() {
+                    var _a, _b;
+                    if (this.memoryDeviceId)
+                        return this.memoryDeviceId;
+                    try {
+                        const stored = (_a = this.storage) === null || _a === void 0 ? void 0 : _a.getItem(rank_1.RANK_DEVICE_STORAGE_KEY);
+                        if (rank_1.isValidSessionId(stored)) {
+                            this.memoryDeviceId = stored;
+                            return stored;
+                        }
+                    }
+                    catch ( /* Fall through to a new id. */_c) { /* Fall through to a new id. */ }
+                    const created = rank_1.createDeviceId();
+                    this.memoryDeviceId = created;
+                    try {
+                        (_b = this.storage) === null || _b === void 0 ? void 0 : _b.setItem(rank_1.RANK_DEVICE_STORAGE_KEY, created);
+                    }
+                    catch ( /* In-memory only. */_d) { /* In-memory only. */ }
+                    return created;
+                }
+                get province() {
+                    return rank_1.readStoredProvince(this.storage);
+                }
+                setProvince(province) {
+                    rank_1.writeStoredProvince(this.storage, province);
+                }
+                async fetchRank() {
+                    if (!this.config.enabled)
+                        throw new Error('rank api disabled');
+                    const response = await this.request('/api/rank');
+                    if (!response.ok)
+                        throw new Error(`rank api ${response.status}`);
+                    const snapshot = rank_1.parseRankSnapshot(await response.json());
+                    if (!snapshot)
+                        throw new Error('rank api payload invalid');
+                    return snapshot;
+                }
+                /** Never rejects: transient errors retry, then become a persisted pending report. */
+                async submitClear(report) {
+                    if (!this.config.enabled)
+                        return { ok: false, reason: 'disabled' };
+                    if (!rank_1.isValidClearReport(report) || !rank_1.isValidClearMs(report.stage, report.ms)) {
+                        return { ok: false, reason: 'invalid' };
+                    }
+                    let last = { kind: 'retry' };
+                    try {
+                        for (let attempt = 0; attempt < rank_1.RANK_MAX_REPORT_ATTEMPTS; attempt++) {
+                            last = await this.attemptClear(report);
+                            if (last.kind === 'ok') {
+                                this.removeQueued(report);
+                                return { ok: true, result: last.result };
+                            }
+                            if (last.kind === 'permanent')
+                                return { ok: false, reason: 'invalid' };
+                            if (attempt < rank_1.RANK_MAX_REPORT_ATTEMPTS - 1)
+                                await sleep(rank_1.retryDelayMs(attempt));
+                        }
+                        this.queue(report);
+                        return { ok: false, reason: 'network' };
+                    }
+                    catch (_a) {
+                        this.queue(report);
+                        return { ok: false, reason: 'network' };
+                    }
+                }
+                /** Best-effort one-shot flush for reports left behind by an earlier session. */
+                async flushPending() {
+                    if (!this.config.enabled)
+                        return;
+                    try {
+                        const pending = rank_1.readPendingClears(this.storage);
+                        if (!pending.length)
+                            return;
+                        const keep = [];
+                        for (const report of pending) {
+                            const outcome = await this.attemptClear(report);
+                            if (outcome.kind === 'retry')
+                                keep.push(report);
+                        }
+                        rank_1.writePendingClears(this.storage, keep);
+                    }
+                    catch ( /* Pending reports stay for the next launch. */_a) { /* Pending reports stay for the next launch. */ }
+                }
+                async attemptClear(report) {
+                    if (!this.config.enabled || !this.fetcher)
+                        return { kind: 'retry' };
+                    let response;
+                    try {
+                        response = await this.request('/api/clear', {
+                            method: 'POST',
+                            headers: { 'content-type': 'application/json' },
+                            body: JSON.stringify({
+                                province: report.province,
+                                stage: report.stage,
+                                ms: report.ms,
+                                sessionId: report.sessionId,
+                            }),
+                        });
+                    }
+                    catch (_a) {
+                        return { kind: 'retry' };
+                    }
+                    if (response.status === 400 || response.status === 422)
+                        return { kind: 'permanent' };
+                    if (!response.ok)
+                        return { kind: 'retry' };
+                    try {
+                        const result = rank_1.parseClearResult(await response.json());
+                        return result ? { kind: 'ok', result } : { kind: 'retry' };
+                    }
+                    catch (_b) {
+                        return { kind: 'retry' };
+                    }
+                }
+                async request(path, init) {
+                    if (!this.config.enabled)
+                        throw new Error('rank api disabled');
+                    const fetcher = this.fetcher;
+                    if (!fetcher)
+                        throw new Error('fetch unavailable');
+                    const controller = typeof AbortController === 'undefined' ? undefined : new AbortController();
+                    const timer = controller
+                        ? setTimeout(() => controller.abort(), rank_1.RANK_REQUEST_TIMEOUT_MS)
+                        : undefined;
+                    try {
+                        return await fetcher(`${this.config.base}${path}`, Object.assign(Object.assign({}, init), { signal: controller === null || controller === void 0 ? void 0 : controller.signal }));
+                    }
+                    finally {
+                        if (timer !== undefined)
+                            clearTimeout(timer);
+                    }
+                }
+                queue(report) {
+                    try {
+                        const next = rank_1.enqueuePendingClear(rank_1.readPendingClears(this.storage), report, Date.now());
+                        rank_1.writePendingClears(this.storage, next);
+                    }
+                    catch ( /* A full/blocked storage must not affect gameplay. */_a) { /* A full/blocked storage must not affect gameplay. */ }
+                }
+                removeQueued(report) {
+                    try {
+                        const next = rank_1.removePendingClear(rank_1.readPendingClears(this.storage), report);
+                        if (next.length !== rank_1.readPendingClears(this.storage).length)
+                            rank_1.writePendingClears(this.storage, next);
+                    }
+                    catch ( /* Best effort. */_a) { /* Best effort. */ }
+                }
+            };
+            exports_1("RankApi", RankApi);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/SoundEffects.ts", ["cc","./OptionalResources.ts"], function (exports_1, context_1) {
     "use strict";
     var cc_1, OptionalResources_1, SoundEffects;
@@ -6127,6 +7079,174 @@ System.register("chunks:///_virtual/JourneyArt.ts", ["cc","./UIKit.ts"], functio
     };
 });
 
+System.register("chunks:///_virtual/ProvincePicker.ts", ["cc","./provinces.ts","./UIKit.ts"], function (exports_1, context_1) {
+    "use strict";
+    var cc_1, provinces_1, UIKit_1, deep, panel, gold, paleGold, cream, ink, cell, cellGlow, ProvincePicker;
+    var __moduleName = context_1 && context_1.id;
+    function contains(rect, x, y) {
+        return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
+    }
+    return {
+        setters: [
+            function (cc_1_1) {
+                cc_1 = cc_1_1;
+            },
+            function (provinces_1_1) {
+                provinces_1 = provinces_1_1;
+            },
+            function (UIKit_1_1) {
+                UIKit_1 = UIKit_1_1;
+            }
+        ],
+        execute: function () {
+            deep = new cc_1.Color(30, 8, 18, 246);
+            panel = new cc_1.Color(121, 24, 34, 250);
+            gold = new cc_1.Color(255, 207, 111);
+            paleGold = new cc_1.Color(255, 231, 173);
+            cream = new cc_1.Color(255, 246, 229);
+            ink = new cc_1.Color(76, 30, 20);
+            cell = new cc_1.Color(80, 17, 28, 245);
+            cellGlow = new cc_1.Color(255, 216, 136, 34);
+            /** Reusable five-column province chooser. Geometry is independent of the page that opens it. */
+            ProvincePicker = class ProvincePicker {
+                constructor(parent, height, current, actions) {
+                    this.actions = actions;
+                    this.cells = [];
+                    this.width = 750;
+                    this.destroyed = false;
+                    this.height = Math.max(1334, height);
+                    this.node = UIKit_1.uiNode('ProvincePicker', parent, this.width, this.height);
+                    const backdrop = UIKit_1.uiNode('PickerBackdrop', this.node, this.width, this.height).addComponent(cc_1.Graphics);
+                    UIKit_1.fill(backdrop, new cc_1.Color(5, 7, 18, 208), -375, -this.height / 2, 750, this.height);
+                    UIKit_1.fill(backdrop, new cc_1.Color(0, 0, 0, 72), -375, -this.height / 2, 750, this.height);
+                    const columns = 5;
+                    const cellW = 118;
+                    const cellH = 52;
+                    const gap = 10;
+                    const gridW = columns * cellW + (columns - 1) * gap;
+                    const rows = Math.ceil(provinces_1.PROVINCES.length / columns);
+                    const panelW = 690;
+                    const panelH = 88 + rows * cellH + (rows - 1) * gap + 78;
+                    const panelX = (this.width - panelW) / 2;
+                    const panelY = Math.round((this.height - panelH) / 2);
+                    const gridX = Math.round((this.width - gridW) / 2);
+                    const gridY = panelY + 88;
+                    const art = UIKit_1.uiNode('PickerChrome', this.node, this.width, this.height).addComponent(cc_1.Graphics);
+                    const box = (color, x, y, w, h, radius = 0) => {
+                        UIKit_1.fill(art, color, x - 375, this.height / 2 - y - h, w, h, radius);
+                    };
+                    const strokeBox = (x, y, w, h, radius) => {
+                        art.roundRect(x - 375, this.height / 2 - y - h, w, h, radius);
+                        art.stroke();
+                    };
+                    box(new cc_1.Color(8, 5, 14, 180), panelX + 7, panelY + 9, panelW, panelH, 34);
+                    box(gold, panelX, panelY, panelW, panelH, 34);
+                    box(deep, panelX + 5, panelY + 5, panelW - 10, panelH - 10, 30);
+                    box(panel, panelX + 12, panelY + 12, panelW - 24, panelH - 24, 26);
+                    box(new cc_1.Color(255, 219, 145, 42), panelX + 20, panelY + 18, panelW - 40, 2, 1);
+                    box(new cc_1.Color(255, 209, 121, 34), panelX + 18, panelY + 65, panelW - 36, 1, 1);
+                    const title = UIKit_1.label(this.node, 'PickerTitle', '选择你的省份', 38, 0, this.height / 2 - (panelY + 36));
+                    title.color = paleGold;
+                    const subtitle = UIKit_1.label(this.node, 'PickerSubtitle', '为家乡而战 · 可随时修改', 19, 0, this.height / 2 - (panelY + 66));
+                    subtitle.color = cream;
+                    for (let index = 0; index < provinces_1.PROVINCES.length; index++) {
+                        const province = provinces_1.PROVINCES[index];
+                        const column = index % columns;
+                        const row = Math.floor(index / columns);
+                        const x = gridX + column * (cellW + gap);
+                        const y = gridY + row * (cellH + gap);
+                        const selected = province === current;
+                        box(selected ? gold : cell, x, y + 3, cellW, cellH, 16);
+                        if (!selected) {
+                            box(cellGlow, x + 2, y + 5, cellW - 4, cellH - 4, 14);
+                            art.strokeColor = new cc_1.Color(255, 207, 111, 150);
+                            art.lineWidth = 1.5;
+                            strokeBox(x + 1, y + 1, cellW - 2, cellH - 2, 16);
+                        }
+                        const text = UIKit_1.label(this.node, `Province-${province}`, province, 22, 0, 0);
+                        text.node.getComponent(cc_1.UITransform).setContentSize(cellW - 8, cellH);
+                        text.overflow = cc_1.Label.Overflow.SHRINK;
+                        text.node.setPosition(x + cellW / 2 - 375, this.height / 2 - (y + cellH / 2));
+                        text.color = selected ? ink : cream;
+                        text.isBold = selected;
+                        this.cells.push({ province, x, y, w: cellW, h: cellH, node: text.node });
+                    }
+                    this.cancelRect = {
+                        x: Math.round((this.width - 220) / 2),
+                        y: panelY + panelH - 66,
+                        w: 220,
+                        h: 52,
+                    };
+                    box(new cc_1.Color(255, 231, 173, 18), this.cancelRect.x, this.cancelRect.y, this.cancelRect.w, this.cancelRect.h, 16);
+                    art.strokeColor = new cc_1.Color(255, 207, 111, 150);
+                    art.lineWidth = 1.5;
+                    strokeBox(this.cancelRect.x, this.cancelRect.y, this.cancelRect.w, this.cancelRect.h, 16);
+                    const cancel = UIKit_1.label(this.node, 'PickerCancel', '取消', 22, 0, this.height / 2 - (this.cancelRect.y + this.cancelRect.h / 2));
+                    cancel.color = paleGold;
+                    this.debugHook = Object.freeze({
+                        getState: () => this.debugState(),
+                        press: (x, y) => this.press(x, y),
+                    });
+                    if (typeof window !== 'undefined') {
+                        window.__provincePicker = this.debugHook;
+                    }
+                    this.node.once(cc_1.Node.EventType.NODE_DESTROYED, () => {
+                        this.destroyed = true;
+                        if (typeof window !== 'undefined'
+                            && window.__provincePicker === this.debugHook) {
+                            delete window.__provincePicker;
+                        }
+                    });
+                }
+                press(x, y) {
+                    if (this.destroyed)
+                        return false;
+                    for (const cell of this.cells) {
+                        if (!contains(cell, x, y))
+                            continue;
+                        const province = cell.province;
+                        this.close();
+                        this.actions.onSelect(province);
+                        return true;
+                    }
+                    if (contains(this.cancelRect, x, y)) {
+                        this.close();
+                        this.actions.onCancel();
+                    }
+                    return true;
+                }
+                close() {
+                    if (!this.destroyed && this.node.isValid)
+                        this.node.destroy();
+                }
+                debugState() {
+                    const screenWidth = typeof window === 'undefined' ? this.width : window.innerWidth;
+                    const screenHeight = typeof window === 'undefined' ? this.height : window.innerHeight;
+                    const points = this.cells.map(item => ({
+                        province: item.province,
+                        screenX: (item.x + item.w / 2) / this.width * screenWidth,
+                        screenY: (item.y + item.h / 2) / this.height * screenHeight,
+                        screenLeft: item.x / this.width * screenWidth,
+                        screenRight: (item.x + item.w) / this.width * screenWidth,
+                        screenTop: item.y / this.height * screenHeight,
+                        screenBottom: (item.y + item.h) / this.height * screenHeight,
+                    }));
+                    return {
+                        visible: !this.destroyed,
+                        provinceCount: points.length,
+                        points,
+                        cancel: {
+                            screenX: (this.cancelRect.x + this.cancelRect.w / 2) / this.width * screenWidth,
+                            screenY: (this.cancelRect.y + this.cancelRect.h / 2) / this.height * screenHeight,
+                        },
+                    };
+                }
+            };
+            exports_1("ProvincePicker", ProvincePicker);
+        }
+    };
+});
+
 System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline.ts","./InteractionGeometry.ts","./OptionalResources.ts","./stack-share.ts","./UIKit.ts"], function (exports_1, context_1) {
     "use strict";
     var cc_1, FinishTimeline_1, InteractionGeometry_1, OptionalResources_1, stack_share_1, UIKit_1, red, darkRed, gold, pale, ink, night, StackFinishView, BODY_HOLE;
@@ -6161,12 +7281,14 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
             night = new cc_1.Color(12, 15, 34, 150);
             /** Stack-mode celebration: the night backdrop stays visible while the loaded car closes up and drives away. */
             StackFinishView = class StackFinishView {
-                constructor(parent, choices, stats, onAction, onShare = () => undefined) {
+                constructor(parent, choices, stats, onAction, onShare = () => undefined, onRank) {
                     this.choices = choices;
                     this.stats = stats;
                     this.onAction = onAction;
                     this.onShare = onShare;
+                    this.onRank = onRank;
                     this.cargoSprites = [];
+                    this.rankText = null;
                     this.buttons = [];
                     this.height = 1334;
                     this.ready = false;
@@ -6241,11 +7363,18 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     statsBg.stroke();
                     UIKit_1.fill(statsBg, new cc_1.Color(255, 219, 145, 46), -280, -27, 560, 54, 18);
                     UIKit_1.label(this.statsLabel, 'StatsText', this.statsText(), 26, 0, 0).color = pale;
+                    this.rankLabel = UIKit_1.uiNode('FinishRank', this.node, 720, 58);
+                    const rankBg = this.rankLabel.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(rankBg, new cc_1.Color(49, 12, 22, 168), -306, -24, 612, 48, 18);
+                    this.rankTextLabel = UIKit_1.label(this.rankLabel, 'FinishRankText', '', 23, 0, 0);
+                    this.rankTextLabel.color = pale;
+                    this.rankLabel.active = false;
                     this.actions = UIKit_1.uiNode('FinishActions', this.node, 750, 320);
                     this.actionArt = this.actions.addComponent(cc_1.Graphics);
                     const choicesWithShare = [
                         ...choices,
                         { title: '生成分享图', action: 'share' },
+                        ...(this.onRank ? [{ title: '看省份排行', action: 'rank' }] : []),
                     ];
                     for (let index = 0; index < choicesWithShare.length; index++) {
                         const choice = choicesWithShare[index];
@@ -6269,6 +7398,7 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.squeeze = Math.min(110, Math.max(0, (height - 1334) * .38));
                     this.headline.setPosition(0, height / 2 - 207 - this.squeeze);
                     this.statsLabel.setPosition(0, height / 2 - 380 - this.squeeze);
+                    this.rankLabel.setPosition(0, height / 2 - 438 - this.squeeze);
                     const actionsY = -height / 2 + 300;
                     this.actions.setPosition(0, actionsY);
                     this.actionArt.clear();
@@ -6299,11 +7429,12 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                     this.car.setPosition(0, -this.height * .035 + this.height * .055 * drive - this.squeeze * 1.65);
                     this.headline.active = state.celebration;
                     this.statsLabel.active = state.celebration;
+                    this.rankLabel.active = state.celebration && !!this.rankText;
                     this.actions.active = state.buttons;
                     this.node.getChildByName('SkipHint').active = !state.buttons;
                 }
                 press(x, y) {
-                    var _a;
+                    var _a, _b;
                     if (!((_a = this.state) === null || _a === void 0 ? void 0 : _a.buttons))
                         return;
                     for (const button of this.buttons) {
@@ -6311,11 +7442,20 @@ System.register("chunks:///_virtual/StackFinishView.ts", ["cc","./FinishTimeline
                             continue;
                         if (button.action === 'share')
                             this.onShare();
+                        else if (button.action === 'rank')
+                            (_b = this.onRank) === null || _b === void 0 ? void 0 : _b.call(this);
                         else
                             this.onAction(button.action);
                         return;
                     }
                 }
+                setRankStatus(text) {
+                    var _a;
+                    this.rankText = text;
+                    this.rankTextLabel.string = text !== null && text !== void 0 ? text : '';
+                    this.rankLabel.active = !!text && !!((_a = this.state) === null || _a === void 0 ? void 0 : _a.celebration);
+                }
+                get rankStatusText() { return this.rankText; }
                 buttonPoints() {
                     return this.buttons.map(button => ({ action: button.action, rect: Object.assign({}, button.rect) }));
                 }
@@ -6769,8 +7909,8 @@ System.register("chunks:///_virtual/__cc_env.js", [], function (exports) {
     EDITOR_NOT_IN_PREVIEW: false, SERVER_MODE: false, NOT_PACK_PHYSX_LIBS: false, WEBGPU: false, OPEN_HARMONY: false }); } };
 });
 
-System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
-  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
+System.register("chunks:///_virtual/main", ["./Bootstrap.ts","./brand.ts","./date.ts","./dlx.ts","./generator.ts","./input.ts","./items.ts","./level.ts","./provinces.ts","./rank.ts","./rng.ts","./shapes.ts","./stack-catalog.ts","./stack-generator.ts","./stack-layout.ts","./stack-rules.ts","./stack-share.ts","./stack-solver.ts","./stack-types.ts","./stage1.ts","./types.ts","./validate.ts","./vehicles.ts","./DragController.ts","./FinishTimeline.ts","./InteractionGeometry.ts","./StageSession.ts","./HomePage.ts","./RankPage.ts","./StackPage.ts","./StagePage.ts","./WebPlatform.ts","./route.ts","./Api.ts","./OptionalResources.ts","./RankApi.ts","./SoundEffects.ts","./StackShareImage.ts","./StackSound.ts","./FinishView.ts","./ItemArt.ts","./JourneyArt.ts","./ProvincePicker.ts","./StackFinishView.ts","./StageArt.ts","./UIKit.ts"], function () {
+  return { setters: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], execute: function () {} };
 });
 
 (function(r) {
