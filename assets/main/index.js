@@ -79,7 +79,7 @@ System.register("chunks:///_virtual/Bootstrap.ts", ["cc","./__cc_env.js","./bran
                     this.stage = undefined;
                     this.stack = undefined;
                     this.home = new HomePage_1.HomePage(this.node, {
-                        onStart: () => this.startStack(1),
+                        onStart: (route) => this.startStack(route !== null && route !== void 0 ? route : 1),
                         onDaily: () => this.startStack('daily'),
                         onClassic: () => this.startPack(),
                     });
@@ -1531,38 +1531,116 @@ System.register("chunks:///_virtual/generator.ts", ["./dlx.ts","./items.ts","./r
     };
 });
 
+// Pure layout of the poster home screen, shared by HomePage and tests.
+// Every coordinate is in design px (750 wide) and is measured on the approved mockup
+// (tools/home-poster-src/home-mockup.jpg scaled to 750x1334), so at 750x1334 the screen reproduces it 1:1.
+// Taller phones keep every block at mockup size and spread the extra height between the blocks.
 System.register("chunks:///_virtual/home-layout.ts", [], function (exports_1, context_1) {
     "use strict";
-    var CAR_WIDTH, CAR_HEIGHT, START_WIDTH, START_HEIGHT, CLASSIC_WIDTH, CLASSIC_HEIGHT, PROVINCE_Y, PROVINCE_HEIGHT, RULES_HEIGHT, PROGRESS_HEIGHT, TAG_HEIGHT;
+    var BASE_HEIGHT, ART_RECTS, HIT_RECTS, COUPLET_ART, COUPLET_RIGHT_ART, COUPLET_TOP, COUPLET_CAR_GAP, CAR_PLATE, MARKER_ART, ROAD_MILESTONES, LABEL_POINTS, shift;
     var __moduleName = context_1 && context_1.id;
+    /** How far each band moves down on a screen taller than the mockup; spacing grows, sizes stay. */
     function homeLayoutSlots(height) {
-        const classic = height - 70 - CLASSIC_HEIGHT;
-        const start = classic - 22 - START_HEIGHT;
-        const rank = start - 26 - 58;
-        const rules = rank - 24 - RULES_HEIGHT;
-        const progress = rules - 18 - PROGRESS_HEIGHT;
-        const areaTop = PROVINCE_Y + PROVINCE_HEIGHT + 14;
-        const areaBottom = progress - 10 - TAG_HEIGHT;
-        const carScale = Math.max(.5, Math.min(1, (areaBottom - areaTop) / CAR_HEIGHT));
-        const carTop = Math.round(areaTop + Math.max(0, areaBottom - areaTop - CAR_HEIGHT * carScale) / 2);
-        return { province: PROVINCE_Y, carTop, carScale, tag: carTop + CAR_HEIGHT * carScale + 4, progress, rules, rank, start, classic };
+        const extra = Math.max(0, height - BASE_HEIGHT);
+        const top = extra * .16;
+        const car = extra * .42;
+        const road = extra * .6;
+        const start = extra * .76;
+        const coins = extra * .9;
+        const coupletTop = COUPLET_TOP + top + (car - top) * .3;
+        const limit = Math.min(HIT_RECTS.car.y + HIT_RECTS.car.h + car, HIT_RECTS.house.y + road) - 4;
+        const coupletScale = Math.min(1, (limit - coupletTop) / COUPLET_ART.h);
+        return { top, help: extra * .08, car, road, start, coins, coupletTop, coupletScale };
     }
     exports_1("homeLayoutSlots", homeLayoutSlots);
+    /** Every tight box for a given design height (the poster's own overlap contract). */
+    function homeBoxes(height, withRestart) {
+        const s = homeLayoutSlots(height);
+        const cw = COUPLET_ART.w * s.coupletScale;
+        const crw = COUPLET_RIGHT_ART.w * s.coupletScale;
+        const ch = COUPLET_ART.h * s.coupletScale;
+        const carLeft = HIT_RECTS.car.x;
+        const carRight = HIT_RECTS.car.x + HIT_RECTS.car.w;
+        const boxes = {
+            help: shift(HIT_RECTS.help, s.help),
+            plaque: shift(HIT_RECTS.plaque, s.top),
+            seal: shift(HIT_RECTS.seal, s.top),
+            coupletLeft: { x: carLeft - COUPLET_CAR_GAP - cw, y: s.coupletTop, w: cw, h: ch },
+            coupletRight: { x: carRight + COUPLET_CAR_GAP, y: s.coupletTop, w: crw, h: ch },
+            car: shift(HIT_RECTS.car, s.car),
+            road: shift(HIT_RECTS.road, s.road),
+            house: shift(HIT_RECTS.house, s.road),
+            progress: shift(HIT_RECTS.progress, s.road),
+            start: shift(HIT_RECTS.start, s.start),
+            rank: shift(HIT_RECTS.coins[0], s.coins),
+            daily: shift(HIT_RECTS.coins[1], s.coins),
+            classic: shift(HIT_RECTS.coins[2], s.coins),
+        };
+        if (withRestart)
+            boxes.restart = shift(HIT_RECTS.restart, s.road);
+        return boxes;
+    }
+    exports_1("homeBoxes", homeBoxes);
     return {
         setters: [],
-        execute: function () {
-            // Pure vertical layout of the title screen (design px, 750 wide), shared by HomePage and tests.
-            exports_1("CAR_WIDTH", CAR_WIDTH = 700);
-            exports_1("CAR_HEIGHT", CAR_HEIGHT = 438);
-            exports_1("START_WIDTH", START_WIDTH = 600);
-            exports_1("START_HEIGHT", START_HEIGHT = 88);
-            exports_1("CLASSIC_WIDTH", CLASSIC_WIDTH = 360);
-            exports_1("CLASSIC_HEIGHT", CLASSIC_HEIGHT = 66);
-            exports_1("PROVINCE_Y", PROVINCE_Y = 362);
-            exports_1("PROVINCE_HEIGHT", PROVINCE_HEIGHT = 56);
-            exports_1("RULES_HEIGHT", RULES_HEIGHT = 96);
-            exports_1("PROGRESS_HEIGHT", PROGRESS_HEIGHT = 50);
-            exports_1("TAG_HEIGHT", TAG_HEIGHT = 44);
+        execute: function () {// Pure layout of the poster home screen, shared by HomePage and tests.
+            // Every coordinate is in design px (750 wide) and is measured on the approved mockup
+            // (tools/home-poster-src/home-mockup.jpg scaled to 750x1334), so at 750x1334 the screen reproduces it 1:1.
+            // Taller phones keep every block at mockup size and spread the extra height between the blocks.
+            exports_1("BASE_HEIGHT", BASE_HEIGHT = 1334);
+            /** Painted sprites: where each PNG sits on the 750x1334 mockup frame. */
+            exports_1("ART_RECTS", ART_RECTS = {
+                help: { x: 672, y: 24, w: 66, h: 66 },
+                plaque: { x: 0, y: 40, w: 750, h: 305 },
+                car: { x: 52, y: 372, w: 656, h: 484 },
+                road: { x: 55, y: 820, w: 657, h: 170 },
+                start: { x: 105, y: 995, w: 545, h: 130 },
+                coins: [
+                    { x: 90, y: 1130, w: 158, h: 162 },
+                    { x: 298, y: 1130, w: 158, h: 162 },
+                    { x: 508, y: 1130, w: 158, h: 162 },
+                ],
+            });
+            /** Tight, non-overlapping hit/layout boxes on the same frame. */
+            exports_1("HIT_RECTS", HIT_RECTS = {
+                help: { x: 672, y: 24, w: 66, h: 66 },
+                plaque: { x: 96, y: 82, w: 560, h: 172 },
+                seal: { x: 314, y: 257, w: 126, h: 48 },
+                car: { x: 79, y: 386, w: 592, h: 452 },
+                road: { x: 58, y: 850, w: 512, h: 104 },
+                house: { x: 570, y: 842, w: 130, h: 108 },
+                progress: { x: 545, y: 955, w: 150, h: 34 },
+                restart: { x: 172, y: 968, w: 120, h: 28 },
+                start: { x: 158, y: 1003, w: 438, h: 114 },
+                coins: [
+                    { x: 94, y: 1132, w: 150, h: 158 },
+                    { x: 302, y: 1132, w: 150, h: 158 },
+                    { x: 512, y: 1132, w: 150, h: 158 },
+                ],
+            });
+            /** Couplet scrolls: PNG size and the edge they hug (right edge of the left scroll stays clear of the car). */
+            exports_1("COUPLET_ART", COUPLET_ART = { w: 90, h: 576 });
+            exports_1("COUPLET_RIGHT_ART", COUPLET_RIGHT_ART = { w: 92, h: 576 });
+            exports_1("COUPLET_TOP", COUPLET_TOP = 338);
+            exports_1("COUPLET_CAR_GAP", COUPLET_CAR_GAP = 2);
+            /** Plate on car_poster.png (art px). */
+            exports_1("CAR_PLATE", CAR_PLATE = { x: 241, y: 322, w: 164, h: 46 });
+            /** Small car marker that sits on the start pin, then on the lit milestone. */
+            exports_1("MARKER_ART", MARKER_ART = { x: 62, y: 878, w: 62, h: 44 });
+            /** Nine milestone dots on road_home.png (art px, relative to the road sprite). */
+            exports_1("ROAD_MILESTONES", ROAD_MILESTONES = [
+                { x: 87.6, y: 89.2 }, { x: 138.8, y: 69.1 }, { x: 192.9, y: 64.5 }, { x: 241.7, y: 85.4 }, { x: 289.3, y: 113.0 },
+                { x: 341.3, y: 125.0 }, { x: 394.5, y: 115.7 }, { x: 445.7, y: 96.4 }, { x: 500.1, y: 87.8 },
+            ]);
+            /** Where labels sit (design px on the mockup frame). */
+            exports_1("LABEL_POINTS", LABEL_POINTS = {
+                seal: { x: 377, y: 281 },
+                progress: { x: 620, y: 972 },
+                restart: { x: 232, y: 982 },
+                start: { x: 377, y: 1059 },
+                coinLabelY: 1263,
+            });
+            shift = (r, dy) => ({ x: r.x, y: r.y + dy, w: r.w, h: r.h });
         }
     };
 });
@@ -1743,7 +1821,7 @@ System.register("chunks:///_virtual/plate.ts", [], function (exports_1, context_
      * larger than it and never flatter than 3.4:1 so the text stays legible at small sizes.
      */
     function plateBox(key, art) {
-        const p = VEHICLE_PLATES[key];
+        const p = typeof key === 'string' ? VEHICLE_PLATES[key] : key;
         const w = p.w * 1.1;
         const h = Math.max(p.h * 1.15, w / 3.4);
         return { cx: (p.x + p.w / 2) / art.w, cy: (p.y + p.h / 2) / art.h, w: w / art.w, h: h / art.h };
@@ -5279,10 +5357,16 @@ System.register("chunks:///_virtual/StageSession.ts", ["./shapes.ts","./validate
     };
 });
 
-System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-layout.ts","./stack-share.ts","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./stack-progress.ts","./RankPage.ts","./PlateBadge.ts","./home-layout.ts"], function (exports_1, context_1) {
+System.register("chunks:///_virtual/HomePage.ts", ["cc","./OptionalResources.ts","./RankApi.ts","./ProvincePicker.ts","./UIKit.ts","./stack-progress.ts","./RankPage.ts","./PlateBadge.ts","./home-layout.ts"], function (exports_1, context_1) {
     "use strict";
-    var cc_1, brand_1, stack_layout_1, stack_share_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, stack_progress_1, RankPage_1, PlateBadge_1, home_layout_1, red, deepRed, wine, gold, paleGold, cream, ink, shadowInk, PROGRESS_WIDTH, SEGMENT, HomePage;
+    var cc_1, OptionalResources_1, RankApi_1, ProvincePicker_1, UIKit_1, stack_progress_1, RankPage_1, PlateBadge_1, home_layout_1, deepRed, gold, brightGold, paleGold, cream, ink, HomePage;
     var __moduleName = context_1 && context_1.id;
+    function outlined(value, color, width) {
+        value.enableOutline = true;
+        value.outlineColor = color;
+        value.outlineWidth = width;
+        return value;
+    }
     function contains(rect, x, y) {
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
     }
@@ -5290,15 +5374,6 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
         setters: [
             function (cc_1_1) {
                 cc_1 = cc_1_1;
-            },
-            function (brand_1_1) {
-                brand_1 = brand_1_1;
-            },
-            function (stack_layout_1_1) {
-                stack_layout_1 = stack_layout_1_1;
-            },
-            function (stack_share_1_1) {
-                stack_share_1 = stack_share_1_1;
             },
             function (OptionalResources_1_1) {
                 OptionalResources_1 = OptionalResources_1_1;
@@ -5326,133 +5401,96 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
             }
         ],
         execute: function () {
-            red = new cc_1.Color(184, 29, 42);
             deepRed = new cc_1.Color(84, 18, 27);
-            wine = new cc_1.Color(57, 12, 22, 232);
             gold = new cc_1.Color(255, 205, 105);
+            brightGold = new cc_1.Color(255, 224, 143);
             paleGold = new cc_1.Color(255, 232, 177);
-            cream = new cc_1.Color(255, 246, 229);
-            ink = new cc_1.Color(75, 28, 20);
-            shadowInk = new cc_1.Color(49, 8, 14, 180);
-            PROGRESS_WIDTH = 540;
-            SEGMENT = { w: 24, h: 14, gap: 6 };
-            /** Code-built title screen. The night scene, red-gold chrome and packed car preview the match-three game. */
+            cream = new cc_1.Color(255, 240, 214);
+            ink = new cc_1.Color(88, 36, 16);
+            /**
+             * Poster-style title screen built from pieces cut out of the approved mockup: lantern plaque with the
+             * province seal, vertical couplets, the packed red car with the province plate, the winding road home with
+             * nine milestones, the ribbon start button and three coin badges. Only the dynamic text is live.
+             */
             HomePage = class HomePage {
                 constructor(parent, actions) {
                     this.actions = actions;
+                    this.coinImages = [];
+                    this.coinLabels = [];
                     this.rankApi = new RankApi_1.RankApi();
-                    this.cargoSprites = [];
                     this.touchWorld = new cc_1.Vec3();
                     this.touchLocal = new cc_1.Vec3();
-                    this.startRect = { x: 75, y: 0, w: home_layout_1.START_WIDTH, h: home_layout_1.START_HEIGHT };
-                    this.classicRect = { x: 195, y: 0, w: home_layout_1.CLASSIC_WIDTH, h: home_layout_1.CLASSIC_HEIGHT };
-                    this.provinceRect = { x: 185, y: 0, w: 380, h: 56 };
-                    this.rankRect = { x: 225, y: 0, w: 300, h: 58 };
-                    this.dailyRect = { x: 390, y: 0, w: 290, h: 58 };
+                    this.boxes = home_layout_1.homeBoxes(home_layout_1.BASE_HEIGHT, false);
                     this.progressSteps = 0;
                     this.progressDone = false;
-                    this.slots = home_layout_1.homeLayoutSlots(1334);
-                    this.width = 750;
-                    this.height = 1334;
+                    this.slots = home_layout_1.homeLayoutSlots(home_layout_1.BASE_HEIGHT);
+                    this.height = home_layout_1.BASE_HEIGHT;
                     this.layoutWidth = -1;
                     this.layoutHeight = -1;
-                    this.hole = { x: 0, y: 0, w: home_layout_1.CAR_WIDTH, h: home_layout_1.CAR_HEIGHT };
-                    this.carTop = 400;
-                    this.node = UIKit_1.uiNode('HomePage', parent, 750, 1334);
-                    this.background = UIKit_1.uiNode('HomeNight', this.node, 750, 1334).addComponent(cc_1.Sprite);
-                    this.background.sizeMode = cc_1.Sprite.SizeMode.CUSTOM;
-                    this.background.trim = false;
-                    this.background.enabled = false;
-                    void OptionalResources_1.loadArt('ui/bg_night').then(frame => {
-                        if (!frame || !this.node.isValid)
-                            return;
-                        this.background.spriteFrame = frame;
-                        this.background.enabled = true;
-                        this.layoutBackground();
-                    });
-                    this.chrome = UIKit_1.uiNode('HomeChrome', this.node, 750, 1334).addComponent(cc_1.Graphics);
-                    this.car = UIKit_1.uiNode('PackedCar', this.node, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
-                    this.carFallback = UIKit_1.uiNode('CarFallback', this.car, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT).addComponent(cc_1.Graphics);
-                    this.trunkImage = this.imageNode('TrunkWell', this.car);
-                    this.cargo = UIKit_1.uiNode('HomeCargo', this.car, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
-                    for (let index = 0; index < stack_share_1.STACK_SHARE_ITEM_KEYS.length; index++) {
-                        this.cargoSprites.push(this.imageNode(`CargoItem${index}`, this.cargo));
+                    this.node = UIKit_1.uiNode('HomePage', parent, 750, home_layout_1.BASE_HEIGHT);
+                    this.background = this.imageNode('HomeNight', this.node);
+                    this.chrome = UIKit_1.uiNode('HomePosterChrome', this.node, 750, home_layout_1.BASE_HEIGHT).addComponent(cc_1.Graphics);
+                    this.plaqueImage = this.imageNode('Plaque', this.node);
+                    this.coupletLeftImage = this.imageNode('CoupletLeftArt', this.node);
+                    this.coupletRightImage = this.imageNode('CoupletRightArt', this.node);
+                    this.carImage = this.imageNode('PackedCar', this.node);
+                    this.plate = new PlateBadge_1.PlateBadge(this.carImage.node, home_layout_1.CAR_PLATE, { w: home_layout_1.ART_RECTS.car.w, h: home_layout_1.ART_RECTS.car.h });
+                    this.roadImage = this.imageNode('HomeRoad', this.node);
+                    this.roadMarks = UIKit_1.uiNode('HomeRoadMarks', this.node, 750, home_layout_1.BASE_HEIGHT).addComponent(cc_1.Graphics);
+                    this.carMarkerImage = this.imageNode('HomeCarMarker', this.node);
+                    this.startImage = this.imageNode('HomeStart', this.node);
+                    this.helpImage = this.imageNode('HomeHelp', this.node);
+                    for (let index = 0; index < 3; index++)
+                        this.coinImages.push(this.imageNode(`HomeCoin${index}`, this.node));
+                    this.provinceLabel = this.textLabel('HomeProvinceText', '选省份', 30, cream, 112, 44);
+                    this.provinceLabel.isBold = true;
+                    this.progressLabel = this.textLabel('HomeProgressText', '回家进度 0/9', 21, cream, 140, 30);
+                    this.restartLabel = this.textLabel('HomeRestart', '从头开始', 21, new cc_1.Color(255, 226, 180, 215), 120, 28);
+                    this.restartLabel.enableOutline = true;
+                    this.restartLabel.outlineColor = deepRed;
+                    this.restartLabel.outlineWidth = 2;
+                    this.startLabel = this.textLabel('HomeStartText', '开始装车', 46, ink, 380, 64);
+                    this.startLabel.isBold = true;
+                    const daily = stack_progress_1.isDailyDone(stack_progress_1.browserStorage()) ? '每日一关 · 已塞满' : '每日一关';
+                    for (const [index, text] of ['省份排行', daily, '经典装箱'].entries()) {
+                        this.coinLabels.push(this.textLabel(`HomeCoinLabel${index}`, text, 25, cream, 124, 32));
                     }
-                    this.bodyImage = this.imageNode('CarBody', this.car);
-                    this.plate = new PlateBadge_1.PlateBadge(this.bodyImage.node, 'sedan', { w: 1024, h: 640 });
-                    void Promise.all([
-                        OptionalResources_1.loadArt('vehicles/sedan_v1_body'),
-                        OptionalResources_1.loadArt('vehicles/sedan_v1_trunk'),
-                    ]).then(([body, trunk]) => {
-                        if (!this.node.isValid)
-                            return;
-                        if (trunk) {
-                            this.trunkImage.spriteFrame = trunk;
-                            this.trunkImage.enabled = true;
-                        }
-                        if (body) {
-                            this.bodyImage.spriteFrame = body;
-                            this.bodyImage.enabled = true;
-                            this.carFallback.enabled = false;
-                        }
-                        this.layoutCar();
-                    });
-                    void Promise.all(stack_share_1.STACK_SHARE_ITEM_KEYS.map(key => OptionalResources_1.loadArt(`items/${key}`))).then(frames => {
-                        if (!this.node.isValid)
-                            return;
-                        for (let index = 0; index < frames.length && index < this.cargoSprites.length; index++) {
-                            const frame = frames[index];
-                            if (!frame)
-                                continue;
-                            this.cargoSprites[index].spriteFrame = frame;
-                            this.cargoSprites[index].enabled = true;
-                        }
-                        this.layoutCar();
-                    });
-                    this.eyebrow = UIKit_1.label(this.node, 'Eyebrow', '春运 · 年货专列', 22, 0, 0);
-                    this.eyebrow.color = paleGold;
-                    this.titleShadow = UIKit_1.label(this.node, 'TitleShadow', `《${brand_1.GAME_TITLE}》`, 82, 0, 0);
-                    this.titleShadow.color = shadowInk;
-                    this.title = UIKit_1.label(this.node, 'Title', `《${brand_1.GAME_TITLE}》`, 82, 0, 0);
-                    this.title.color = gold;
-                    this.subtitle = UIKit_1.label(this.node, 'Subtitle', brand_1.GAME_SUBTITLE, 28, 0, 0);
-                    this.subtitle.color = cream;
-                    this.cargoTag = UIKit_1.label(this.node, 'CargoTag', '妈妈备好了一车年货，等你装车回家', 23, 0, 0);
-                    this.cargoTag.color = paleGold;
-                    this.ruleLineOne = UIKit_1.label(this.node, 'RuleOne', '点没被压住的年货，凑齐 3 件同款就打包装车', 22, 0, 0);
-                    this.ruleLineOne.color = cream;
-                    this.ruleLineTwo = UIKit_1.label(this.node, 'RuleTwo', '后备箱塞满就失败', 20, 0, 0);
-                    this.ruleLineTwo.color = paleGold;
-                    this.startNode = UIKit_1.uiNode('HomeStart', this.node, home_layout_1.START_WIDTH, home_layout_1.START_HEIGHT);
-                    this.startLabel = UIKit_1.label(this.startNode, 'HomeStartText', '开始装车', 34, 0, 0);
-                    this.startLabel.color = ink;
-                    this.classicNode = UIKit_1.uiNode('HomeClassic', this.node, home_layout_1.CLASSIC_WIDTH, home_layout_1.CLASSIC_HEIGHT);
-                    this.classicLabel = UIKit_1.label(this.classicNode, 'HomeClassicText', '经典装箱玩法', 24, 0, 0);
-                    this.classicLabel.color = paleGold;
-                    this.provinceLabel = UIKit_1.label(this.node, 'HomeProvinceText', '选择你的省份', 25, 0, 0);
-                    this.provinceLabel.color = paleGold;
-                    this.rankLabel = UIKit_1.label(this.node, 'HomeRankText', '省份排行', 24, 0, 0);
-                    this.rankLabel.color = paleGold;
-                    const storage = stack_progress_1.browserStorage();
-                    this.dailyLabel = UIKit_1.label(this.node, 'HomeDailyText', stack_progress_1.isDailyDone(storage) ? '每日一关 · 今日已塞满' : '每日一关', 24, 0, 0);
-                    this.dailyLabel.color = paleGold;
-                    const progress = stack_progress_1.homeProgress(storage);
+                    const progress = stack_progress_1.homeProgress(stack_progress_1.browserStorage());
                     this.progressSteps = progress.steps;
                     this.progressDone = progress.done;
-                    this.progressLabel = UIKit_1.label(this.node, 'HomeProgressText', progress.label, 23, 0, 0);
-                    this.progressLabel.color = progress.done ? gold : paleGold;
+                    this.progressLabel.string = progress.label;
+                    this.progressLabel.color = progress.done ? brightGold : cream;
+                    this.startLabel.string = progress.steps > 0 ? `继续回家 · 第${progress.steps}关` : '开始装车';
+                    this.restartLabel.node.active = progress.steps > 0 || progress.done;
                     this.refreshProvinceLabel();
+                    const art = [
+                        [this.background, 'ui/bg_poster'], [this.plaqueImage, 'ui/plaque_poster'],
+                        [this.coupletLeftImage, 'ui/couplet_left'], [this.coupletRightImage, 'ui/couplet_right'],
+                        [this.carImage, 'ui/car_poster'], [this.roadImage, 'ui/road_home'], [this.carMarkerImage, 'ui/car_marker'],
+                        [this.startImage, 'ui/btn_start_poster'], [this.helpImage, 'ui/help_poster'],
+                        [this.coinImages[0], 'ui/coin_rank'], [this.coinImages[1], 'ui/coin_daily'], [this.coinImages[2], 'ui/coin_classic'],
+                    ];
+                    void Promise.all(art.map(([, key]) => OptionalResources_1.loadArt(key))).then(frames => {
+                        if (!this.node.isValid)
+                            return;
+                        frames.forEach((frame, index) => { if (frame)
+                            art[index][0].spriteFrame = frame; });
+                        this.layout();
+                    });
                     this.node.on(cc_1.Node.EventType.TOUCH_END, this.touch, this);
                     this.debugHook = Object.freeze({
                         getButtons: () => this.debugButtons(),
-                        getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height, boxes: this.debugBoxes() }),
+                        getLayout: () => ({ viewport: { width: this.screenWidth(), height: this.screenHeight() }, height: this.height, boxes: Object.assign({}, this.boxes) }),
                         getState: () => {
-                            var _a, _b;
+                            var _a, _b, _c, _d, _e, _f;
                             return ({
                                 province: this.rankApi.province,
-                                overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : null,
+                                overlay: this.rankPage ? 'rank' : this.provincePicker ? 'province' : this.rulesNode ? 'rules' : null,
                                 progress: (_b = (_a = this.progressLabel) === null || _a === void 0 ? void 0 : _a.string) !== null && _b !== void 0 ? _b : '',
                                 plate: this.plate.node.active ? this.plate.text : null,
+                                seal: (_d = (_c = this.provinceLabel) === null || _c === void 0 ? void 0 : _c.string) !== null && _d !== void 0 ? _d : '',
+                                start: (_f = (_e = this.startLabel) === null || _e === void 0 ? void 0 : _e.string) !== null && _f !== void 0 ? _f : '',
+                                rules: this.rulesNode ? '点没被压住的年货，凑齐 3 件同款就打包装车；后备箱塞满就失败' : null,
                             });
                         },
                     });
@@ -5472,8 +5510,8 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                         this.layoutWidth = size.width;
                         this.layoutHeight = size.height;
                         this.height = size.height > 0 && size.width > 0
-                            ? Math.max(1334, size.height / size.width * 750)
-                            : 1334;
+                            ? Math.max(home_layout_1.BASE_HEIGHT, size.height / size.width * 750)
+                            : home_layout_1.BASE_HEIGHT;
                         const scale = Math.min(size.width / 750, size.height / this.height);
                         this.node.setScale(scale, scale, 1);
                         this.node.getComponent(cc_1.UITransform).setContentSize(750, this.height);
@@ -5481,159 +5519,94 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     }
                 }
                 layout() {
-                    this.layoutBackground();
-                    this.eyebrow.node.setPosition(0, this.height / 2 - 80);
-                    this.titleShadow.node.setPosition(4, this.height / 2 - 165);
-                    this.title.node.setPosition(0, this.height / 2 - 160);
-                    this.subtitle.node.setPosition(0, this.height / 2 - 296);
-                    const slots = home_layout_1.homeLayoutSlots(this.height);
-                    this.slots = slots;
-                    this.carTop = slots.carTop;
-                    this.car.setScale(slots.carScale, slots.carScale, 1);
-                    this.car.setPosition(0, this.height / 2 - (this.carTop + home_layout_1.CAR_HEIGHT * slots.carScale / 2));
-                    this.cargoTag.node.setPosition(0, this.height / 2 - (slots.tag + home_layout_1.TAG_HEIGHT / 2));
-                    this.layoutCar();
-                    const progressX = (750 - PROGRESS_WIDTH) / 2;
-                    this.progressLabel.node.setPosition(progressX + 125 - 375, this.height / 2 - (slots.progress + home_layout_1.PROGRESS_HEIGHT / 2));
-                    const rulesY = slots.rules;
-                    this.ruleLineOne.node.setPosition(0, this.height / 2 - (rulesY + 32));
-                    this.ruleLineTwo.node.setPosition(0, this.height / 2 - (rulesY + 68));
-                    const provinceY = slots.province;
-                    this.provinceRect = { x: (750 - 380) / 2, y: provinceY, w: 380, h: home_layout_1.PROVINCE_HEIGHT };
-                    this.provinceLabel.node.setPosition(0, this.height / 2 - (provinceY + 28));
-                    const rankY = slots.rank;
-                    this.rankRect = { x: 70, y: rankY, w: 290, h: 58 };
-                    this.rankLabel.node.setPosition(this.rankRect.x + 145 - 375, this.height / 2 - (rankY + 29));
-                    this.dailyRect = { x: 390, y: rankY, w: 290, h: 58 };
-                    this.dailyLabel.node.setPosition(this.dailyRect.x + 145 - 375, this.height / 2 - (rankY + 29));
-                    const startY = slots.start;
-                    this.startRect = { x: (750 - home_layout_1.START_WIDTH) / 2, y: startY, w: home_layout_1.START_WIDTH, h: home_layout_1.START_HEIGHT };
-                    this.startNode.setPosition(0, this.height / 2 - (startY + home_layout_1.START_HEIGHT / 2));
-                    const classicY = slots.classic;
-                    this.classicRect = { x: (750 - home_layout_1.CLASSIC_WIDTH) / 2, y: classicY, w: home_layout_1.CLASSIC_WIDTH, h: home_layout_1.CLASSIC_HEIGHT };
-                    this.classicNode.setPosition(0, this.height / 2 - (classicY + home_layout_1.CLASSIC_HEIGHT / 2));
-                    this.drawChrome(rulesY);
+                    const s = home_layout_1.homeLayoutSlots(this.height);
+                    this.slots = s;
+                    this.boxes = home_layout_1.homeBoxes(this.height, this.restartLabel.node.active);
+                    const b = this.boxes;
+                    const at = (r, dy) => ({ x: r.x, y: r.y + dy, w: r.w, h: r.h });
+                    // The scene is 750x1700; it hangs from the top so the sky, moon and lantern street line up with the mockup.
+                    this.placeSprite(this.background, { x: 0, y: 0, w: 750, h: 1700 });
+                    this.placeSprite(this.plaqueImage, at(home_layout_1.ART_RECTS.plaque, s.top));
+                    this.placeCenter(this.provinceLabel.node, home_layout_1.LABEL_POINTS.seal.x, home_layout_1.LABEL_POINTS.seal.y + s.top);
+                    this.placeSprite(this.helpImage, at(home_layout_1.ART_RECTS.help, s.help));
+                    this.placeSprite(this.coupletLeftImage, { x: b.coupletLeft.x, y: b.coupletLeft.y, w: home_layout_1.COUPLET_ART.w * s.coupletScale, h: home_layout_1.COUPLET_ART.h * s.coupletScale });
+                    this.placeSprite(this.coupletRightImage, { x: b.coupletRight.x, y: b.coupletRight.y, w: home_layout_1.COUPLET_RIGHT_ART.w * s.coupletScale, h: home_layout_1.COUPLET_RIGHT_ART.h * s.coupletScale });
+                    const car = at(home_layout_1.ART_RECTS.car, s.car);
+                    this.placeSprite(this.carImage, car);
+                    this.plate.layout(car.w, car.h);
+                    const road = at(home_layout_1.ART_RECTS.road, s.road);
+                    this.placeSprite(this.roadImage, road);
+                    this.layoutCarMarker(road);
+                    this.placeCenter(this.progressLabel.node, home_layout_1.LABEL_POINTS.progress.x, home_layout_1.LABEL_POINTS.progress.y + s.road);
+                    this.placeCenter(this.restartLabel.node, home_layout_1.LABEL_POINTS.restart.x, home_layout_1.LABEL_POINTS.restart.y + s.road);
+                    this.placeSprite(this.startImage, at(home_layout_1.ART_RECTS.start, s.start));
+                    this.placeCenter(this.startLabel.node, home_layout_1.LABEL_POINTS.start.x, home_layout_1.LABEL_POINTS.start.y + s.start);
+                    for (let index = 0; index < 3; index++) {
+                        const coin = at(home_layout_1.ART_RECTS.coins[index], s.coins);
+                        this.placeSprite(this.coinImages[index], coin);
+                        this.placeCenter(this.coinLabels[index].node, coin.x + coin.w / 2, home_layout_1.LABEL_POINTS.coinLabelY + s.coins);
+                    }
+                    this.drawChrome();
+                    this.drawRoadMarks(road);
                 }
-                layoutBackground() {
-                    const scale = Math.max(1, this.height / 1334);
-                    this.background.node.getComponent(cc_1.UITransform).setContentSize(750 * scale, 1334 * scale);
-                    this.background.node.setPosition(0, 0);
-                }
-                drawChrome(rulesY) {
+                drawChrome() {
                     const g = this.chrome;
                     g.clear();
-                    const top = this.height / 2;
-                    const left = -375;
-                    const rect = (color, x, y, w, h, radius = 0) => {
-                        UIKit_1.fill(g, color, left + x, top - y - h, w, h, radius);
+                    // Progress tag hanging under the lantern house (mockup: dark red pill, thin gold rim).
+                    const p = this.boxes.progress;
+                    const box = (color, x, y, w, h, radius) => {
+                        UIKit_1.fill(g, color, x - 375, this.height / 2 - y - h, w, h, radius);
                     };
-                    rect(new cc_1.Color(10, 8, 22, 84), 0, 0, 750, this.height);
-                    rect(new cc_1.Color(28, 10, 20, 64), 0, this.height - 410, 750, 410, 0);
-                    rect(new cc_1.Color(28, 7, 13, 150), 34, 40, 682, 310, 34);
-                    rect(new cc_1.Color(94, 22, 29, 238), 40, 44, 670, 304, 32);
-                    rect(gold, 48, 52, 654, 288, 27);
-                    rect(red, 56, 60, 638, 272, 22);
-                    rect(new cc_1.Color(224, 56, 48), 68, 72, 614, 248, 18);
-                    rect(new cc_1.Color(255, 229, 164, 150), 126, 224, 498, 2, 1);
-                    rect(gold, 292, 250, 166, 3, 1);
-                    rect(new cc_1.Color(48, 12, 23, 186), 54, rulesY, 642, home_layout_1.RULES_HEIGHT, 26);
-                    rect(new cc_1.Color(255, 211, 117, 42), 62, rulesY + 8, 626, home_layout_1.RULES_HEIGHT - 16, 22);
-                    g.strokeColor = new cc_1.Color(255, 205, 105, 130);
-                    g.lineWidth = 2;
-                    g.roundRect(left + 56, top - rulesY - home_layout_1.RULES_HEIGHT + 2, 638, home_layout_1.RULES_HEIGHT - 4, 24);
-                    g.stroke();
-                    // Road progress: label plus one lamp per level, lit up to the farthest level reached.
-                    const px = (750 - PROGRESS_WIDTH) / 2;
-                    const py = this.slots.progress;
-                    rect(new cc_1.Color(25, 8, 15, 190), px, py, PROGRESS_WIDTH, home_layout_1.PROGRESS_HEIGHT, 24);
-                    rect(new cc_1.Color(84, 19, 31, 226), px + 3, py + 3, PROGRESS_WIDTH - 6, home_layout_1.PROGRESS_HEIGHT - 6, 21);
-                    const segLeft = px + PROGRESS_WIDTH - 30 - (stack_progress_1.ROAD_FINAL_STAGE * SEGMENT.w + (stack_progress_1.ROAD_FINAL_STAGE - 1) * SEGMENT.gap);
-                    for (let index = 0; index < stack_progress_1.ROAD_FINAL_STAGE; index++) {
-                        const lit = index < this.progressSteps;
-                        const color = lit ? (this.progressDone || index === stack_progress_1.ROAD_FINAL_STAGE - 1 ? new cc_1.Color(255, 214, 92) : gold) : new cc_1.Color(255, 214, 140, 46);
-                        rect(color, segLeft + index * (SEGMENT.w + SEGMENT.gap), py + (home_layout_1.PROGRESS_HEIGHT - SEGMENT.h) / 2, SEGMENT.w, SEGMENT.h, 6);
-                    }
-                    const start = this.startRect;
-                    rect(new cc_1.Color(26, 8, 13, 150), start.x + 5, start.y + 10, start.w, start.h, 28);
-                    rect(new cc_1.Color(111, 45, 18), start.x, start.y, start.w, start.h, 28);
-                    rect(gold, start.x + 4, start.y + 4, start.w - 8, start.h - 8, 24);
-                    rect(new cc_1.Color(255, 193, 72), start.x + 12, start.y + 12, start.w - 24, start.h - 24, 19);
-                    rect(new cc_1.Color(255, 227, 143, 150), start.x + 28, start.y + 18, start.w - 56, 8, 4);
-                    const classic = this.classicRect;
-                    rect(new cc_1.Color(53, 10, 19, 196), classic.x, classic.y, classic.w, classic.h, 22);
-                    g.strokeColor = gold;
-                    g.lineWidth = 2;
-                    g.roundRect(left + classic.x + 2, top - (classic.y + classic.h) + 2, classic.w - 4, classic.h - 4, 20);
-                    g.stroke();
-                    rect(new cc_1.Color(255, 214, 126, 160), classic.x + 92, classic.y + classic.h - 11, classic.w - 184, 2, 1);
-                    const province = this.provinceRect;
-                    rect(new cc_1.Color(25, 8, 15, 180), province.x, province.y, province.w, province.h, 22);
-                    rect(new cc_1.Color(84, 19, 31, 232), province.x + 3, province.y + 3, province.w - 6, province.h - 6, 19);
-                    g.strokeColor = new cc_1.Color(255, 207, 111, 175);
-                    g.lineWidth = 1.5;
-                    g.roundRect(left + province.x + 2, top - (province.y + province.h) + 2, province.w - 4, province.h - 4, 20);
-                    g.stroke();
-                    rect(new cc_1.Color(255, 219, 145, 58), province.x + 22, province.y + 8, province.w - 44, 2, 1);
-                    const rank = this.rankRect;
-                    rect(new cc_1.Color(45, 10, 20, 214), rank.x, rank.y, rank.w, rank.h, 20);
-                    g.strokeColor = new cc_1.Color(255, 207, 111, 196);
-                    g.lineWidth = 2;
-                    g.roundRect(left + rank.x + 2, top - (rank.y + rank.h) + 2, rank.w - 4, rank.h - 4, 18);
-                    g.stroke();
-                    rect(new cc_1.Color(255, 213, 132, 52), rank.x + 44, rank.y + 10, rank.w - 88, 2, 1);
-                    const daily = this.dailyRect;
-                    rect(new cc_1.Color(120, 22, 30, 228), daily.x, daily.y, daily.w, daily.h, 20);
-                    g.strokeColor = new cc_1.Color(255, 207, 111, 220);
-                    g.lineWidth = 2;
-                    g.roundRect(left + daily.x + 2, top - (daily.y + daily.h) + 2, daily.w - 4, daily.h - 4, 18);
-                    g.stroke();
-                    rect(new cc_1.Color(255, 213, 132, 52), daily.x + 44, daily.y + 10, daily.w - 88, 2, 1);
-                    this.drawCarFallback();
+                    box(new cc_1.Color(25, 6, 10, 150), p.x + 2, p.y + 3, p.w, p.h, p.h / 2);
+                    box(new cc_1.Color(214, 160, 86), p.x, p.y, p.w, p.h, p.h / 2);
+                    box(new cc_1.Color(128, 18, 24), p.x + 2, p.y + 2, p.w - 4, p.h - 4, p.h / 2 - 2);
                 }
-                layoutCar() {
-                    const trunkW = home_layout_1.CAR_WIDTH;
-                    const trunkH = home_layout_1.CAR_HEIGHT;
-                    const holeX = Math.round((stack_layout_1.STACK_BODY_HOLE.left + stack_layout_1.STACK_BODY_HOLE.right) / 2 / 1024 * trunkW - trunkW / 2);
-                    const holeY = Math.round((stack_layout_1.STACK_BODY_HOLE.top + stack_layout_1.STACK_BODY_HOLE.bottom) / 2 / 640 * trunkH - trunkH / 2);
-                    const holeW = Math.round((stack_layout_1.STACK_BODY_HOLE.right - stack_layout_1.STACK_BODY_HOLE.left) / 1024 * trunkW);
-                    const holeH = Math.round((stack_layout_1.STACK_BODY_HOLE.bottom - stack_layout_1.STACK_BODY_HOLE.top) / 640 * trunkH);
-                    this.hole = { x: holeX, y: holeY, w: holeW, h: holeH };
-                    this.show(this.bodyImage, 0, 0, home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
-                    if (this.bodyImage.spriteFrame)
-                        this.plate.layout(home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
-                    this.show(this.trunkImage, 0, holeY, holeW, holeH);
-                    const max = Math.min(holeW * .26, holeH * .55, 168);
-                    for (let index = 0; index < this.cargoSprites.length && index < stack_share_1.STACK_CARGO_POSITIONS.length; index++) {
-                        const sprite = this.cargoSprites[index];
-                        const frame = sprite.spriteFrame;
-                        if (!frame)
-                            continue;
-                        const [px, py, angle] = stack_share_1.STACK_CARGO_POSITIONS[index];
-                        const ratio = frame.rect.width / Math.max(1, frame.rect.height);
-                        const width = ratio >= 1 ? max : max * ratio;
-                        const height = ratio >= 1 ? max / ratio : max;
-                        sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
-                        sprite.node.setPosition(holeX + (px - .5) * holeW, holeY + (.45 - py * .64) * holeH);
-                        sprite.node.angle = -angle * 180 / Math.PI;
-                        sprite.enabled = true;
-                    }
-                }
-                drawCarFallback() {
-                    const g = this.carFallback;
+                drawRoadMarks(road) {
+                    const g = this.roadMarks;
                     g.clear();
-                    UIKit_1.fill(g, new cc_1.Color(16, 10, 21, 105), -340, -230, 680, 460, 56);
-                    UIKit_1.fill(g, new cc_1.Color(111, 18, 30), -350, -216, 700, 438, 62);
-                    UIKit_1.fill(g, red, -337, -205, 674, 418, 56);
-                    UIKit_1.fill(g, new cc_1.Color(42, 18, 25), -270, -100, 540, 248, 40);
-                    UIKit_1.fill(g, deepRed, -278, -214, 556, 92, 24);
-                    UIKit_1.fill(g, new cc_1.Color(255, 206, 112), -102, -186, 204, 44, 12);
-                    UIKit_1.fill(g, new cc_1.Color(255, 139, 58, 210), -300, -126, 74, 44, 14);
-                    UIKit_1.fill(g, new cc_1.Color(255, 139, 58, 210), 226, -126, 74, 44, 14);
-                    UIKit_1.fill(g, new cc_1.Color(20, 15, 20), -295, -222, 590, 28, 12);
+                    const top = this.height / 2;
+                    // Painted dots are the unlit state; cleared levels get a bright glowing bead on top.
+                    for (let index = 0; index < home_layout_1.ROAD_MILESTONES.length && index < this.progressSteps; index++) {
+                        const point = home_layout_1.ROAD_MILESTONES[index];
+                        const x = road.x + point.x - 375;
+                        const y = top - (road.y + point.y);
+                        g.fillColor = new cc_1.Color(255, 190, 70, 85);
+                        g.circle(x, y, 15);
+                        g.fill();
+                        g.fillColor = this.progressDone ? brightGold : new cc_1.Color(255, 196, 64);
+                        g.circle(x, y, 9);
+                        g.fill();
+                        g.strokeColor = new cc_1.Color(255, 236, 170);
+                        g.lineWidth = 2;
+                        g.circle(x, y, 9);
+                        g.stroke();
+                        g.fillColor = new cc_1.Color(255, 252, 230, 220);
+                        g.circle(x - 3, y + 3, 3);
+                        g.fill();
+                    }
+                }
+                layoutCarMarker(road) {
+                    if (this.progressSteps === 0) {
+                        this.placeSprite(this.carMarkerImage, Object.assign(Object.assign({}, home_layout_1.MARKER_ART), { y: home_layout_1.MARKER_ART.y + this.slots.road }));
+                        return;
+                    }
+                    const point = home_layout_1.ROAD_MILESTONES[Math.min(home_layout_1.ROAD_MILESTONES.length - 1, this.progressSteps - 1)];
+                    const cx = road.x + point.x;
+                    const cy = road.y + point.y - 22;
+                    this.placeSprite(this.carMarkerImage, { x: cx - home_layout_1.MARKER_ART.w / 2, y: cy - home_layout_1.MARKER_ART.h / 2, w: home_layout_1.MARKER_ART.w, h: home_layout_1.MARKER_ART.h });
+                }
+                textLabel(name, text, size, color, w, h) {
+                    const result = UIKit_1.label(this.node, name, text, size, 0, 0);
+                    result.color = color;
+                    result.node.getComponent(cc_1.UITransform).setContentSize(w, h);
+                    result.overflow = cc_1.Label.Overflow.SHRINK;
+                    return result;
                 }
                 touch(event) {
                     var _a, _b;
                     const point = this.point(event);
+                    if (this.rulesNode)
+                        return;
                     if (this.provincePicker) {
                         this.provincePicker.press(point.x, point.y);
                         return;
@@ -5642,24 +5615,32 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                         this.rankPage.press(point.x, point.y);
                         return;
                     }
-                    if (contains(this.provinceRect, point.x, point.y)) {
+                    if (contains(this.boxes.help, point.x, point.y)) {
+                        this.openRules();
+                        return;
+                    }
+                    if (contains(this.boxes.seal, point.x, point.y)) {
                         this.openProvincePicker();
                         return;
                     }
-                    if (contains(this.rankRect, point.x, point.y)) {
+                    if (contains(this.boxes.rank, point.x, point.y)) {
                         this.openRankPage();
                         return;
                     }
-                    if (contains(this.dailyRect, point.x, point.y)) {
+                    if (contains(this.boxes.daily, point.x, point.y)) {
                         (_b = (_a = this.actions).onDaily) === null || _b === void 0 ? void 0 : _b.call(_a);
                         return;
                     }
-                    if (contains(this.startRect, point.x, point.y)) {
-                        this.actions.onStart();
+                    if (contains(this.boxes.classic, point.x, point.y)) {
+                        this.actions.onClassic();
                         return;
                     }
-                    if (contains(this.classicRect, point.x, point.y)) {
-                        this.actions.onClassic();
+                    if (this.restartLabel.node.active && contains(this.boxes.restart, point.x, point.y)) {
+                        this.actions.onStart(1);
+                        return;
+                    }
+                    if (contains(this.boxes.start, point.x, point.y)) {
+                        this.actions.onStart(this.progressSteps > 0 ? this.progressSteps : 1);
                     }
                 }
                 point(event) {
@@ -5671,12 +5652,11 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                 debugButtons() {
                     const screenWidth = this.screenWidth();
                     const screenHeight = this.screenHeight();
-                    return ['start', 'classic', 'province', 'rank', 'daily'].map(key => {
-                        const rect = key === 'start' ? this.startRect
-                            : key === 'classic' ? this.classicRect
-                                : key === 'province' ? this.provinceRect
-                                    : key === 'daily' ? this.dailyRect
-                                        : this.rankRect;
+                    const keys = this.restartLabel.node.active
+                        ? ['start', 'classic', 'province', 'rank', 'daily', 'restart', 'help']
+                        : ['start', 'classic', 'province', 'rank', 'daily', 'help'];
+                    return keys.map(key => {
+                        const rect = this.boxes[key === 'province' ? 'seal' : key];
                         return {
                             key,
                             screenX: (rect.x + rect.w / 2) / 750 * screenWidth,
@@ -5689,21 +5669,6 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                             screenH: rect.h / this.height * screenHeight,
                         };
                     });
-                }
-                debugBoxes() {
-                    const s = this.slots;
-                    const carW = home_layout_1.CAR_WIDTH * s.carScale;
-                    return {
-                        province: this.provinceRect,
-                        car: { x: (750 - carW) / 2, y: s.carTop, w: carW, h: home_layout_1.CAR_HEIGHT * s.carScale },
-                        tag: { x: 60, y: s.tag, w: 630, h: home_layout_1.TAG_HEIGHT },
-                        progress: { x: (750 - PROGRESS_WIDTH) / 2, y: s.progress, w: PROGRESS_WIDTH, h: home_layout_1.PROGRESS_HEIGHT },
-                        rules: { x: 54, y: s.rules, w: 642, h: home_layout_1.RULES_HEIGHT },
-                        rank: this.rankRect,
-                        daily: this.dailyRect,
-                        start: this.startRect,
-                        classic: this.classicRect,
-                    };
                 }
                 openProvincePicker() {
                     if (this.provincePicker)
@@ -5724,15 +5689,62 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                         var _a;
                         (_a = this.rankPage) === null || _a === void 0 ? void 0 : _a.node.destroy();
                         this.rankPage = undefined;
-                    }, this.actions.onStart);
+                    }, () => this.actions.onStart());
+                }
+                openRules() {
+                    if (this.rulesNode)
+                        return;
+                    const node = UIKit_1.uiNode('HomeRules', this.node, 750, this.height);
+                    const g = node.addComponent(cc_1.Graphics);
+                    UIKit_1.fill(g, new cc_1.Color(5, 6, 16, 220), -375, -this.height / 2, 750, this.height);
+                    const panelW = 616;
+                    const panelH = 386;
+                    const panelX = (750 - panelW) / 2;
+                    const panelY = Math.round((this.height - panelH) / 2);
+                    const box = (color, x, y, w, h, radius = 0) => {
+                        UIKit_1.fill(g, color, x - 375, this.height / 2 - y - h, w, h, radius);
+                    };
+                    box(new cc_1.Color(12, 6, 12, 170), panelX + 7, panelY + 10, panelW, panelH, 32);
+                    box(gold, panelX, panelY, panelW, panelH, 32);
+                    box(new cc_1.Color(63, 12, 21), panelX + 6, panelY + 6, panelW - 12, panelH - 12, 27);
+                    box(new cc_1.Color(128, 23, 32), panelX + 14, panelY + 14, panelW - 28, panelH - 28, 22);
+                    box(new cc_1.Color(255, 223, 146, 56), panelX + 32, panelY + 66, panelW - 64, 2, 1);
+                    const title = UIKit_1.label(node, 'RulesTitle', '玩法说明', 36, 0, this.height / 2 - (panelY + 44));
+                    title.color = brightGold;
+                    title.isBold = true;
+                    title.enableOutline = true;
+                    title.outlineColor = deepRed;
+                    title.outlineWidth = 2;
+                    const body = UIKit_1.label(node, 'RulesBody', '点没被压住的年货，凑齐 3 件同款就打包装车；\n后备箱塞满就失败', 24, 0, this.height / 2 - (panelY + 196));
+                    body.color = cream;
+                    body.lineHeight = 42;
+                    body.enableWrapText = true;
+                    body.overflow = cc_1.Label.Overflow.RESIZE_HEIGHT;
+                    body.node.getComponent(cc_1.UITransform).setContentSize(566, 126);
+                    const closeY = panelY + panelH - 82;
+                    box(new cc_1.Color(255, 223, 146, 28), panelX + 194, closeY, 228, 58, 18);
+                    g.strokeColor = gold;
+                    g.lineWidth = 2;
+                    g.roundRect(panelX + 195 - 375, this.height / 2 - (closeY + 57), 226, 56, 17);
+                    g.stroke();
+                    const close = UIKit_1.label(node, 'RulesClose', '知道了', 24, 0, this.height / 2 - (closeY + 29));
+                    close.color = paleGold;
+                    close.isBold = true;
+                    node.on(cc_1.Node.EventType.TOUCH_END, () => {
+                        if (this.rulesNode !== node)
+                            return;
+                        node.destroy();
+                        this.rulesNode = undefined;
+                    });
+                    this.rulesNode = node;
                 }
                 refreshProvinceLabel() {
-                    var _a, _b;
+                    var _a;
                     const province = this.rankApi.province;
-                    this.provinceLabel.string = province ? `你的省份 · ${province}` : '选择你的省份';
-                    (_a = this.plate) === null || _a === void 0 ? void 0 : _a.refresh();
-                    if ((_b = this.bodyImage) === null || _b === void 0 ? void 0 : _b.spriteFrame)
-                        this.plate.layout(home_layout_1.CAR_WIDTH, home_layout_1.CAR_HEIGHT);
+                    this.provinceLabel.string = province || '选省份';
+                    this.plate.refresh();
+                    if ((_a = this.carImage) === null || _a === void 0 ? void 0 : _a.spriteFrame)
+                        this.plate.layout(home_layout_1.ART_RECTS.car.w, home_layout_1.ART_RECTS.car.h);
                 }
                 screenWidth() {
                     return typeof window === 'undefined' ? 750 : window.innerWidth;
@@ -5751,6 +5763,14 @@ System.register("chunks:///_virtual/HomePage.ts", ["cc","./brand.ts","./stack-la
                     sprite.node.getComponent(cc_1.UITransform).setContentSize(width, height);
                     sprite.node.setPosition(x, y);
                     sprite.enabled = true;
+                }
+                placeSprite(sprite, rect) {
+                    sprite.node.getComponent(cc_1.UITransform).setContentSize(rect.w, rect.h);
+                    sprite.node.setPosition(rect.x + rect.w / 2 - 375, this.height / 2 - (rect.y + rect.h / 2));
+                    sprite.enabled = !!sprite.spriteFrame;
+                }
+                placeCenter(node, centerX, centerY) {
+                    node.setPosition(centerX - 375, this.height / 2 - centerY);
                 }
             };
             exports_1("HomePage", HomePage);
